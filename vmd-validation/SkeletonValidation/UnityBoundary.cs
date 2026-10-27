@@ -51,8 +51,10 @@ public sealed class Transform : Object
     public T GetComponent<T>() where T:class => gameObject.GetComponent<T>();
     public T[] GetComponentsInChildren<T>(bool inactive)=>gameObject.GetComponentsInChildren<T>(inactive);
 }
-public sealed class Animator
+public enum AnimatorCullingMode { AlwaysAnimate, CullUpdateTransforms, CullCompletely }
+public sealed class Animator : Object
 {
+    public AnimatorCullingMode cullingMode=AnimatorCullingMode.CullUpdateTransforms;
     public static int StringToHash(string name)
     {
         uint crc=0xffffffff; foreach(byte b in System.Text.Encoding.UTF8.GetBytes(name)) { crc^=b; for(int i=0;i<8;i++) crc=(crc>>1)^((crc&1)!=0?0xedb88320u:0); } return unchecked((int)~crc);

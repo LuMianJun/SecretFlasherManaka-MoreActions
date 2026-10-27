@@ -17,7 +17,7 @@ using Seleka2.ModSettings;
 
 namespace Seleka2.Actions;
 
-[BepInPlugin(Guid, "Seleka2 More Actions", "0.5.0")]
+[BepInPlugin(Guid, "Seleka2 More Actions", "0.5.1")]
 public sealed class Plugin : BasePlugin
 {
     public const string Guid = "local.seleka2.moreactions";
@@ -43,7 +43,7 @@ public sealed class Plugin : BasePlugin
         ActionDriver.Current = AddComponent<ActionDriver>();
         new Harmony(Guid).PatchAll(typeof(Plugin).Assembly);
         int count = ActionRegistry.LoadPacks(Path.GetFullPath(Path.Combine(Path.GetDirectoryName(typeof(Plugin).Assembly.Location), packs.Value)), Guid);
-        Log.LogInfo("MORE_ACTIONS_READY version=0.5.0 packs=" + count + " ring=true nativeRestrictions=true runtimeSources=true settings=true");
+        Log.LogInfo("MORE_ACTIONS_READY version=0.5.1 packs=" + count + " ring=true nativeRestrictions=true runtimeSources=true settings=true");
     }
 }
 
@@ -106,6 +106,7 @@ public sealed class ActionDriver : MonoBehaviour
     internal void BeforeNativeUpdate(PlayerController player)
     {
         if (!Playing || Owner != player) return;
+        (pose as IActionBodyPose)?.RestoreNativeBody();
         (pose as IActionFacePose)?.RestoreNativeFace();
         var ui = InGameUiManager.Instance;
         var reason = Reason(Definition, player, ui != null && ui.IsOpenSomeUi);
@@ -239,6 +240,16 @@ public sealed class ActionDriver : MonoBehaviour
     }
 
     internal bool DeferFaceCamera(FaceCameraController camera) => Playing && Plugin.FollowCamera.Value && Definition.FollowFaceCamera && faceCamera.ShouldDefer(camera);
+    internal IActionBodyPose BeginNativeBody(PlayerController player)
+    {
+        if (!Playing || Owner != player || AudioSettings.dspTime < clock.MotionStartDsp) return null;
+        var body = pose as IActionBodyPose;
+        body?.BeginNativeBody();
+        return body;
+    }
+    internal IDisposable PreserveNativeCorrection(ActionBoneCorrection correction)
+        => Playing ? (pose as IActionBodyPose)?.PreserveNativeCorrection(correction) : null;
+    internal bool SuppressKneeOffset => Playing && ((pose as IActionBodyPose)?.SuppressKneeOffset ?? false);
     bool IsCurrentEventPlayback(int revision, LoadedAction action)
     {
         if (revision != eventRevision || running != action || Owner == null || Owner != PlayerController.Instance || !Owner.gameObject.activeInHierarchy || Owner.Pca == null) return false;

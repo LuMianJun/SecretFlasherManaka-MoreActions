@@ -1,6 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup><OutputType>Exe</OutputType><TargetFramework>net10.0</TargetFramework><ImplicitUsings>enable</ImplicitUsings></PropertyGroup>
   <ItemGroup>
+    <Compile Include="../../more-actions/Plugin/ActionBodyPoseLease.cs" Link="ActionBodyPoseLease.cs" />
     <Compile Include="../../more-actions/Plugin/ActionFaceMorphLayer.cs" Link="ActionFaceMorphLayer.cs" />
     <Compile Include="../Plugin/GameMmdSkeleton.cs" Link="GameMmdSkeleton.cs" /><Compile Include="../Plugin/MmdTargetSnapshot.cs" Link="MmdTargetSnapshot.cs" />
     <Compile Include="../Plugin/MmdPackPreparation.cs" Link="MmdPackPreparation.cs" />

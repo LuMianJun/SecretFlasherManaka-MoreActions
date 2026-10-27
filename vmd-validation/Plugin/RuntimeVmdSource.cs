@@ -47,6 +47,7 @@ internal sealed class RuntimeVmdRig
         public Quaternion neutral;
     }
     internal readonly List<Binding> bindings = new();
+    internal readonly List<(string path, Transform live)> toes = new();
     internal readonly List<(SkinnedMeshRenderer renderer, int index, string source)> morphs = new();
     internal GameObject target;
     internal float[] Shape;
@@ -68,13 +69,14 @@ internal sealed class RuntimeVmdRig
     {
         target = snapshot.Target; liveRoot = snapshot.Root; hip = snapshot.Bones["Armature/Hips"];
         foreach (var b in bindings) b.live = snapshot.Bones[b.path];
+        toes.Clear(); toes.AddRange(snapshot.Bones.Where(p=>p.Key.Contains("/Toe_", StringComparison.Ordinal)).Select(p=>(p.Key,p.Value)));
         meshes.Clear(); meshes.AddRange(snapshot.Meshes); morphs.Clear(); morphs.AddRange(snapshot.Morphs);
         Shape = snapshot.Shape; ShapePaths = snapshot.ShapePaths; DetachedOnReturn = false;
     }
     internal void Detach()
     {
         target = null; liveRoot = null; hip = null; meshes.Clear(); morphs.Clear();
-        foreach (var b in bindings) b.live = null;
+        foreach (var b in bindings) b.live = null; toes.Clear();
     }
     internal IEnumerable<int> BuildSteps(MmdTargetSnapshot snapshot, MmdSkeleton template)
     {
@@ -166,15 +168,14 @@ internal sealed class RuntimeVmdRig
 
 // A lease owns only playback state. The sampling rig is retained between
 // actions; independent simultaneous consumers never share mutable solvers.
-public sealed class RuntimeVmdPose : IActionPose, IActionRootMotionPose, IActionFacePose
+public sealed class RuntimeVmdPose : IActionPose, IActionRootMotionPose, IActionFacePose, IActionBodyPose
 {
     readonly RuntimeVmdRig rig;
     readonly ActionDefinition definition;
     readonly MmdMotion motion;
-    readonly Quaternion[] saved;
+    readonly ActionBodyPoseLease body;
     readonly bool[] write;
     readonly ActionFaceMorphLayer face;
-    readonly Vector3 savedHip;
     readonly float originHeight;
     readonly Vector3 originHip;
     readonly Quaternion rootBasis;
@@ -198,15 +199,18 @@ public sealed class RuntimeVmdPose : IActionPose, IActionRootMotionPose, IAction
         definition = action; motion = keys;
         try
         {
-            saved = new Quaternion[rig.bindings.Count]; write = new bool[rig.bindings.Count];
+            write = new bool[rig.bindings.Count];
             int count = 0;
-            for (int i = 0; i < saved.Length; i++)
+            for (int i = 0; i < write.Length; i++)
             {
-                var b = rig.bindings[i]; saved[i] = b.live.localRotation; write[i] = ActionPolicy.WritesBone(action, b.path);
+                var b = rig.bindings[i]; write[i] = ActionPolicy.WritesBone(action, b.path);
                 if (write[i]) count++;
                 if (b.path == "Armature/Hips") writeHip = write[i] && action.WriteHipTranslation;
             }
-            BoneCount = count; savedHip = rig.hip.localPosition;
+            BoneCount = count;
+            var owned = rig.bindings.Where((b,i)=>write[i]).Select(b=>b.live)
+                .Concat(rig.toes.Where(t=>ActionPolicy.WritesBone(action,t.path.Substring(0,t.path.LastIndexOf('/')))).Select(t=>t.live));
+            body = new ActionBodyPoseLease(target, owned);
             if (action.WriteFaceMorphs) face = new ActionFaceMorphLayer(target, action);
             rootBasis = rig.liveRoot.rotation;
             rig.source.Evaluate(motion, 0); originHip = rig.source.byName["下半身"].node.position; originHeight = originHip.y;
@@ -217,13 +221,14 @@ public sealed class RuntimeVmdPose : IActionPose, IActionRootMotionPose, IAction
                 rig.source.Evaluate(motion, 0);
             }
         }
-        catch { MmdRigCache.Return(rig); throw; }
+        catch { body?.Dispose(); MmdRigCache.Return(rig); throw; }
     }
 
     public bool Apply(float seconds)
     {
         if (disposed || !rig.IsUsable) return false;
         seconds = Mathf.Clamp(seconds, 0, motion.lastFrame / 30f); rig.source.Evaluate(motion, seconds * 30);
+        body.ApplyBaseline();
         for (int i = 0; i < rig.bindings.Count; i++)
         {
             var b = rig.bindings[i];
@@ -237,7 +242,7 @@ public sealed class RuntimeVmdPose : IActionPose, IActionRootMotionPose, IAction
             // locomotion consumes X/Z once; only Y remains on the live hips.
             RootDisplacement = HorizontalWorld(rig.source.byName["下半身"].node.position - originHip);
             float vertical = (rig.source.byName["下半身"].node.position.y - originHeight) * rig.scale;
-            rig.hip.localPosition = savedHip + rig.hip.parent.InverseTransformVector(rig.liveRoot.rotation * Vector3.up * vertical);
+            rig.hip.localPosition = rig.hip.localPosition + rig.hip.parent.InverseTransformVector(rig.liveRoot.rotation * Vector3.up * vertical);
         }
         face?.Begin();
         if (face != null) foreach (var m in rig.morphs)
@@ -246,15 +251,19 @@ public sealed class RuntimeVmdPose : IActionPose, IActionRootMotionPose, IAction
     }
 
     public void RestoreNativeFace() => face?.RestoreNativeFace();
+    public void RestoreNativeBody() => body.RestoreNativeBody();
+    public void BeginNativeBody() => body.BeginNativeBody();
+    public void EndNativeBody(bool succeeded) => body.EndNativeBody(succeeded);
+    public IDisposable PreserveNativeCorrection(ActionBoneCorrection correction) => body.PreserveNativeCorrection(correction);
+    public bool SuppressKneeOffset => body.SuppressKneeOffset;
 
     public void Dispose()
     {
         if (disposed) return; disposed = true;
         try
         {
-            for (int i = 0; i < saved.Length; i++) if (write[i] && rig.bindings[i].live != null) rig.bindings[i].live.localRotation = saved[i];
-            if (writeHip && rig.hip != null) rig.hip.localPosition = savedHip;
-            face?.RestoreNativeFace();
+            try { body?.Dispose(); }
+            finally { face?.RestoreNativeFace(); }
         }
         finally { MmdRigCache.Return(rig); }
     }

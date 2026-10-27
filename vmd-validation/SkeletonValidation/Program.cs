@@ -297,6 +297,74 @@ Check(full.renderer.GetBlendShapeWeight(60)==0&&full.renderer.GetBlendShapeWeigh
 layer.RestoreNativeFace();Check(full.renderer.GetBlendShapeWeight(60)==37&&full.renderer.GetBlendShapeWeight(290)==88,"Native-only suppression is reversible");
 ActionFaceSettings.KeepGameExpressions=true;MmdRigCache.Clear();
 
+
+// Reproduce the native additive corrections without relying on Animator to
+// rewrite unkeyed translations. Length/spacing must stay stable across frames.
+var ownedFixture=Avatar();var nativeAnimator=ownedFixture.avatar.AddComponent<Animator>();
+var ownedKnee=ownedFixture.bones[hips+"/UpperLeg_L/LowerLeg_L"];
+var ownedFoot=ownedFixture.bones[hips+"/UpperLeg_L/LowerLeg_L/Foot_L"];
+var ownedHead=ownedFixture.bones[chest+"/Neck/Head"];
+var ownedShoulder=ownedFixture.bones[chest+"/Shoulder_L"];
+var nativeKnee=ownedKnee.localPosition;var nativeFoot=ownedFoot.localPosition;var nativeShoulder=ownedShoulder.localPosition;
+var nativeScale=new Vector3(1.2f,1.3f,.9f);ownedKnee.localScale=nativeScale;
+var accessory=new GameObject("HairPhysics");accessory.transform.SetParent(ownedHead,false);accessory.transform.localPosition=new(.02f,.03f,.04f);
+var accessoryPosition=accessory.transform.localPosition;
+using(var pose=new RuntimeVmdPose(ownedFixture.avatar,new ActionDefinition(),Motion(),null,false))
+{
+    Check(nativeAnimator.cullingMode==AnimatorCullingMode.AlwaysAnimate,"Body lease maintains fresh native evaluation while MMD camera leaves native bounds");
+    for(int frame=0;frame<120;frame++)
+    {
+        pose.RestoreNativeBody();pose.BeginNativeBody();
+        using(pose.PreserveNativeCorrection(ActionBoneCorrection.Knee))ownedKnee.localPosition+=new Vector3(.05f,.02f,0);
+        Check(Vector3.Distance(ownedKnee.localPosition,nativeKnee)<1e-5,"Native knee slide writes are isolated");
+        using(pose.PreserveNativeCorrection(ActionBoneCorrection.LookAt))ownedHead.localRotation=Quaternion.AngleAxis(70,Vector3.up);
+        Check(pose.SuppressKneeOffset,"Owned knee does not contribute native knee-height correction");
+        // Native customization still applies once: no fake deformation reset to
+        // default-sized bind positions and no cumulative multiply/add drift.
+        ownedKnee.localPosition*=1.25f;ownedFoot.localPosition*=.85f;
+        ownedShoulder.localPosition+=new Vector3(.01f,0,0);
+        pose.EndNativeBody(true);
+        Check(!pose.SuppressKneeOffset&&pose.PreserveNativeCorrection(ActionBoneCorrection.LookAt)==null,"NPC/out-of-pass updates retain normal corrections");
+        pose.Apply(.5f);pose.Apply(.5f);
+        Check(Vector3.Distance(ownedKnee.localPosition,nativeKnee*1.25f)<1e-5&&Vector3.Distance(ownedFoot.localPosition,nativeFoot*.85f)<1e-5,"Repeated native size correction and MMD sampling never stretch or shrink bone segments");
+        Check(Vector3.Distance(ownedShoulder.localPosition,nativeShoulder+new Vector3(.01f,0,0))<1e-5,"Shoulder spacing stays stable across native and MMD ownership");
+        Check(Vector3.Distance(ownedKnee.localScale,nativeScale)<1e-5,"User body scale is retained");
+        Check(Vector3.Distance(accessory.transform.localPosition,accessoryPosition)<1e-5,"Accessory physics transform is outside body ownership");
+        Check(Quaternion.Angle(ownedHead.rotation,bind[chest+"/Neck/Head"].rotation)<.1,"MMD head pose has no native look-at contribution");
+    }
+}
+Check(nativeAnimator.cullingMode==AnimatorCullingMode.CullUpdateTransforms,"Stopping restores the original animator culling mode");
+Check(Vector3.Distance(ownedKnee.localPosition,nativeKnee*1.25f)<1e-5,"Stopping after output returns latest corrected native body pose");
+// A stop during the next native Update must return the raw basis, so the
+// pending original late-pass customization is not applied twice.
+using(var pose=new RuntimeVmdPose(ownedFixture.avatar,new ActionDefinition(),Motion(),null,false))
+{
+    pose.BeginNativeBody();ownedKnee.localPosition*=1.1f;pose.EndNativeBody(true);pose.Apply(0);pose.RestoreNativeBody();
+}
+Check(Vector3.Distance(ownedKnee.localPosition,nativeKnee*1.25f)<1e-5,"Cancel before native evaluation leaves uncorrected basis for the pending native pass");
+// Toe correction remains bookkeeping-only for a full body owner; unowned head
+// stays with the native game for an explicitly configured lower-body action.
+var subset=Avatar();var subsetHead=subset.bones[chest+"/Neck/Head"];var subsetToe=subset.bones[hips+"/UpperLeg_L/LowerLeg_L/Foot_L/Toe_L"];
+var toePosition=subsetToe.localPosition;var toeRotation=subsetToe.localRotation;
+using(var pose=new RuntimeVmdPose(subset.avatar,new ActionDefinition{BodyMask=ActionBodyMask.LowerBody},Motion(),null,false))
+{
+    pose.BeginNativeBody();
+    Check(pose.PreserveNativeCorrection(ActionBoneCorrection.LookAt)==null,"Unowned head/native look-at is not suppressed");
+    subsetHead.localRotation=Quaternion.AngleAxis(42,Vector3.up);
+    using(pose.PreserveNativeCorrection(ActionBoneCorrection.Toe))
+    {subsetToe.localPosition+=Vector3.up*.03f;subsetToe.localRotation=Quaternion.AngleAxis(80,Vector3.up);}
+    Check(Vector3.Distance(subsetToe.localPosition,toePosition)<1e-5&&Quaternion.Angle(subsetToe.localRotation,toeRotation)<.1,"Owned toe correction is rolled back without disabling shoe bookkeeping");
+    pose.EndNativeBody(true);pose.Apply(.5f);
+    Check(Quaternion.Angle(subsetHead.localRotation,Quaternion.AngleAxis(42,Vector3.up))<.1,"Partial pose leaves unrelated native head pose intact");
+}
+// Failed native evaluation closes its scope without publishing partial offsets.
+using(var pose=new RuntimeVmdPose(subset.avatar,new ActionDefinition(),Motion(),null,false))
+{
+    var before=subsetToe.localPosition;pose.BeginNativeBody();subsetToe.localPosition+=Vector3.up;pose.EndNativeBody(false);
+    Check(Vector3.Distance(subsetToe.localPosition,before)<1e-5&&!pose.SuppressKneeOffset,"Native failure restores pre-correction transforms and closes scope");
+}
+MmdRigCache.Clear();
+
 Console.WriteLine($"PASS {checks} assertions: production topology/parser/retargeter/cache/async pump; synthetic scene math boundary, not rendered game verification");
 
 namespace Seleka2.Actions

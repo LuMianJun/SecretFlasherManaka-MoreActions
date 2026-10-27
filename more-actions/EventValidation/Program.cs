@@ -99,6 +99,25 @@ void Start(ActionDefinition def, AnimationClip clip = null, float audioLength=0,
 }
 try
 {
+    var bodyPose=new BodyPose();Start(Definition(),playbackPose:bodyPose);
+    AudioSettings.dspTime=0;Check(driver.BeginNativeBody(player)==null,"DSP lead does not prematurely own native body correction");
+    AudioSettings.dspTime=.2;
+    object Hook(Type type,string method,object[] parameters)=>type.GetMethod(method,System.Reflection.BindingFlags.Static|System.Reflection.BindingFlags.NonPublic)!.Invoke(null,parameters);
+    object[] lateArgs={player,null};Hook(typeof(NativeBodyPassPatch),"Prefix",lateArgs);
+    Check(ReferenceEquals(lateArgs[1],bodyPose)&&bodyPose.InNative,"Actual player late-pass hook opens provider body ownership");
+    object[] kneeArgs={null};Hook(typeof(NativeKneePosePatch),"Prefix",kneeArgs);Hook(typeof(NativeKneePosePatch),"Finalizer",new object[]{null,kneeArgs[0]});
+    object[] toeArgs={null};Hook(typeof(NativeToePosePatch),"Prefix",toeArgs);Hook(typeof(NativeToePosePatch),"Finalizer",new object[]{null,toeArgs[0]});
+    object[] headArgs={null};Hook(typeof(NativeHeadPosePatch),"Prefix",headArgs);Hook(typeof(NativeHeadPosePatch),"Finalizer",new object[]{null,headArgs[0]});
+    Check(bodyPose.RestoredCorrections==3,"Actual native knee/toe/look hooks close all temporary transform scopes");
+    object[] offsetArgs={.2f};bool nativeOffset=(bool)Hook(typeof(NativeKneeOffsetPatch),"Prefix",offsetArgs);
+    Check(!nativeOffset&&(float)offsetArgs[0]==0,"Actual knee offset hook omits owned knee contribution only in the player pass");
+    Hook(typeof(NativeBodyPassPatch),"Finalizer",new object[]{null,lateArgs[1]});
+    offsetArgs=new object[]{.2f};Check((bool)Hook(typeof(NativeKneeOffsetPatch),"Prefix",offsetArgs)&&!bodyPose.InNative,"Late-pass finalizer closes ownership before NPC dispatch");
+    driver.BeforeNativeUpdate(player);Check(bodyPose.RestoreUpdates>0,"Driver withdraws prior body output before native animation");
+    Hook(typeof(NativeBodyPassPatch),"Prefix",lateArgs);var nativeFailure=new Exception("native boundary");
+    Check(ReferenceEquals(Hook(typeof(NativeBodyPassPatch),"Finalizer",new object[]{nativeFailure,lateArgs[1]}),nativeFailure)&&!bodyPose.InNative&&!bodyPose.LastSuccess,"Native failure is propagated unchanged while ending body scope");
+    driver.Stop("cancel");Check(bodyPose.Disposed,"Cancellation disposes body pose ownership");
+
     var walk=new RootPose();Start(Definition(),playbackPose:walk);Frame(.6);
     Check(walk.FaceRestores==1,"Driver restores transient face overlay before native update");
     Check(driver.Playing&&Math.Abs(player.transform.position.x-.5f)<1e-5,"Root motion moves the actual player without canceling itself");
@@ -208,4 +227,16 @@ sealed class RootPose : IActionPose,IActionRootMotionPose,IActionFacePose
     public int BoneCount=>1;public bool HasRootMotion=>true;public Vector3 RootDisplacement{get;private set;}
     public Vector3 LoopRootDisplacement=>new(1,0,0);
     public bool Apply(float t){RootDisplacement=Sample(t);return true;}public void Dispose(){Disposed=true;}
+}
+
+sealed class BodyPose : IActionPose,IActionBodyPose
+{
+    public bool InNative,Disposed,LastSuccess;public int RestoreUpdates,RestoredCorrections;
+    public int BoneCount=>49;public bool Apply(float time)=>true;
+    public void RestoreNativeBody()=>RestoreUpdates++;
+    public void BeginNativeBody()=>InNative=true;
+    public void EndNativeBody(bool success){LastSuccess=success;InNative=false;}
+    public IDisposable PreserveNativeCorrection(ActionBoneCorrection correction)=>InNative?new Lease(()=>RestoredCorrections++):null;
+    public bool SuppressKneeOffset=>InNative;
+    public void Dispose()=>Disposed=true;
 }

@@ -119,6 +119,9 @@ namespace ExposureUnnoticed2.Object3D.Player.ScriptableObject
 }
 namespace ExposureUnnoticed2.Object3D.Player.Scripts
 {
+    public sealed class PlayerKneeAdjuster {}
+    public sealed class PlayerToeHeelController {}
+    public sealed class LookAtController {}
     public sealed class PlayerController
     {
         public static PlayerController Instance; public UnityEngine.GameObject gameObject = new(); public UnityEngine.Transform transform = new(); public PlayerClassAccessor Pca = new();

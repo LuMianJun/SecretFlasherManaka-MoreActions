@@ -17,6 +17,18 @@ public interface IActionFacePose
     void RestoreNativeFace();
 }
 
+public enum ActionBoneCorrection { Knee, Toe, LookAt }
+
+// Optional provider contract for owning a body pose across native updates.
+public interface IActionBodyPose
+{
+    void RestoreNativeBody();
+    void BeginNativeBody();
+    void EndNativeBody(bool succeeded);
+    IDisposable PreserveNativeCorrection(ActionBoneCorrection correction);
+    bool SuppressKneeOffset { get; }
+}
+
 // Sampled by the provider after Apply. Both vectors use world axes relative to
 // the immutable playback heading, and contain horizontal displacement only.
 public interface IActionRootMotionPose
