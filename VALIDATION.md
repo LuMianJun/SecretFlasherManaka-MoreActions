@@ -10,6 +10,7 @@ dotnet run --project more-actions/EventValidation -c Release
 dotnet run --project more-actions/RingValidation -c Release
 dotnet run --project more-actions/RuntimeValidation -c Release
 dotnet run --project vmd-validation/ImportValidation -c Release
+dotnet run --project vmd-validation/InterpolationValidation -c Release
 dotnet run --project vmd-validation/SkeletonValidation -c Release
 dotnet run --project vmd-validation/CameraValidation -c Release
 dotnet run --project npc-spectators/Validation -c Release

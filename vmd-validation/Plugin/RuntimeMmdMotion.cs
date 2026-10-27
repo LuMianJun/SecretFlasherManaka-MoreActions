@@ -88,7 +88,10 @@ public sealed class MmdMotion
     public static float Bezier(byte[] controls,int channel,float x)
     {
         if(x<=0||x>=1)return Mathf.Clamp01(x);
-        var x1=controls[channel]/127f;var y1=controls[channel+4]/127f;var x2=controls[channel+8]/127f;var y2=controls[channel+12]/127f;
+        // Match UnityVMDReader's four 16-byte channel blocks. Redundant values
+        // in the first block can differ from the later Z/rotation blocks.
+        int offset=channel*16;
+        var x1=controls[offset]/127f;var y1=controls[offset+4]/127f;var x2=controls[offset+8]/127f;var y2=controls[offset+12]/127f;
         float lo=0,hi=1,t=0.5f;
         for(int i=0;i<20;i++){t=(lo+hi)*0.5f;var v=3*(1-t)*(1-t)*t*x1+3*(1-t)*t*t*x2+t*t*t;if(v<x)lo=t;else hi=t;}
         return 3*(1-t)*(1-t)*t*y1+3*(1-t)*t*t*y2+t*t*t;

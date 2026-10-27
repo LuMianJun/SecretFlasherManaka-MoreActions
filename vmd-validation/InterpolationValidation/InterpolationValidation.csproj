@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <UseAppHost>false</UseAppHost>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="../Plugin/RuntimeMmdMotion.cs" Link="RuntimeMmdMotion.cs" />
+    <Compile Include="../SkeletonValidation/UnityBoundary.cs" Link="UnityBoundary.cs" />
+  </ItemGroup>
+</Project>

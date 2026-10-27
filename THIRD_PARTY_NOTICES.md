@@ -5,6 +5,7 @@
 - Project: https://github.com/hobosore/UnityVMDPlayer
 - Reviewed revision: `2cee8abd56c68ad3e88bcf4086e33185aa5ca4e8`
 - Source: `UnityVMDPlayer.cs`, notably `CenterAnimation`, parent-of-all position handling, and `DefaultBoneAmplifier = 0.08f`.
+- Additional reference from 0.9.4: `UnityVMDReader.cs` bone interpolation control layout, using channel blocks at offsets 0/16/32/48 and controls at block offsets 0/4/8/12. The existing Bezier evaluation and quaternion sampling implementation remain local.
 - Use: algorithmic reference for composing MMD center/groove/parent displacements and coordinate direction. The local plugin retains its own sparse VMD solver and derives root displacement from the solved hierarchy. It does not embed the entire UnityVMDPlayer component or its Animator ownership. Controller collision, cancellation, asynchronous loading, rig caching and game integration are local adaptations.
 
 The upstream license is retained below for attribution and any adapted portions:
