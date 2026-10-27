@@ -60,7 +60,7 @@ internal static class MmdRigCache
             try
             {
                 var data = paired ? Profile(path).CopyData() : GameMmdSkeleton.CreateData(snapshot.Positions);
-                foreach (var _ in rig.BuildSteps(snapshot, data)) { }
+                foreach (var _ in rig.BuildSteps(snapshot, data, !paired)) { }
                 Publish(snapshot, path, paired, rig);
             }
             catch { rig.Destroy(); throw; }
@@ -87,7 +87,7 @@ internal static class MmdRigCache
             try
             {
                 var data = paired ? Profile(path).CopyData() : GameMmdSkeleton.CreateData(snapshot.Positions);
-                foreach (var _ in temporary.BuildSteps(snapshot, data)) { }
+                foreach (var _ in temporary.BuildSteps(snapshot, data, !paired)) { }
             }
             catch { temporary.Destroy(); throw; }
             rig = temporary; BuildCount++;

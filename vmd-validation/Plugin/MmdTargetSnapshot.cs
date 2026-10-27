@@ -20,6 +20,9 @@ internal sealed class MmdTargetSnapshot
     internal float[] Shape;
     internal string ShapePaths;
     internal Vector3 ArmaturePosition, ArmatureScale;
+    // Actual world metric in heading-neutral root axes. No world translation
+    // participates, so actor movement/reload cannot contaminate the shape key.
+    internal Vector3 MetricX, MetricY, MetricZ;
     internal Quaternion ArmatureRotation;
     internal MmdTargetSnapshot(GameObject target) { Target = target; }
 
@@ -52,6 +55,10 @@ internal sealed class MmdTargetSnapshot
                 ?? throw new ArgumentException("VMD target has no Armature");
         Armature = Root.Find("Armature");
         ArmaturePosition = Armature.localPosition; ArmatureRotation = Armature.localRotation; ArmatureScale = Armature.localScale;
+        var rootWorld=Root.localToWorldMatrix;var inverseHeading=Quaternion.Inverse(Root.rotation);
+        MetricX=inverseHeading*(Vector3)rootWorld.GetColumn(0);
+        MetricY=inverseHeading*(Vector3)rootWorld.GetColumn(1);
+        MetricZ=inverseHeading*(Vector3)rootWorld.GetColumn(2);
         var resolved = new Dictionary<string, Transform> { ["Armature"] = Armature };
         var scopes = new Dictionary<int, Dictionary<string, List<Transform>>>();
         var scales = new List<float>();
@@ -140,9 +147,12 @@ internal sealed class MmdTargetSnapshot
         foreach (var pair in Rest.OrderBy(p => p.Key, StringComparer.Ordinal))
         {
             for (int c = 0; c < 4; c++) { Vector3 v = pair.Value.GetColumn(c); values.Add(v.x); values.Add(v.y); values.Add(v.z); }
-            Vector3 p = pair.Value.GetColumn(3); Positions.Add(pair.Key, new NVector(p.x, p.y, p.z)); yield return 0;
+            Vector3 local = pair.Value.GetColumn(3);
+            Vector3 p=MetricX*local.x+MetricY*local.y+MetricZ*local.z;
+            Positions.Add(pair.Key, new NVector(p.x, p.y, p.z)); yield return 0;
         }
         values.AddRange(new[] { ArmaturePosition.x, ArmaturePosition.y, ArmaturePosition.z, ArmatureRotation.x, ArmatureRotation.y, ArmatureRotation.z, ArmatureRotation.w, ArmatureScale.x, ArmatureScale.y, ArmatureScale.z });
+        values.AddRange(new[] { MetricX.x,MetricX.y,MetricX.z,MetricY.x,MetricY.y,MetricY.z,MetricZ.x,MetricZ.y,MetricZ.z });
         values.AddRange(scales);
         if (values.Any(v => !float.IsFinite(v))) throw new ArgumentException("Nonfinite target shape");
         Shape = values.ToArray(); ShapePaths = string.Join("|", Rest.Keys.OrderBy(p => p, StringComparer.Ordinal));

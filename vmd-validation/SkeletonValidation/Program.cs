@@ -48,17 +48,18 @@ broken=new(bind); broken[hips+"/UpperLeg_L/LowerLeg_L"]=bind[hips+"/UpperLeg_L"]
 var noToes=new Dictionary<string,Matrix4x4>(bind); foreach(var key in noToes.Keys.Where(p=>p.Contains("/Toe")).ToArray()) noToes.Remove(key);
 using(var data=GameMmdSkeleton.Create(noToes,false)) Check(data.iks.Count==2,"Missing optional toe bind poses do not invent toe geometry");
 
-(GameObject avatar,Dictionary<string,Transform> bones,SkinnedMeshRenderer renderer) Avatar()
+(GameObject avatar,Dictionary<string,Transform> bones,SkinnedMeshRenderer renderer) Avatar(IReadOnlyDictionary<string,Vector3> geometry=null,IReadOnlyDictionary<string,Matrix4x4> restMatrices=null)
 {
+    geometry??=positions;restMatrices??=bind;
     var avatar=new GameObject("Avatar"); var armature=new GameObject("Armature").transform; armature.SetParent(avatar.transform,false); armature.localRotation=Quaternion.AngleAxis(90,new(1,0,0));
     var bones=new Dictionary<string,Transform>();
-    foreach(var path in positions.Keys.OrderBy(p=>p.Count(c=>c=='/')))
+    foreach(var path in geometry.Keys.OrderBy(p=>p.Count(c=>c=='/')))
     {
         int slash=path.LastIndexOf('/'); var node=new GameObject(path[(slash+1)..]).transform;
-        node.SetParent(avatar.transform.Find(path[..slash]),false); node.position=positions[path]; node.rotation=bind[path].rotation; bones[path]=node;
+        node.SetParent(avatar.transform.Find(path[..slash]),false); node.position=geometry[path]; node.rotation=restMatrices[path].rotation; bones[path]=node;
     }
     var body=new GameObject("Body.001"); body.transform.SetParent(avatar.transform,false);
-    var renderer=body.AddComponent<SkinnedMeshRenderer>(); renderer.bones=bones.Values.ToArray(); renderer.sharedMesh=new Mesh{bindposes=bones.Keys.Select(p=>bind[p].inverse).ToArray()};
+    var renderer=body.AddComponent<SkinnedMeshRenderer>(); renderer.bones=bones.Values.ToArray(); renderer.sharedMesh=new Mesh{bindposes=bones.Keys.Select(p=>restMatrices[p].inverse).ToArray()};
     return (avatar,bones,renderer);
 }
 MmdMotion Motion()
@@ -95,6 +96,33 @@ using(var pose=new RuntimeVmdPose(fixture.avatar,new ActionDefinition{Loop=true}
     Check(Math.Abs(pose.LoopRootDisplacement.x-.08f)<1e-5&&Math.Abs(pose.LoopRootDisplacement.z-.24f)<1e-5,"Provider publishes per-cycle root displacement for continuous looping");
 using(var pose=new RuntimeVmdPose(fixture.avatar,new ActionDefinition{WriteHipTranslation=false},fullMove,null,false))
 {pose.Apply(1);Check(!pose.HasRootMotion&&pose.RootDisplacement.sqrMagnitude==0,"Explicit translation-off keeps its existing opt-out semantics");}
+
+// World-metric source calibration must include even a default prefab's root
+// scale, while root movement/heading remain absent from the shape signature.
+MmdRigCache.Clear();var metricAvatar=Avatar();var metricBefore=MmdTargetSnapshot.Read(metricAvatar.avatar);
+metricAvatar.avatar.transform.localScale=Vector3.one*1.2f;
+var metricScaled=MmdTargetSnapshot.Read(metricAvatar.avatar);
+Check(!metricScaled.Matches(metricBefore.Shape,metricBefore.ShapePaths),"Actual root scale changes invalidate generated reference dimensions");
+using(var metricSource=GameMmdSkeleton.CreateData(metricScaled.Positions))
+{
+    float expected=Vector3.Distance(metricAvatar.bones[hips+"/UpperLeg_L"].position,metricAvatar.bones[hips+"/UpperLeg_L/LowerLeg_L"].position);
+    float sourceLength=Vector3.Distance(metricSource.byName["左足"].rest,metricSource.byName["左ひざ"].rest)*.08f;
+    Check(Math.Abs(expected-sourceLength)<1e-5,"Generated reference leg matches the actual 1.2-scaled world segment");
+}
+using(var pose=new RuntimeVmdPose(metricAvatar.avatar,new ActionDefinition(),fullMove,null,false))
+{
+    var before=metricAvatar.bones[hips].position;pose.Apply(1);
+    Check(Math.Abs(metricAvatar.bones[hips].position.y-before.y-.16f)<1e-5,"Two MMD Y units remain .16 world metres on a 1.2 avatar");
+    Check(Math.Abs(pose.RootDisplacement.x-.08f)<1e-5&&Math.Abs(pose.RootDisplacement.z-.24f)<1e-5,"Authored root movement is not scaled twice with avatar size");
+}
+metricAvatar.avatar.transform.position=new(100000,12345,-100000);metricAvatar.avatar.transform.rotation=Quaternion.AngleAxis(73,Vector3.up);
+var metricMoved=MmdTargetSnapshot.Read(metricAvatar.avatar);
+Check(metricMoved.Matches(metricScaled.Shape,metricScaled.ShapePaths),"World-metric shape is independent of actor translation and heading");
+var metricParent=new GameObject("ScaledPlayerParent");metricAvatar.avatar.transform.SetParent(metricParent.transform,false);metricParent.transform.localScale=Vector3.one*1.1f;
+var metricAncestor=MmdTargetSnapshot.Read(metricAvatar.avatar);
+Check(!metricAncestor.Matches(metricScaled.Shape,metricScaled.ShapePaths)&&Math.Abs(metricAncestor.MetricX.magnitude-1.32f)<1e-5,"External ancestor scale is part of the effective reference shape");
+MmdRigCache.Clear();
+
 var masked=new ActionDefinition{BodyMask=ActionBodyMask.LowerBody,WriteFaceMorphs=false};
 using(var pose=new RuntimeVmdPose(fixture.avatar,masked,translated,null,false))
 {
@@ -248,6 +276,52 @@ if(args.Length>0)
                 }
             }
             Check(reproduced,"Runtime-derived geometry reproduces the previous 25-second knee inversion before applying the new limit");
+
+            // Full provider regression using bind positions/neutral rotations
+            // captured in the real 0.9.5 diagnostic, including default 1.2 scale.
+            var tracePositions=new Dictionary<string,Vector3>(positions);
+            tracePositions[hips]=new Vector3(0,10.0136f,.4073f)*.08f;
+            foreach(string suffix in new[]{"_L","_R"})
+            {
+                float x=suffix=="_L"?-.7815f:.7815f;
+                string leg=hips+"/UpperLeg"+suffix,knee=leg+"/LowerLeg"+suffix,foot=knee+"/Foot"+suffix;
+                tracePositions[leg]=new Vector3(x,8.9125f,.2610f)*.08f;
+                tracePositions[knee]=new Vector3(x,5.1245f,.2239f)*.08f;
+                tracePositions[foot]=new Vector3(x,1.1261f,-.1752f)*.08f;
+                tracePositions[foot+"/Toe"+suffix]=tracePositions[foot]+new Vector3(0,-.04f,.1f);
+            }
+            var traceBind=tracePositions.ToDictionary(p=>p.Key,p=>Matrix4x4.TRS(p.Value,Quaternion.identity,Vector3.one));
+            foreach(string suffix in new[]{"_L","_R"})
+            {
+                string leg=hips+"/UpperLeg"+suffix,knee=leg+"/LowerLeg"+suffix,foot=knee+"/Foot"+suffix;
+                traceBind[leg]=Matrix4x4.TRS(tracePositions[leg],new Quaternion(1,0,0,-.0049f).normalized,Vector3.one);
+                traceBind[knee]=Matrix4x4.TRS(tracePositions[knee],new Quaternion(.9988f,0,0,-.0497f).normalized,Vector3.one);
+                traceBind[foot]=Matrix4x4.TRS(tracePositions[foot],new Quaternion(.8450f,0,0,.5348f).normalized,Vector3.one);
+            }
+            var traceActor=Avatar(tracePositions,traceBind);traceActor.avatar.transform.localScale=Vector3.one*1.2f;traceActor.avatar.transform.position=new(0,-.0187f,0);
+            traceActor.bones[hips].position+=Vector3.up*(.9206f-traceActor.bones[hips].position.y);
+            using var oldScaleSolver=GameMmdSkeleton.Create(traceBind);oldScaleSolver.useIk=true;
+            oldScaleSolver.Evaluate(samsa,0);float oldOriginY=oldScaleSolver.byName["下半身"].node.position.y;
+            oldScaleSolver.Evaluate(samsa,25.0733f*30);
+            float expectedPelvis=.9206f+(oldScaleSolver.byName["下半身"].node.position.y-oldOriginY)*.08f;
+            float oldRenderedKnee=expectedPelvis+(oldScaleSolver.byName["左ひざ"].node.position.y-oldScaleSolver.byName["下半身"].node.position.y)*.08f*1.2f;
+            var traceMetric=MmdTargetSnapshot.Read(traceActor.avatar);
+            using var worldScaleSolver=GameMmdSkeleton.CreateData(traceMetric.Positions);worldScaleSolver.CreateTransforms();worldScaleSolver.useIk=true;
+            worldScaleSolver.Evaluate(samsa,25.0733f*30);
+            float expectedWorldKnee=expectedPelvis+(worldScaleSolver.byName["左ひざ"].node.position.y-worldScaleSolver.byName["下半身"].node.position.y)*.08f;
+            using(var tracePose=new RuntimeVmdPose(traceActor.avatar,new ActionDefinition(),samsa,null,false))
+            {
+                tracePose.Apply(25.0733f);
+                float actualPelvis=traceActor.bones[hips].position.y;
+                float actualKnee=traceActor.bones[hips+"/UpperLeg_L/LowerLeg_L"].position.y;
+                float actualFoot=traceActor.bones[hips+"/UpperLeg_L/LowerLeg_L/Foot_L"].position.y;
+                Check(oldRenderedKnee<-.04f,"Captured runtime reference reproduces old under-floor knee placement");
+                Check(Math.Abs(actualPelvis-expectedPelvis)<.0001f,"World-metric fix preserves authored pelvis descent without height compensation");
+                Check(Math.Abs(actualKnee-expectedWorldKnee)<.0001f&&actualKnee-oldRenderedKnee>.04f,"Rendered knee follows the world-sized source pose rather than the old undersized solve");
+                Check(actualFoot>.15f&&actualFoot<.21f,"World-metric foot lands near its .18m authored ankle goal instead of the old .31m mapped goal");
+                Console.WriteLine($"Samsa runtime matrix regression: pelvis={actualPelvis:F6} oldKnee={oldRenderedKnee:F6} newKnee={actualKnee:F6} newAnkle={actualFoot:F6}m");
+            }
+
             Check(maxFootError<=maxOldFootError+.001f,"Knee limit does not increase the window's worst pre-existing foot-goal error");
             Console.WriteLine($"Samsa 23-28s runtime-geometry regression: oldFlip={reproduced} maxFixedHinge={maxFixed:F3} kneelFootError={maxKneelFootError:F6}m windowFootError={maxFootError:F6}/{maxOldFootError:F6}m addedError={maxAddedError:F6}m");
         }

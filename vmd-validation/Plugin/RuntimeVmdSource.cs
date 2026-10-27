@@ -57,7 +57,7 @@ internal sealed class RuntimeVmdRig
     internal MmdSkeleton source;
     internal Transform liveRoot, hip;
     internal float scale;
-    internal bool Leased, Retired;
+    internal bool Leased, Retired, WorldMetric;
     readonly List<(SkinnedMeshRenderer renderer, Mesh mesh)> meshes = new();
 
     internal bool IsUsable => target != null && liveRoot != null && hip != null && proxy != null
@@ -78,8 +78,9 @@ internal sealed class RuntimeVmdRig
         target = null; liveRoot = null; hip = null; meshes.Clear(); morphs.Clear();
         foreach (var b in bindings) b.live = null; toes.Clear();
     }
-    internal IEnumerable<int> BuildSteps(MmdTargetSnapshot snapshot, MmdSkeleton template)
+    internal IEnumerable<int> BuildSteps(MmdTargetSnapshot snapshot, MmdSkeleton template, bool worldMetric = true)
     {
+            WorldMetric=worldMetric;
             var rest = snapshot.Rest; var liveBones = snapshot.Bones;
             Rebind(snapshot);
             proxy = new GameObject("MmdTargetSamplingRig"); proxy.hideFlags = HideFlags.HideAndDontSave; proxy.SetActive(false);
@@ -132,6 +133,12 @@ internal sealed class RuntimeVmdRig
             }
             float sourceLength = (source.byName["左足"].rest - source.byName["左ひざ"].rest).magnitude + (source.byName["左ひざ"].rest - source.byName["左足首"].rest).magnitude;
             float targetLength = (byName["UpperLeg_L"].sample.position - byName["LowerLeg_L"].sample.position).magnitude + (byName["LowerLeg_L"].sample.position - byName["Foot_L"].sample.position).magnitude;
+            if(WorldMetric)
+            {
+                const string leg="Armature/Hips/UpperLeg_L";
+                var upper=snapshot.Positions[leg];var knee=snapshot.Positions[leg+"/LowerLeg_L"];var ankle=snapshot.Positions[leg+"/LowerLeg_L/Foot_L"];
+                targetLength=(upper-knee).Length()+(knee-ankle).Length();
+            }
             if (sourceLength < 0.00001f || targetLength < 0.00001f) throw new Exception("Degenerate retarget skeleton");
             scale = targetLength / sourceLength;
             yield return 0;

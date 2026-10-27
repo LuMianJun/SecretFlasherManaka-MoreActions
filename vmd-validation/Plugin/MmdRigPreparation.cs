@@ -84,7 +84,7 @@ public sealed class MmdRigPreparation : MonoBehaviour
             {
                 if (!data.IsCompleted) return;
                 var template = data.GetAwaiter().GetResult(); data = null;
-                building = new RuntimeVmdRig(); build = building.BuildSteps(snapshot, template).GetEnumerator();
+                building = new RuntimeVmdRig(); build = building.BuildSteps(snapshot, template, !source.Paired).GetEnumerator();
             }
             if (!Advance(build)) return;
             build.Dispose(); build = null;
