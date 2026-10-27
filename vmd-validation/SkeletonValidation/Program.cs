@@ -3,6 +3,8 @@ using UnityEngine;
 using Seleka2.Actions;
 using Seleka2.Mmd;
 
+try
+{
 Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
 int checks=0;
 void Check(bool ok,string label) { checks++; if(!ok) throw new Exception(label); }
@@ -105,6 +107,26 @@ using(var rig=GameMmdSkeleton.Create(bind))
     rig.useIk=true; rig.Evaluate(motion,0); float after=Vector3.Distance(rig.byName["左足首"].node.position,rig.byName["左足ＩＫ"].node.position);
     Check(after<before*.1f,"Synthetic leg IK converges toward a reachable animated goal");
 }
+
+// Regression from the actual runtime trace: a 157.70-degree knee stepped into
+// 192.08 degrees, inverting the physical chain despite fixed segment lengths.
+float RuntimeHinge(Quaternion q)=>(float)(2*Math.Atan2(q.x,q.w)*180/Math.PI);
+var tracePrevious=new Quaternion(.9888f,0,0,.1492f).normalized;
+var traceCandidate=new Quaternion(.9887f,0,0,-.1497f).normalized;
+float traceMaximum=179.9f-5.1387f;
+var traceFixed=MmdSkeleton.LimitKnee(traceCandidate,tracePrevious,traceMaximum);
+Check(RuntimeHinge(traceFixed)<=traceMaximum+.001f&&RuntimeHinge(traceFixed)>150,"Runtime 192-degree inverse-branch candidate stays on the deeply folded allowed side");
+var negativeTrace=new Quaternion(-traceCandidate.x,-traceCandidate.y,-traceCandidate.z,-traceCandidate.w);
+Check(Quaternion.Angle(traceFixed,MmdSkeleton.LimitKnee(negativeTrace,tracePrevious,traceMaximum))<.1,"Equivalent q and -q cannot select opposite knee branches");
+Check(Quaternion.Angle(MmdSkeleton.LimitKnee(new Quaternion(1,0,0,0),Quaternion.identity,traceMaximum),MmdSkeleton.LimitKnee(new Quaternion(-1,0,0,0),Quaternion.identity,traceMaximum))<.1,"Half-turn quaternion sign tie consistently selects the allowed branch");
+Check(Quaternion.Angle(MmdSkeleton.LimitKnee(new Quaternion(0,1,0,0),tracePrevious,traceMaximum),tracePrevious)<.1,"Degenerate hinge projection retains previous valid bend");
+using(var kneeProfile=GameMmdSkeleton.Create(bind,false))
+using(var kneeCopy=kneeProfile.CopyData())
+{
+    Check(kneeProfile.iks.Count(i=>i.limitKnee)==2,"Generated leg chains carry explicit one-sided knee limits");
+    Check(kneeCopy.iks.Zip(kneeProfile.iks).All(p=>p.First.limitKnee==p.Second.limitKnee&&p.First.kneeMax==p.Second.kneeMax&&p.First.kneeMin==p.Second.kneeMin),"Worker/cache skeleton copies preserve knee limits");
+}
+
 // Cached helpers are shared by skeleton mode, while every lease captures a
 // new restoration snapshot and supplies its own keys/mask.
 MmdRigCache.Clear();
@@ -180,6 +202,56 @@ if(args.Length>0)
             Check(first.x<-.04f&&last.x<-.13f&&first.y==0&&last.y==0,"Actual CH4NGE hand cue retains the previously omitted horizontal root trajectory");
             Console.WriteLine($"CH4NGE root trajectory: frame75=({first.x:F5},{first.z:F5})m frame91=({last.x:F5},{last.z:F5})m");
         }
+
+        if(Path.GetFileName(folder)=="Samsa")
+        {
+            // Reference geometry reconstructed from the user's runtime trace:
+            // local leg lengths .3031/.3215, rest bend 5.1387 degrees. The
+            // former tall mock avatar did not reproduce this inverse branch.
+            var runtimePositions=new Dictionary<string,Vector3>(positions);
+            foreach(var suffix in new[]{"_L","_R"})
+            {
+                string leg=hips+"/UpperLeg"+suffix,knee=leg+"/LowerLeg"+suffix,foot=knee+"/Foot"+suffix;
+                float x=suffix=="_L"?-.0625f:.0625f;
+                runtimePositions[leg]=runtimePositions[hips]+new Vector3(x,-.0881f,-.0117f);
+                runtimePositions[knee]=runtimePositions[leg]+new Vector3(0,-.3031f,0);
+                float bend=5.1387f/Mathf.Rad2Deg;
+                runtimePositions[foot]=runtimePositions[knee]+new Vector3(0,-.3215f*MathF.Cos(bend),-.3215f*MathF.Sin(bend));
+                runtimePositions[foot+"/Toe"+suffix]=runtimePositions[foot]+new Vector3(0,-.02f,.12f);
+            }
+            var runtimeBind=runtimePositions.ToDictionary(p=>p.Key,p=>Matrix4x4.TRS(p.Value,Quaternion.identity,Vector3.one));
+            var samsa=MmdMotion.Read(vmd);
+            using var limited=GameMmdSkeleton.Create(runtimeBind);limited.useIk=true;
+            using var old=GameMmdSkeleton.Create(runtimeBind);old.useIk=true;
+            foreach(var ik in old.iks)ik.limitKnee=false;
+            bool reproduced=false;float maxFixed=0,maxFootError=0,maxOldFootError=0,maxKneelFootError=0,maxAddedError=0;
+            for(int frame=690;frame<=840;frame++)
+            {
+                old.Evaluate(samsa,frame);limited.Evaluate(samsa,frame);
+                if(RuntimeHinge(old.byName["左ひざ"].node.localRotation)>180)reproduced=true;
+                foreach(string side in new[]{"左","右"})
+                {
+                    var ik=limited.iks.Single(i=>limited.bones[i.target].name==side+"足ＩＫ");
+                    var thigh=limited.byName[side+"足"].node;var knee=limited.byName[side+"ひざ"].node;var foot=limited.byName[side+"足首"].node;
+                    float hinge=RuntimeHinge(knee.localRotation);maxFixed=Math.Max(maxFixed,hinge);
+                    Check(hinge>=ik.kneeMin-.001f&&hinge<=ik.kneeMax+.001f,"Actual Samsa kneel cannot cross the anatomical knee limit");
+                    Check(Vector3.Dot(Vector3.Cross(knee.position-thigh.position,foot.position-knee.position),thigh.rotation*new Vector3(1,0,0))>=-.0001f,"Actual Samsa knee keeps its forward bending direction");
+                    Check(Math.Abs(Vector3.Distance(thigh.position,knee.position)*.08f-.3031f)<.0001f&&Math.Abs(Vector3.Distance(knee.position,foot.position)*.08f-.3215f)<.0001f,"Actual kneel regression preserves both bone segment lengths");
+                    float error=Vector3.Distance(foot.position,limited.byName[side+"足ＩＫ"].node.position)*.08f;maxFootError=Math.Max(maxFootError,error);
+                    float oldError=Vector3.Distance(old.byName[side+"足首"].node.position,old.byName[side+"足ＩＫ"].node.position)*.08f;maxOldFootError=Math.Max(maxOldFootError,oldError);
+                    // Some approach/stand-up goals are already unreachable on
+                    // this shorter game rig. Bound local changes to 1cm and
+                    // also compare the whole window's worst error below.
+                    maxAddedError=Math.Max(maxAddedError,error-oldError);
+                    Check(error<=oldError+.01f,$"Knee limit foot-goal regression frame={frame} side={side} error={error:F6} old={oldError:F6}");
+                    if(frame>=750&&frame<=795){maxKneelFootError=Math.Max(maxKneelFootError,error);Check(error<.001f,"Corrected kneeling branch still reaches the authored foot goal");}
+                }
+            }
+            Check(reproduced,"Runtime-derived geometry reproduces the previous 25-second knee inversion before applying the new limit");
+            Check(maxFootError<=maxOldFootError+.001f,"Knee limit does not increase the window's worst pre-existing foot-goal error");
+            Console.WriteLine($"Samsa 23-28s runtime-geometry regression: oldFlip={reproduced} maxFixedHinge={maxFixed:F3} kneelFootError={maxKneelFootError:F6}m windowFootError={maxFootError:F6}/{maxOldFootError:F6}m addedError={maxAddedError:F6}m");
+        }
+
         if(paired)
         {
             var old=new LegacyRuntimeVmdSource(vmd,pmd,true);
@@ -365,7 +437,15 @@ using(var pose=new RuntimeVmdPose(subset.avatar,new ActionDefinition(),Motion(),
 }
 MmdRigCache.Clear();
 
+
 Console.WriteLine($"PASS {checks} assertions: production topology/parser/retargeter/cache/async pump; synthetic scene math boundary, not rendered game verification");
+
+}
+catch(Exception error)
+{
+    Console.Error.WriteLine(error);
+    Environment.ExitCode=1;
+}
 
 namespace Seleka2.Actions
 {

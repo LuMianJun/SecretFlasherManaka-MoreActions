@@ -101,7 +101,7 @@ public sealed class MmdMotion
 public sealed class MmdSkeleton : IDisposable
 {
     public sealed class Bone { public string name;public int parent,tail,type;public Vector3 rest;public Transform node; }
-    public sealed class Ik { public int target,effector,iterations;public float limit;public int[] links; }
+    public sealed class Ik { public int target,effector,iterations;public float limit;public int[] links;public bool limitKnee;public float kneeMax=180,kneeMin; }
     public readonly List<Bone> bones=new List<Bone>();public readonly List<Ik> iks=new List<Ik>();
     public readonly Dictionary<string,Bone> byName=new Dictionary<string,Bone>();
     public GameObject root;public bool useIk;
@@ -161,7 +161,7 @@ public sealed class MmdSkeleton : IDisposable
             var copy = new Bone { name = b.name, parent = b.parent, tail = b.tail, type = b.type, rest = b.rest };
             instance.bones.Add(copy); instance.byName.Add(copy.name, copy);
         }
-        foreach (var ik in iks) instance.iks.Add(new Ik { target = ik.target, effector = ik.effector, iterations = ik.iterations, limit = ik.limit, links = (int[])ik.links.Clone() });
+        foreach (var ik in iks) instance.iks.Add(new Ik { target = ik.target, effector = ik.effector, iterations = ik.iterations, limit = ik.limit, links = (int[])ik.links.Clone(), limitKnee = ik.limitKnee, kneeMax = ik.kneeMax, kneeMin = ik.kneeMin });
         return instance;
     }
     public void Evaluate(MmdMotion motion,float frame)
@@ -181,6 +181,8 @@ public sealed class MmdSkeleton : IDisposable
             if(!bones[ik.target].name.Contains("足")&&!bones[ik.target].name.Contains("つま先"))continue;
             if(!motion.tracks.ContainsKey(bones[ik.target].name)||!motion.IkEnabled(bones[ik.target].name,(int)frame))continue;
             var target=bones[ik.target].node;var effector=bones[ik.effector].node;
+            if(ik.limitKnee)foreach(var index in ik.links)
+                if(bones[index].name.Contains("ひざ"))bones[index].node.localRotation=LimitKnee(bones[index].node.localRotation,Quaternion.identity,ik.kneeMax,ik.kneeMin);
             for(int iteration=0;iteration<Math.Min(ik.iterations,80);iteration++)
             {
                 bool moved=false;
@@ -189,14 +191,41 @@ public sealed class MmdSkeleton : IDisposable
                     var link=bones[index].node;var inv=Quaternion.Inverse(link.rotation);
                     var a=(inv*(effector.position-link.position)).normalized;var b=(inv*(target.position-link.position)).normalized;
                     var angle=Vector3.Angle(a,b);if(angle<0.001f)continue;var axis=Vector3.Cross(a,b).normalized;if(axis.sqrMagnitude<0.001f)continue;
-                    link.localRotation=(link.localRotation*Quaternion.AngleAxis(Math.Min(angle,ik.limit),axis)).normalized;
-                    if(bones[index].name.Contains("ひざ")){var q=link.localRotation;link.localRotation=new Quaternion(Mathf.Sqrt(Math.Max(0,1-q.w*q.w)),0,0,q.w).normalized;}
+                    var previous=link.localRotation;
+                    var candidate=(previous*Quaternion.AngleAxis(Math.Min(angle,ik.limit),axis)).normalized;
+                    if(bones[index].name.Contains("ひざ"))
+                    {
+                        if(ik.limitKnee)candidate=LimitKnee(candidate,previous,ik.kneeMax,ik.kneeMin);
+                        else { var q=candidate;candidate=new Quaternion(Mathf.Sqrt(Math.Max(0,1-q.w*q.w)),0,0,q.w).normalized; }
+                    }
+                    link.localRotation=candidate;
                     moved=true;
                 }
                 if(!moved||Vector3.Distance(effector.position,target.position)<0.001f)break;
             }
         }
     }
+
+    // Project onto the actual hinge and unwrap around the previous CCD step.
+    // Keeping w while forcing x positive makes q and -q mean different poses
+    // and lets a deeply folded knee enter the >180-degree inverse branch.
+    internal static Quaternion LimitKnee(Quaternion candidate,Quaternion previous,float maximum,float minimum=0)
+    {
+        static double Angle(Quaternion q)
+        {
+            double angle=Math.IEEERemainder(2*Math.Atan2(q.x,q.w)*180/Math.PI,360);
+            // At a half turn both signs are equally close; prefer the allowed
+            // bending side, including float sin/cos roundoff around w=0.
+            return Math.Abs(Math.Abs(angle)-180)<.0001?180:angle;
+        }
+        double prior=Math.Clamp(Angle(previous),minimum,maximum);
+        double squared=(double)candidate.x*candidate.x+(double)candidate.w*candidate.w;
+        if(squared<1e-12)return Quaternion.AngleAxis((float)prior,new Vector3(1,0,0));
+        double angle=Angle(candidate);
+        angle+=360*Math.Round((prior-angle)/360);
+        return Quaternion.AngleAxis((float)Math.Clamp(angle,minimum,maximum),new Vector3(1,0,0));
+    }
+
     public void Dispose(){if(root!=null)UnityEngine.Object.Destroy(root);}
 }
 
