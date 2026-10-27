@@ -1,6 +1,6 @@
 param(
     [Parameter(Mandatory=$true)][string]$GameDir,
-    [string]$OutputDir = (Join-Path $PSScriptRoot 'releases/face-overlay-0.9.0')
+    [string]$OutputDir = (Join-Path $PSScriptRoot 'releases/pose-fixes-0.9.7')
 )
 $ErrorActionPreference = 'Stop'
 $gameRoot = (Resolve-Path -LiteralPath $GameDir).Path

@@ -17,7 +17,7 @@ using Seleka2.ModSettings;
 
 namespace Seleka2.Actions;
 
-[BepInPlugin(Guid, "Seleka2 More Actions", "0.5.1")]
+[BepInPlugin(Guid, "Seleka2 More Actions", "0.5.3")]
 public sealed class Plugin : BasePlugin
 {
     public const string Guid = "local.seleka2.moreactions";
@@ -43,7 +43,7 @@ public sealed class Plugin : BasePlugin
         ActionDriver.Current = AddComponent<ActionDriver>();
         new Harmony(Guid).PatchAll(typeof(Plugin).Assembly);
         int count = ActionRegistry.LoadPacks(Path.GetFullPath(Path.Combine(Path.GetDirectoryName(typeof(Plugin).Assembly.Location), packs.Value)), Guid);
-        Log.LogInfo("MORE_ACTIONS_READY version=0.5.1 packs=" + count + " ring=true nativeRestrictions=true runtimeSources=true settings=true");
+        Log.LogInfo("MORE_ACTIONS_READY version=0.5.3 packs=" + count + " ring=true nativeRestrictions=true runtimeSources=true settings=true");
     }
 }
 
@@ -218,11 +218,6 @@ public sealed class ActionDriver : MonoBehaviour
             // user input and unrelated position changes still cancel playback.
             expectedPosition = Owner.transform.position;
             if (!arrived) { Stop(motionReason); NotifyBlocked(motionReason); return; }
-            if (!mover.Reported && mover.Distance >= .02f)
-            {
-                mover.Reported = true;
-                Plugin.LogSource.LogInfo("ACTION_ROOT_MOTION_ACTIVE id=" + Definition.Id + " distance=" + mover.Distance.ToString("F3"));
-            }
             var cycle = moving.LoopRootDisplacement;
             ActionPlaybackApi.SetRootCycleOffset(new Vector3((float)(cycle.x * loops), 0, (float)(cycle.z * loops)));
         }

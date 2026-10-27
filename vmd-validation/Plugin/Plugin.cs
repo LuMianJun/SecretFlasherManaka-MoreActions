@@ -9,8 +9,8 @@ using HarmonyLib;
 using BepInEx.Configuration;
 using Seleka2.ModSettings;
 
-[BepInPlugin(Guid, "Seleka2 MMD Actions", "0.9.1")]
-[BepInDependency(Seleka2.Actions.Plugin.Guid, "0.5.1")]
+[BepInPlugin(Guid, "Seleka2 MMD Actions", "0.9.7")]
+[BepInDependency(Seleka2.Actions.Plugin.Guid, "0.5.3")]
 public sealed class Plugin : BasePlugin
 {
     public const string Guid = "local.seleka2.vmdprobe";
@@ -30,7 +30,7 @@ public sealed class Plugin : BasePlugin
         ActionPlaybackApi.PlaybackChanged += ForwardCompatibilityEvent;
         var cameraDriver = AddComponent<MmdCameraDriver>(); cameraDriver.Bind();
         new Harmony(Guid).PatchAll(typeof(Plugin).Assembly);
-        Log.LogInfo("MMD_ACTIONS_LOADING version=0.9.1 queued=" + count + " directVmd=true cameraDistribution=true settings=true base=" + Seleka2.Actions.Plugin.Guid);
+        Log.LogInfo("MMD_ACTIONS_LOADING version=0.9.7 queued=" + count + " directVmd=true cameraDistribution=true settings=true base=" + Seleka2.Actions.Plugin.Guid);
     }
     static void ForwardCompatibilityEvent(string id, bool active)
     {

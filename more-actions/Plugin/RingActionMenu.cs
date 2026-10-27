@@ -60,7 +60,6 @@ internal static class RingActionMenu
     static void Select(RingMenuParentView parent, int slot, RingMenuItemModel model, string id)
     {
         Save(slot, id); SetLast(parent, slot, model); ActionDriver.Current?.Request(id);
-        Plugin.LogSource.LogInfo("ACTION_RING_COMMAND id=" + id + " slot=" + slot + " nativeSaveUnchanged=true");
     }
 
     internal static void Initialized(RingMenuParentView parent) { revision = -1; Ensure(parent); RestoreChoices(parent); }

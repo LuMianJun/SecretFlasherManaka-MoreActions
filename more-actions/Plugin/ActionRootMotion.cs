@@ -14,7 +14,6 @@ internal sealed class ActionRootMotion
     const int MaxSteps = 128;
     const float PositionTolerance = .02f;
     internal float Distance { get; private set; }
-    internal bool Reported { get; set; }
 
     internal ActionRootMotion(CharacterController controller, Transform player, Func<bool> canContinue)
     {
