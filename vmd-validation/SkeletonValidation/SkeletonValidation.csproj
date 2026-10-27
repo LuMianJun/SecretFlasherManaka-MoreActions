@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup><OutputType>Exe</OutputType><TargetFramework>net10.0</TargetFramework><ImplicitUsings>enable</ImplicitUsings></PropertyGroup>
+  <ItemGroup>
+    <Compile Include="../../more-actions/Plugin/ActionFaceMorphLayer.cs" Link="ActionFaceMorphLayer.cs" />
+    <Compile Include="../Plugin/GameMmdSkeleton.cs" Link="GameMmdSkeleton.cs" /><Compile Include="../Plugin/MmdTargetSnapshot.cs" Link="MmdTargetSnapshot.cs" />
+    <Compile Include="../Plugin/MmdPackPreparation.cs" Link="MmdPackPreparation.cs" />
+    <Compile Include="../Plugin/MmdRigPreparation.cs" Link="MmdRigPreparation.cs" />
+    <Compile Include="../Plugin/MmdActionPacks.cs" Link="MmdActionPacks.cs" />
+    <Compile Include="../Plugin/MmdCameraPacks.cs" Link="MmdCameraPacks.cs" />
+    <Compile Include="../Plugin/VmdCameraMotion.cs" Link="VmdCameraMotion.cs" />
+    <Compile Include="../Plugin/RuntimeMmdMotion.cs" Link="RuntimeMmdMotion.cs" />
+    <Compile Include="../Plugin/RuntimeVmdSource.cs" Link="RuntimeVmdSource.cs" /><Compile Include="../Plugin/MmdRigCache.cs" Link="MmdRigCache.cs" />
+    <Compile Include="../../more-actions/Plugin/MotionSkeleton.cs" Link="MotionSkeleton.cs" />
+    <Compile Include="../../more-actions/Plugin/MotionRig.cs" Link="MotionRig.cs" />
+    <Compile Include="../../more-actions/Plugin/ActionPolicy.cs" Link="ActionPolicy.cs" />
+    <Compile Include="../../more-actions/Plugin/RuntimeActionSource.cs" Link="RuntimeActionSource.cs" />
+  </ItemGroup>
+</Project>

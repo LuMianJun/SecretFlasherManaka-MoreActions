@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net6.0</TargetFramework><LangVersion>latest</LangVersion>
+    <AssemblyName>Seleka2.VmdProbe</AssemblyName><EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <RestoreIgnoreFailedSources>true</RestoreIgnoreFailedSources>
+  </PropertyGroup>
+  <ItemGroup>
+    <Reference Include="BepInEx.Core"><HintPath>$(GameDir)/BepInEx/core/BepInEx.Core.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="BepInEx.Unity.IL2CPP"><HintPath>$(GameDir)/BepInEx/core/BepInEx.Unity.IL2CPP.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="Il2CppInterop.Runtime"><HintPath>$(GameDir)/BepInEx/core/Il2CppInterop.Runtime.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="0Harmony"><HintPath>$(GameDir)/BepInEx/core/0Harmony.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="Game"><HintPath>$(GameDir)/BepInEx/interop/Assembly-CSharp.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="Il2Cppmscorlib"><HintPath>$(GameDir)/BepInEx/interop/Il2Cppmscorlib.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine.CoreModule"><HintPath>$(GameDir)/BepInEx/interop/UnityEngine.CoreModule.dll</HintPath><Private>false</Private></Reference>
+  </ItemGroup>
+<ItemGroup><Compile Include="Plugin.cs" /><Compile Include="MotionPlaybackApi.cs" /><Compile Include="VmdCameraMotion.cs" /><Compile Include="MmdCameraPacks.cs" /><Compile Include="MmdActionPacks.cs" /><Compile Include="MmdCameraDriver.cs" /><Compile Include="RuntimeMmdMotion.cs" /><Compile Include="GameMmdSkeleton.cs" /><Compile Include="RuntimeVmdSource.cs" /><Compile Include="MmdRigCache.cs" /><Compile Include="MmdTargetSnapshot.cs" /><Compile Include="MmdRigPreparation.cs" /><Compile Include="MmdPackPreparation.cs" /><ProjectReference Include="../../more-actions/Plugin/MoreActions.csproj"><Private>false</Private></ProjectReference></ItemGroup><ItemGroup><Compile Include="../../shared/ModOptions.cs" Link="ModOptions.cs" /></ItemGroup><ItemGroup><Reference Include="UnityEngine.UI"><HintPath>$(GameDir)/BepInEx/interop/UnityEngine.UI.dll</HintPath><Private>false</Private></Reference></ItemGroup><ItemGroup><Reference Include="Unity.TextMeshPro"><HintPath>$(GameDir)/BepInEx/interop/Unity.TextMeshPro.dll</HintPath><Private>false</Private></Reference></ItemGroup></Project>

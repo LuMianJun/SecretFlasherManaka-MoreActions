@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup><OutputType>Exe</OutputType><TargetFramework>net10.0</TargetFramework><ImplicitUsings>enable</ImplicitUsings></PropertyGroup>
+  <ItemGroup>
+    <Compile Include="../../more-actions/Plugin/ActionEvents.cs" Link="ActionEvents.cs" />
+    <Compile Include="../Plugin/MmdActionPacks.cs" Link="MmdActionPacks.cs" />
+    <Compile Include="../Plugin/MmdCameraPacks.cs" Link="MmdCameraPacks.cs" />
+    <Compile Include="../Plugin/VmdCameraMotion.cs" Link="VmdCameraMotion.cs" />
+    <Compile Include="../../more-actions/Plugin/ActionRegistry.cs" Link="ActionRegistry.cs" />
+    <Compile Include="../../more-actions/Plugin/ActionPolicy.cs" Link="ActionPolicy.cs" />
+    <Compile Include="../../more-actions/Plugin/MotionRig.cs" Link="MotionRig.cs" />
+    <Compile Include="../../more-actions/Plugin/RuntimeActionSource.cs" Link="RuntimeActionSource.cs" />
+  </ItemGroup>
+</Project>
