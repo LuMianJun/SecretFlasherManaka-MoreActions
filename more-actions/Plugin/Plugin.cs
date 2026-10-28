@@ -14,6 +14,7 @@ using ExposureUnnoticed2.ObjectUI.InGame.MessagePanel;
 using ExposureUnnoticed2.Scripts.Base;
 using ExposureUnnoticed2.Scripts.InGame;
 using Seleka2.ModSettings;
+using Il2CppInterop.Runtime.Attributes;
 
 namespace Seleka2.Actions;
 
@@ -51,8 +52,11 @@ public sealed class ActionDriver : MonoBehaviour
 {
     public ActionDriver(IntPtr pointer) : base(pointer) { }
     internal static ActionDriver Current;
+    [HideFromIl2Cpp]
     internal PlayerController Owner { get; private set; }
+    [HideFromIl2Cpp]
     internal ActionDefinition Definition => running?.Definition;
+    [HideFromIl2Cpp]
     internal bool Playing => running != null;
     readonly ActionRequestQueue requests = new();
     readonly MotionAudioClock clock = new();
@@ -78,11 +82,16 @@ public sealed class ActionDriver : MonoBehaviour
         if (Playing && Owner == null) { Stop("player destroyed"); requests.Clear(); }
     }
 
+    [HideFromIl2Cpp]
     internal void Request(string id) => requests.Request(id);
+    [HideFromIl2Cpp]
     internal bool Owns(PlayerStateModel state) => Playing && Owner != null && Owner.Pca?.PlayerState?.Pointer == state?.Pointer;
+    [HideFromIl2Cpp]
     internal bool Owns(PlayerFacade facade) => Playing && Owner != null && facade?.pca?.PlayerState?.Pointer == Owner.Pca?.PlayerState?.Pointer;
+    [HideFromIl2Cpp]
     internal bool Owns(PlayerAction action) => Playing && Owner != null && Owner.Pca?.PlayerAction?.Pointer == action?.Pointer;
 
+    [HideFromIl2Cpp]
     internal string Reason(ActionDefinition definition, PlayerController player, bool uiOpen)
     {
         var state = player == null ? null : player.Pca?.PlayerState;
@@ -103,6 +112,7 @@ public sealed class ActionDriver : MonoBehaviour
         finally { CheckingAvailability = false; }
     }
 
+    [HideFromIl2Cpp]
     internal void BeforeNativeUpdate(PlayerController player)
     {
         if (!Playing || Owner != player) return;
@@ -119,6 +129,7 @@ public sealed class ActionDriver : MonoBehaviour
             Stop(reason ?? "native input/cancel");
     }
 
+    [HideFromIl2Cpp]
     internal void Tick(PlayerController player)
     {
         if (tickFrame == Time.frameCount) return; tickFrame = Time.frameCount;
@@ -138,6 +149,7 @@ public sealed class ActionDriver : MonoBehaviour
         UpdateVolume();
     }
 
+    [HideFromIl2Cpp]
     void Start(string id)
     {
         var definition = ActionRegistry.Get(id);
@@ -176,6 +188,7 @@ public sealed class ActionDriver : MonoBehaviour
         catch (Exception e) { Stop("start failed"); Plugin.LogSource.LogError("ACTION_START_FAILED id=" + id + " " + e); NotifyBlocked(e.Message); }
     }
 
+    [HideFromIl2Cpp]
     void NotifyBlocked(string reason)
     {
         bool chinese = GameState.OptionData != null && ((int)GameState.OptionData.Language == 2 || (int)GameState.OptionData.Language == 3);
@@ -183,6 +196,7 @@ public sealed class ActionDriver : MonoBehaviour
         MessagePanelView.AddMessage(text, MessagePanelView.MessageType.Log);
     }
 
+    [HideFromIl2Cpp]
     void UpdateVolume()
     {
         if (audio == null || running == null) return;
@@ -192,6 +206,7 @@ public sealed class ActionDriver : MonoBehaviour
         audio.volume = volume;
     }
 
+    [HideFromIl2Cpp]
     internal void Apply()
     {
         if (!Playing || applyFrame == Time.frameCount) return; applyFrame = Time.frameCount;
@@ -234,7 +249,9 @@ public sealed class ActionDriver : MonoBehaviour
         if (revision == eventRevision && Playing && finished) Stop("finished", true);
     }
 
+    [HideFromIl2Cpp]
     internal bool DeferFaceCamera(FaceCameraController camera) => Playing && Plugin.FollowCamera.Value && Definition.FollowFaceCamera && faceCamera.ShouldDefer(camera);
+    [HideFromIl2Cpp]
     internal IActionBodyPose BeginNativeBody(PlayerController player)
     {
         if (!Playing || Owner != player || AudioSettings.dspTime < clock.MotionStartDsp) return null;
@@ -242,9 +259,12 @@ public sealed class ActionDriver : MonoBehaviour
         body?.BeginNativeBody();
         return body;
     }
+    [HideFromIl2Cpp]
     internal IDisposable PreserveNativeCorrection(ActionBoneCorrection correction)
         => Playing ? (pose as IActionBodyPose)?.PreserveNativeCorrection(correction) : null;
+    [HideFromIl2Cpp]
     internal bool SuppressKneeOffset => Playing && ((pose as IActionBodyPose)?.SuppressKneeOffset ?? false);
+    [HideFromIl2Cpp]
     bool IsCurrentEventPlayback(int revision, LoadedAction action)
     {
         if (revision != eventRevision || running != action || Owner == null || Owner != PlayerController.Instance || !Owner.gameObject.activeInHierarchy || Owner.Pca == null) return false;
@@ -256,6 +276,7 @@ public sealed class ActionDriver : MonoBehaviour
         }
         return true;
     }
+    [HideFromIl2Cpp]
     internal void Stop(string reason, bool completed = false)
     {
         if (stopping) return;

@@ -5,6 +5,12 @@ using Seleka2.Mmd;
 using Seleka2.Actions;
 using ExposureUnnoticed2.Object3D.Player.Scripts;
 
+if(args.Length==2&&args[0]=="--injection-check")
+{
+    try { InstalledCameraContract.VerifyDriverInjectionBoundary(args[1]); }
+    catch(Exception e) { Console.Error.WriteLine(e.Message);Environment.ExitCode=1; }
+    return;
+}
 bool packageOnly = args.Length > 1 && args[0] == "--package";
 int assertions = 0;
 void Check(bool ok, string name) { assertions++; if (!ok) throw new Exception(name); }

@@ -2,6 +2,12 @@
 // Offline boundaries only: production driver, scheduler, native adapters and
 // optional NPC registration are linked unchanged by EventValidation.csproj.
 using Seleka2.Actions;
+namespace Il2CppInterop.Runtime.Attributes
+{
+    [AttributeUsage(AttributeTargets.Method|AttributeTargets.Property|AttributeTargets.Constructor|AttributeTargets.Event)]
+    public sealed class HideFromIl2CppAttribute : Attribute {}
+}
+
 namespace BepInEx
 {
     [AttributeUsage(AttributeTargets.Class)] public sealed class BepInPlugin(string id, string name, string version) : Attribute {}

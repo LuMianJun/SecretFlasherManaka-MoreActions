@@ -1,9 +1,60 @@
 using System.Reflection.Metadata;
+using System.Reflection;
 using System.Reflection.PortableExecutable;
 using System.Text.Json;
 
 internal static class InstalledCameraContract
 {
+    internal static void VerifyDriverInjectionBoundary(string file)
+    {
+        using var pe = new PEReader(File.OpenRead(file)); var metadata = pe.GetMetadataReader();
+        var handle=metadata.TypeDefinitions.Single(h=>metadata.GetString(metadata.GetTypeDefinition(h).Name)=="ActionDriver");
+        var driver=metadata.GetTypeDefinition(handle);
+        bool Hidden(CustomAttributeHandleCollection attributes)
+        {
+            foreach(var h in attributes)
+            {
+                var ctor=metadata.GetCustomAttribute(h).Constructor;
+                EntityHandle type=ctor.Kind==HandleKind.MemberReference?metadata.GetMemberReference((MemberReferenceHandle)ctor).Parent:
+                    ctor.Kind==HandleKind.MethodDefinition?metadata.GetMethodDefinition((MethodDefinitionHandle)ctor).GetDeclaringType():default;
+                if(type.Kind==HandleKind.TypeReference)
+                {
+                    var t=metadata.GetTypeReference((TypeReferenceHandle)type);
+                    if(metadata.GetString(t.Name)=="HideFromIl2CppAttribute"&&metadata.GetString(t.Namespace)=="Il2CppInterop.Runtime.Attributes")return true;
+                }
+                else if(type.Kind==HandleKind.TypeDefinition)
+                {
+                    var t=metadata.GetTypeDefinition((TypeDefinitionHandle)type);
+                    if(metadata.GetString(t.Name)=="HideFromIl2CppAttribute"&&metadata.GetString(t.Namespace)=="Il2CppInterop.Runtime.Attributes")return true;
+                }
+            }
+            return false;
+        }
+        var hiddenAccessors=new HashSet<MethodDefinitionHandle>();
+        foreach(var h in driver.GetProperties())
+        {
+            var property=metadata.GetPropertyDefinition(h);if(!Hidden(property.GetCustomAttributes()))continue;
+            var accessors=property.GetAccessors();
+            if(!accessors.Getter.IsNil)hiddenAccessors.Add(accessors.Getter);
+            if(!accessors.Setter.IsNil)hiddenAccessors.Add(accessors.Setter);
+            foreach(var other in accessors.Others)hiddenAccessors.Add(other);
+        }
+        var exposed=new HashSet<string>();
+        foreach(var h in driver.GetMethods())
+        {
+            var method=metadata.GetMethodDefinition(h);string name=metadata.GetString(method.Name);
+            if((method.Attributes&MethodAttributes.Static)!=0||name==".ctor"||Hidden(method.GetCustomAttributes())||hiddenAccessors.Contains(h))continue;
+            if(name!="Update"&&name!="OnDisable"&&name!="OnDestroy")
+                throw new Exception("IL2CPP injection boundary: exposed managed ActionDriver method "+name);
+            var signature=metadata.GetBlobReader(method.Signature);var header=signature.ReadSignatureHeader();
+            if(header.IsGeneric||signature.ReadCompressedInteger()!=0||signature.ReadSignatureTypeCode()!=SignatureTypeCode.Void)
+                throw new Exception("IL2CPP injection boundary: unsafe Unity callback "+name);
+            exposed.Add(name);
+        }
+        if(!exposed.SetEquals(new[]{"Update","OnDisable","OnDestroy"}))throw new Exception("Missing exposed Unity lifecycle callbacks");
+        Console.WriteLine("PASS ActionDriver IL2CPP injection boundary: only void lifecycle callbacks; managed helpers hidden");
+    }
+
     internal static void Verify(string game, bool withExamplePacks = true)
     {
         string interop = Path.Combine(game, "BepInEx", "interop", "Assembly-CSharp.dll");
@@ -31,6 +82,7 @@ internal static class InstalledCameraContract
         string baseDll = Path.Combine(game, "BepInEx", "plugins", "Seleka2MoreActions", "Seleka2.MoreActions.dll");
         string mmdDll = Path.Combine(game, "BepInEx", "plugins", "Seleka2VmdProbe", "Seleka2.VmdProbe.dll");
         string npcDll = Path.Combine(game, "BepInEx", "plugins", "Seleka2NpcSpectators", "Seleka2.NpcSpectators.dll");
+        VerifyDriverInjectionBoundary(baseDll);
         VerifyWorkerMethods(baseDll, "WaveAudio", new[] { "Decode" });
         VerifyWorkerMethods(mmdDll, "MmdMotion", new[] { "Read", "ConvertPosition", "ConvertRotation" });
         VerifyWorkerMethods(mmdDll, "MmdSkeleton", new[] { "CopyData" });
