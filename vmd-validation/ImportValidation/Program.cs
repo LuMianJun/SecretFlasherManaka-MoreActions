@@ -21,6 +21,10 @@ try
     foreach(var json in new[]{"{\"referencePose\":null}","{\"referencePose\":0}","{\"referencePose\":true}","{\"referencePose\":\"\"}","{\"referencePose\":\"B\"}","{\"referencePose\":\"1\"}","{\"referencePose\":\"A\",\"ReferencePose\":\"T\"}"})
     {Json(json);Reject(()=>Read(),"Invalid reference pose is rejected rather than silently falling back: "+json);}
     File.Delete(manifest);
+    Json("{\"modelFile\":\"legacy.pmd\"}");string modelMigration="";
+    try { Read(); } catch(ArgumentException error) { modelMigration=error.Message; }
+    Check(modelMigration.Contains("modelFile")&&modelMigration.Contains("delete"),"Removed model option gives an actionable migration error");
+    File.Delete(manifest);
     Check(Read().Action.KeepGameExpressions,"Omitted face policy defaults to overlay");
     Json("{\"keepGameExpressions\":false}"); var faceOff=Read();
     Check(!faceOff.Action.KeepGameExpressions,"JSON false disables overlay");
@@ -32,14 +36,14 @@ try
     File.Delete(manifest);
     var silent = Read();
     Check(silent.Action.Id == "中文动作 Shake" && silent.Action.DisplayName == "中文动作 Shake", "Folder names are preserved verbatim");
-    Check(silent.Action.AudioFile == "" && !silent.MatchedModel && silent.ModelPath == "", "Optional music and paired model may be absent");
+    Check(silent.Action.AudioFile == "", "Music is optional; skeleton generation does not require model metadata");
     Check(silent.Action.Volume == 1 && silent.Action.RequiresHands && silent.Action.RequiresStanding && silent.Action.ShowInRing, "Native action defaults are retained");
     Register(silent);
     Check(ActionRegistry.Get("中文动作 Shake")?.RuntimeSource != null, "Unicode ID works in production registry");
     Reject(() => Register(silent), "Duplicate IDs rejected without renaming");
     ActionRegistry.UnregisterProvider("test");
     File.WriteAllText(Path.Combine(folder, "BGM.wav"), "audio");
-    File.WriteAllText(Path.Combine(folder, "source.pmd"), "paired");
+    File.WriteAllText(Path.Combine(folder, "source.pmd"), "not a valid model; deliberately ignored");
     using (var writer = new BinaryWriter(File.Create(Path.Combine(folder, "camera.vmd"))))
     {
         var header = new byte[30]; Encoding.ASCII.GetBytes("Vocaloid Motion Data 0002").CopyTo(header, 0);
@@ -49,16 +53,16 @@ try
         writer.Write(Enumerable.Range(0, 6).SelectMany(_ => new byte[] { 20, 107, 20, 107 }).ToArray()); writer.Write(30u); writer.Write((byte)0);
     }
     var discovered = Read();
-    Json("{\"referencePose\":\"T\"}");Check(Read().MatchedModel&&Read().ReferencePose==MmdReferencePose.T,"Paired model discovery remains independent of the generated-rig pose option");File.Delete(manifest);
-    Check(discovered.Action.AudioFile == "BGM.wav" && discovered.MatchedModel && discovered.ModelPath == Path.Combine(folder, "source.pmd"), "Default WAV and paired PMD are discovered");
+    Json("{\"referencePose\":\"T\"}");Check(Read().ReferencePose==MmdReferencePose.T,"Unused model files do not override JSON T reference");File.Delete(manifest);
+    Check(discovered.Action.AudioFile == "BGM.wav" && discovered.ReferencePose == MmdReferencePose.A, "Default WAV resolves while an invalid source.pmd is ignored");
     Json("{}"); var empty = Read();
-    Check(empty.Action.Id == discovered.Action.Id && empty.Action.AudioFile == discovered.Action.AudioFile && empty.ModelPath == discovered.ModelPath && empty.MatchedModel == discovered.MatchedModel, "Empty manifest and no manifest have identical defaults");
+    Check(empty.Action.Id == discovered.Action.Id && empty.Action.AudioFile == discovered.Action.AudioFile && empty.ReferencePose == discovered.ReferencePose, "Empty manifest and no manifest have identical defaults");
     MmdCameraPacks.Register("default", folder, discovered.Json);
     Check(MmdCameraPacks.Get("default")?.Options.VmdFile == "camera.vmd", "Camera is discovered without JSON");
     Json("{\"displayName\":\"特别版\",\"camera\":{\"heightOffset\":0.1}}");
     var partial = Read(); MmdCameraPacks.Register("partial", folder, partial.Json);
     var camera = MmdCameraPacks.Get("partial");
-    Check(partial.Action.DisplayName == "特别版" && partial.Action.Id == discovered.Action.Id && partial.Action.AudioFile == "BGM.wav" && partial.MatchedModel, "Partial JSON keeps folder, audio and model defaults");
+    Check(partial.Action.DisplayName == "特别版" && partial.Action.Id == discovered.Action.Id && partial.Action.AudioFile == "BGM.wav" && partial.ReferencePose == MmdReferencePose.A, "Partial JSON keeps folder, audio and reference-pose defaults");
     Check(camera.Options.VmdFile == "camera.vmd" && camera.Options.Scale == .08f && camera.Options.HeightOffset == .1f, "Nested camera overrides retain filename and scale");
     Json("{\"audioFile\":\"\",\"volume\":0,\"requiresStanding\":false,\"showInRing\":false,\"camera\":{\"enabled\":false,\"vmdFile\":\"missing.vmd\"}}");
     var disabled = Read(); Register(disabled); MmdCameraPacks.Register("disabled", folder, disabled.Json);
@@ -98,8 +102,8 @@ try
             MmdCameraPacks.Register(name, pack.Directory, pack.Json);
             Check(pack.Action.Id == name && pack.Action.DisplayName == name && pack.Action.Volume == 1 && pack.Action.AudioFile == "BGM.wav", name + " effective defaults");
             Check(MmdCameraPacks.Get(name).Motion.KeyCount > 10, name + " actual camera resolves");
-            Check(name == "WAVEFILE" ? pack.MatchedModel && Math.Abs(pack.Action.AudioDelaySeconds - 160d / 30) < 1e-10 : !pack.MatchedModel && pack.Action.AudioDelaySeconds == 0, name + " skeleton policy and audio timing");
-            Console.WriteLine($"PASS {name}: id={pack.Action.Id} volume={pack.Action.Volume} delay={pack.Action.AudioDelaySeconds} pairedPMD={pack.MatchedModel} cameraKeys={MmdCameraPacks.Get(name).Motion.KeyCount}");
+            Check(name == "WAVEFILE" ? Math.Abs(pack.Action.AudioDelaySeconds - 160d / 30) < 1e-10 : pack.Action.AudioDelaySeconds == 0, name + " skeleton policy and audio timing");
+            Console.WriteLine($"PASS {name}: id={pack.Action.Id} volume={pack.Action.Volume} delay={pack.Action.AudioDelaySeconds} referencePose={pack.ReferencePose} cameraKeys={MmdCameraPacks.Get(name).Motion.KeyCount}");
         }
     }
     Console.WriteLine("PASS " + count + " assertions: actual pack resolver/registry, Unicode, sparse JSON, nested defaults, overrides, duplicate IDs, path restrictions, camera isolation and real resources");

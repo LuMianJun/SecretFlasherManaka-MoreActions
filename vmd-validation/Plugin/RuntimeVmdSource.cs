@@ -11,34 +11,28 @@ namespace Seleka2.Mmd;
 public sealed class RuntimeVmdSource : IActionSource, IPreparedActionSource
 {
     readonly MmdMotion motion;
-    readonly string modelPath;
-    readonly bool paired;
     public float Duration => motion.lastFrame / 30f;
     public int RetainedTracks => motion.tracks.Count;
     public int IgnoredTracks { get; }
-    internal string SkeletonKey => paired ? "pmd:" + Path.GetFullPath(modelPath) : MmdRigCache.ModelKey(modelPath, false, ReferencePose);
+    internal string SkeletonKey => MmdRigCache.SkeletonKey(ReferencePose);
     internal MmdReferencePose ReferencePose { get; }
-    internal string ModelPath => modelPath;
-    internal bool Paired => paired;
-    internal void Prepare(GameObject target) => MmdRigCache.Prepare(target, modelPath, paired, ReferencePose);
-    public bool IsPrepared(GameObject target) => MmdRigCache.IsPrepared(target, modelPath, paired, ReferencePose);
-    public RuntimeVmdSource(string vmdPath, string pmdPath, bool matchedModel, MmdReferencePose referencePose = MmdReferencePose.A)
+    internal void Prepare(GameObject target) => MmdRigCache.Prepare(target, ReferencePose);
+    public bool IsPrepared(GameObject target) => MmdRigCache.IsPrepared(target, ReferencePose);
+    public RuntimeVmdSource(string vmdPath, MmdReferencePose referencePose = MmdReferencePose.A)
     {
-        if (matchedModel && !File.Exists(pmdPath)) throw new FileNotFoundException("MMD paired skeleton missing", pmdPath);
         if (!Enum.IsDefined(typeof(MmdReferencePose), referencePose)) throw new ArgumentOutOfRangeException(nameof(referencePose));
         ReferencePose = referencePose;
-        motion = MmdMotion.Read(vmdPath); modelPath = pmdPath; paired = matchedModel;
+        motion = MmdMotion.Read(vmdPath);
         if (motion.tracks.Count == 0 || Duration <= 0) throw new InvalidDataException("VMD contains no playable bone motion");
-        var profile = paired ? MmdRigCache.Profile(modelPath) : null;
         {
-            var names = new HashSet<string>(paired ? profile.byName.Keys : GameMmdSkeleton.SupportedNames());
+            var names = new HashSet<string>(GameMmdSkeleton.SupportedNames());
             var ignored = motion.tracks.Keys.Where(n => !names.Contains(n)).ToArray();
             IgnoredTracks = ignored.Length;
             foreach (var name in ignored) motion.tracks.Remove(name);
             if (!motion.tracks.Keys.Any(n => n == "上半身" || n == "下半身" || n == "左腕" || n == "右腕")) throw new InvalidDataException("VMD has no supported standard body tracks");
         }
     }
-    public IActionPose CreatePose(GameObject target, ActionDefinition definition) => new RuntimeVmdPose(target, definition, motion, modelPath, paired, ReferencePose);
+    public IActionPose CreatePose(GameObject target, ActionDefinition definition) => new RuntimeVmdPose(target, definition, motion, ReferencePose);
 }
 
 internal sealed class RuntimeVmdRig
@@ -54,13 +48,14 @@ internal sealed class RuntimeVmdRig
     internal readonly List<(SkinnedMeshRenderer renderer, int index, string source)> morphs = new();
     internal GameObject target;
     internal float[] Shape;
-    internal string ShapePaths, ModelKey;
+    internal string ShapePaths;
+    internal string SkeletonKey => MmdRigCache.SkeletonKey(ReferencePose);
     internal bool DetachedOnReturn;
     internal GameObject proxy;
     internal MmdSkeleton source;
     internal Transform liveRoot, hip;
     internal float scale;
-    internal bool Leased, Retired, WorldMetric;
+    internal bool Leased, Retired;
     internal MmdReferencePose ReferencePose;
     readonly List<(SkinnedMeshRenderer renderer, Mesh mesh)> meshes = new();
 
@@ -82,9 +77,9 @@ internal sealed class RuntimeVmdRig
         target = null; liveRoot = null; hip = null; meshes.Clear(); morphs.Clear();
         foreach (var b in bindings) b.live = null; toes.Clear();
     }
-    internal IEnumerable<int> BuildSteps(MmdTargetSnapshot snapshot, MmdSkeleton template, bool worldMetric = true, MmdReferencePose referencePose = MmdReferencePose.A)
+    internal IEnumerable<int> BuildSteps(MmdTargetSnapshot snapshot, MmdSkeleton template, MmdReferencePose referencePose = MmdReferencePose.A)
     {
-            WorldMetric=worldMetric; ReferencePose=referencePose;
+            ReferencePose=referencePose;
             var rest = snapshot.Rest; var liveBones = snapshot.Bones;
             Rebind(snapshot);
             proxy = new GameObject("MmdTargetSamplingRig"); proxy.hideFlags = HideFlags.HideAndDontSave; proxy.SetActive(false);
@@ -116,7 +111,7 @@ internal sealed class RuntimeVmdRig
             source = template.CopyData();
             foreach (var step in source.CreateTransformSteps()) yield return step;
             source.useIk = true;
-            var map = Map(source);
+            var map = Map();
             var byName = bindings.ToDictionary(b => b.sample.name);
             var restRotations = bindings.ToDictionary(b => b.sample.name, b => b.sample.rotation);
             foreach (var b in bindings) b.source = map[b.sample.name];
@@ -136,13 +131,9 @@ internal sealed class RuntimeVmdRig
                 if (toe != null && sourceFoot.tail > 0 && sourceFoot.tail < source.bones.Count) foot.neutral = Align(foot.sample, toe.position - foot.sample.position, source.bones[sourceFoot.tail].rest - sourceFoot.rest);
             }
             float sourceLength = (source.byName["左足"].rest - source.byName["左ひざ"].rest).magnitude + (source.byName["左ひざ"].rest - source.byName["左足首"].rest).magnitude;
-            float targetLength = (byName["UpperLeg_L"].sample.position - byName["LowerLeg_L"].sample.position).magnitude + (byName["LowerLeg_L"].sample.position - byName["Foot_L"].sample.position).magnitude;
-            if(WorldMetric)
-            {
-                const string leg="Armature/Hips/UpperLeg_L";
-                var upper=snapshot.Positions[leg];var knee=snapshot.Positions[leg+"/LowerLeg_L"];var ankle=snapshot.Positions[leg+"/LowerLeg_L/Foot_L"];
-                targetLength=(upper-knee).Length()+(knee-ankle).Length();
-            }
+            const string leg="Armature/Hips/UpperLeg_L";
+            var upper=snapshot.Positions[leg];var knee=snapshot.Positions[leg+"/LowerLeg_L"];var ankle=snapshot.Positions[leg+"/LowerLeg_L/Foot_L"];
+            float targetLength=(upper-knee).Length()+(knee-ankle).Length();
             if (sourceLength < 0.00001f || targetLength < 0.00001f) throw new Exception("Degenerate retarget skeleton");
             scale = targetLength / sourceLength;
             yield return 0;
@@ -150,20 +141,18 @@ internal sealed class RuntimeVmdRig
 
     static Quaternion Align(Transform target, Vector3 targetDirection, Vector3 sourceDirection)
         => targetDirection.sqrMagnitude < 0.000001f || sourceDirection.sqrMagnitude < 0.000001f ? target.rotation : Quaternion.FromToRotation(targetDirection, sourceDirection) * target.rotation;
-    static string Choose(MmdSkeleton rig, params string[] names) => names.First(n => rig.byName.ContainsKey(n));
-    static Dictionary<string, string> Map(MmdSkeleton rig)
+    static Dictionary<string, string> Map()
     {
-        var map = new Dictionary<string, string> { { "Hips", "下半身" }, { "Spine", "上半身" }, { "Chest", Choose(rig, "上半身3", "上半身2", "上半身") }, { "Neck", "首" }, { "Head", "頭" } };
+        var map = new Dictionary<string, string> { { "Hips", "下半身" }, { "Spine", "上半身" }, { "Chest", "上半身3" }, { "Neck", "首" }, { "Head", "頭" } };
         foreach (var side in new[] { "左", "右" })
         {
             string suffix = side == "左" ? "_L" : "_R";
-            map["Shoulder" + suffix] = side + "肩"; map["UpperArm" + suffix] = Choose(rig, side + "腕捩", side + "腕"); map["LowerArm" + suffix] = Choose(rig, side + "手捩", side + "ひじ"); map["Hand" + suffix] = side + "手首";
+            map["Shoulder" + suffix] = side + "肩"; map["UpperArm" + suffix] = side + "腕捩"; map["LowerArm" + suffix] = side + "手捩"; map["Hand" + suffix] = side + "手首";
             map["UpperLeg" + suffix] = side + "足"; map["LowerLeg" + suffix] = side + "ひざ"; map["Foot" + suffix] = side + "足首";
             foreach (var finger in new[] { new[] { "Thumb", "親指" }, new[] { "Index", "人指" }, new[] { "Middle", "中指" }, new[] { "Ring", "薬指" }, new[] { "Little", "小指" } })
                 for (int j = 0; j < 3; j++)
                 {
-                    int n = finger[0] == "Thumb" && rig.byName.ContainsKey(side + "親指０") ? j : j + 1;
-                    if (finger[0] == "Thumb" && !rig.byName.ContainsKey(side + "親指０")) n = Math.Min(n, 2);
+                    int n = finger[0] == "Thumb" ? j : j + 1;
                     map[finger[0] + new[] { "Proximal", "Intermediate", "Distal" }[j] + suffix] = side + finger[1] + (char)('０' + n);
                 }
         }
@@ -204,9 +193,9 @@ public sealed class RuntimeVmdPose : IActionPose, IActionRootMotionPose, IAction
         return result;
     }
 
-    public RuntimeVmdPose(GameObject target, ActionDefinition action, MmdMotion keys, string modelPath, bool paired, MmdReferencePose referencePose = MmdReferencePose.A)
+    public RuntimeVmdPose(GameObject target, ActionDefinition action, MmdMotion keys, MmdReferencePose referencePose = MmdReferencePose.A)
     {
-        rig = MmdRigCache.Rent(target, modelPath, paired, referencePose);
+        rig = MmdRigCache.Rent(target, referencePose);
         definition = action; motion = keys;
         try
         {

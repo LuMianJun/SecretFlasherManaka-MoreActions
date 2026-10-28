@@ -9,7 +9,7 @@
 | 插件 | 当前版本 | 功能与依赖 |
 | --- | --- | --- |
 | 更多动作 | 0.5.3 | 提供转盘入口、播放控制、音乐、表情叠加、设置和动作事件；可独立加载已适配游戏骨架的 Unity 动画包。 |
-| MMD | 0.9.9 | 直接读取 VMD，支持配套音乐、镜头和走位；需要安装更多动作。 |
+| MMD | 0.10.0 | 直接读取 VMD，支持配套音乐、镜头和走位；需要安装更多动作。 |
 | NPC 围观 | 0.2.0 | 让符合条件的普通行人靠近围观；可单独使用，也可与 MMD 或动作事件联动。 |
 
 只想播放 MMD，安装“更多动作 + MMD”即可；需要围观时再安装 NPC 插件。
@@ -61,12 +61,11 @@ BepInEx/plugins/Seleka2VmdProbe/Motions/我的舞蹈/
 | `motion.vmd` | 角色动作 | 必需 |
 | `camera.vmd` | 配套镜头 | 可选 |
 | `BGM.wav` | 配套音乐 | 可选 |
-| `source.pmd` | 动作配套模型，用于辅助骨架匹配 | 可选 |
 | `action.json` | 调整名称、文件名和播放参数 | 可选 |
 
 **只放入 `motion.vmd` 就能播放，不需要编写 JSON。** 文件夹名默认同时作为动作名称和 ID，支持中文；不同动作请使用不同名称，不要包含英文逗号。
 
-没有 `source.pmd` 时，插件从游戏角色的绑定姿势生成虚拟 MMD 骨架，不需要额外的默认模型。配套 PMD 只用于动作匹配，不改变玩家外观。
+插件统一从游戏角色的绑定姿势生成虚拟 MMD 骨架，不需要额外模型。默认采用 A-pose 参考校准，可用动作 JSON 的 `referencePose` 切换 T-pose。
 
 放好资源后重启游戏，进入场景，沿用游戏原有转盘的打开、切页和选择方式，找到并选择自定义动作。1–8 号转盘入口均可访问自定义动作页；快捷槽选择记录保存在插件配置中。
 
@@ -80,7 +79,7 @@ BepInEx/plugins/Seleka2VmdProbe/Motions/我的舞蹈/
 
 配套镜头按动作自身的轨迹播放，不额外叠加玩家走位补偿。
 
-没有配套 PMD 时，默认使用 A-pose 参考校准。需要沿用 T-pose 参考的动作，可在原有 `action.json` 中添加 `"referencePose": "T"`；省略或填写 `"A"` 使用默认值。修改后重启游戏。有配套 PMD 时以模型自身的参考姿势为准。
+默认使用 A-pose 参考校准。需要沿用 T-pose 参考的动作，可在原有 `action.json` 中添加 `"referencePose": "T"`；省略或填写 `"A"` 使用默认值。修改后重启游戏。
 
 播放期间 MMD 接管动作控制的身体骨骼位置与旋转，隔离原版膝盖、脚趾和视线修正的冲突写入，并保留体型、骨长和鞋跟计算。每帧先撤回上次动作姿势，防止位置修正累积；停止后归还原版控制。头发、裙摆等附属物理保持原有处理。
 
@@ -212,7 +211,9 @@ JSON 动作事件可在指定时间播放原版音效、触发脚步或召集 NP
 
 **动作、脚部或镜头与原 MMD 视频不完全一致？**
 
-游戏角色与动作作者模型的骨架和比例不同，部分 IK、特殊骨骼和表情仍有兼容差异。可尝试提供原动作配套的 `source.pmd`，或调整镜头比例和高度；目前不支持 PMX，也不保证所有 MMD 特性完整还原。
+游戏角色与动作作者模型的骨架和比例不同，部分 IK、特殊骨骼和表情仍有兼容差异。合掌、摸脸、牵手等精确接触可能存在偏差；当前不提供自动接触适配，也不保证所有 MMD 特性完整还原。
+
+0.10.0 起移除模型加载：`source.pmd` 不再读取；旧 `action.json` 若含 `modelFile`，请删除该字段，否则会收到明确的迁移提示。已有模型文件不会被安装器删除。
 
 **为什么表情开关开启后仍不叠加？**
 
@@ -227,7 +228,7 @@ JSON 动作事件可在指定时间播放原版音效、触发脚步或召集 NP
 | [UnityVMDPlayer](https://github.com/hobosore/UnityVMDPlayer/blob/2cee8abd56c68ad3e88bcf4086e33185aa5ca4e8/UnityVMDPlayer.cs) | 参考中心、槽骨骼与全亲的位移处理，以及 0.08 的单位比例。当前实现从求解后的层级提取位移，接入游戏现有角色控制器。 |
 | [three.js r160 — MMDLoader](https://github.com/mrdoob/three.js/blob/r160/examples/jsm/loaders/MMDLoader.js) | 早期 VMD 动画、插值、坐标及镜头实现的参考。 |
 | [three.js r160 — MMDAnimationHelper](https://github.com/mrdoob/three.js/blob/r160/examples/jsm/animation/MMDAnimationHelper.js) | MMD 动画求值与镜头行为参考。 |
-| [mmdparser（three.js r160 内附版本）](https://github.com/mrdoob/three.js/blob/r160/examples/jsm/libs/mmdparser.module.js) | VMD、PMD 文件结构及数据读取参考。 |
+| [mmdparser（three.js r160 内附版本）](https://github.com/mrdoob/three.js/blob/r160/examples/jsm/libs/mmdparser.module.js) | VMD 文件结构及数据读取参考；历史 PMD 读取路径已移除。 |
 | [blender_mmd_tools 单位说明](https://github.com/powroupi/blender_mmd_tools/wiki/1-MMD-unit-in-real-world-units) | 核对 MMD 单位到米的 0.08 换算约定；运行插件不需要 Blender。 |
 
 上述项目用于算法、格式或行为参考。本插件保留自己的 C# VMD 求解流程；游戏骨架生成、后台准备、骨架缓存、碰撞控制器接入、取消逻辑、转盘与设置联动在本仓库中实现。

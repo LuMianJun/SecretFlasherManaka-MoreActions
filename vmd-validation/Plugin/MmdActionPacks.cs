@@ -9,7 +9,7 @@ using Seleka2.Actions;
 namespace Seleka2.Mmd;
 
 internal sealed record MmdActionPack(ActionDefinition Action, string Directory, string Json,
-    string MotionPath, string ModelPath, bool MatchedModel, MmdReferencePose ReferencePose);
+    string MotionPath, MmdReferencePose ReferencePose);
 
 // Discovery and defaults are shared by manifest and folder-only imports.
 internal static class MmdActionPacks
@@ -38,7 +38,7 @@ internal static class MmdActionPacks
         string json = File.Exists(manifest) ? File.ReadAllText(manifest) : "{}";
         using var document = JsonDocument.Parse(json);
         var root = document.RootElement;
-        CheckFields(root, "id", "displayName", "description", "vmdFile", "audioFile", "modelFile", "referencePose",
+        CheckFields(root, "id", "displayName", "description", "vmdFile", "audioFile", "referencePose",
             "audioDelaySeconds", "volume", "loop", "requiresHands", "requiresStanding", "bodyMask",
             "writeHipTranslation", "writeFaceMorphs", "keepGameExpressions", "followFaceCamera", "showInRing", "bonePaths", "camera",
             "events", "onStart", "onFinish", "onCancel", "useClipEvents");
@@ -51,11 +51,6 @@ internal static class MmdActionPacks
             action.AudioFile = File.Exists(Path.Combine(directory, "BGM.wav")) ? "BGM.wav" : "";
         if (!string.IsNullOrEmpty(action.AudioFile)) PackFile(directory, action.AudioFile);
         string motion = TryField(root, "vmdFile", out var vmd) ? vmd.GetString() : "motion.vmd";
-        bool specifiedModel = TryField(root, "modelFile", out var model);
-        bool matched = specifiedModel || File.Exists(Path.Combine(directory, "source.pmd"));
-        // Unpaired motions derive their reference skeleton from the player's
-        // bind poses at playback. They no longer require an external PMD.
-        string modelPath = matched ? PackFile(directory, specifiedModel ? model.GetString() : "source.pmd") : "";
         var referencePose = MmdReferencePose.A;
         if (TryField(root, "referencePose", out var pose))
         {
@@ -67,7 +62,7 @@ internal static class MmdActionPacks
                 _ => throw new ArgumentException("referencePose must be A or T")
             };
         }
-        return new MmdActionPack(action, directory, json, PackFile(directory, motion), modelPath, matched, referencePose);
+        return new MmdActionPack(action, directory, json, PackFile(directory, motion), referencePose);
     }
 
     internal static bool TryField(JsonElement root, string name, out JsonElement value)
@@ -84,6 +79,8 @@ internal static class MmdActionPacks
         var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (var field in root.EnumerateObject())
         {
+            if (field.Name.Equals("modelFile", StringComparison.OrdinalIgnoreCase))
+                throw new ArgumentException("modelFile has been removed; delete it from action.json. Reference skeletons are generated from the game avatar.");
             if (!allowed.Contains(field.Name, StringComparer.OrdinalIgnoreCase)) throw new ArgumentException("Unknown MMD parameter: " + field.Name);
             if (!seen.Add(field.Name)) throw new ArgumentException("Duplicate MMD parameter: " + field.Name);
             // Camera errors are handled separately so motion/music can still play.

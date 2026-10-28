@@ -105,41 +105,6 @@ public sealed class MmdSkeleton : IDisposable
     public readonly List<Bone> bones=new List<Bone>();public readonly List<Ik> iks=new List<Ik>();
     public readonly Dictionary<string,Bone> byName=new Dictionary<string,Bone>();
     public GameObject root;public bool useIk;
-    static string ReadText(BinaryReader r,int size)=>Encoding.GetEncoding(932).GetString(r.ReadBytes(size)).Split('\0')[0];
-    public static MmdSkeleton ReadPmd(string path,bool createTransforms=true)
-    {
-        var skeleton=new MmdSkeleton();
-        using(var r=new BinaryReader(File.OpenRead(path)))
-        {
-            if(ReadText(r,3)!="Pmd"||Math.Abs(r.ReadSingle()-1)>0.001f)throw new Exception("Expected PMD 1.0");
-            ReadText(r,20);ReadText(r,256);
-            var count=r.ReadUInt32();r.BaseStream.Seek(count*38L,SeekOrigin.Current);
-            count=r.ReadUInt32();r.BaseStream.Seek(count*2L,SeekOrigin.Current);count=r.ReadUInt32();r.BaseStream.Seek(count*70L,SeekOrigin.Current);
-            count=r.ReadUInt16();if(count==0||count>5000)throw new InvalidDataException("Invalid PMD bone count");
-            for(int i=0;i<count;i++)
-            {
-                var bone=new Bone{name=ReadText(r,20),parent=r.ReadUInt16(),tail=r.ReadUInt16(),type=r.ReadByte()};r.ReadUInt16();
-                bone.rest=MmdMotion.ConvertPosition(new Vector3{x=r.ReadSingle(),y=r.ReadSingle(),z=r.ReadSingle()});
-                if(bone.parent==65535)bone.parent=-1;
-                float lengthSquared=bone.rest.x*bone.rest.x+bone.rest.y*bone.rest.y+bone.rest.z*bone.rest.z;
-                if(!float.IsFinite(lengthSquared)||skeleton.byName.ContainsKey(bone.name))throw new InvalidDataException("Invalid PMD bone");
-                skeleton.bones.Add(bone);skeleton.byName.Add(bone.name,bone);
-            }
-            count=r.ReadUInt16();
-            for(int i=0;i<count;i++)
-            {
-                var ik=new Ik{target=r.ReadUInt16(),effector=r.ReadUInt16()};var links=r.ReadByte();ik.iterations=r.ReadUInt16();ik.limit=r.ReadSingle()*4*Mathf.Rad2Deg;ik.links=new int[links];
-                for(int j=0;j<links;j++)ik.links[j]=r.ReadUInt16();skeleton.iks.Add(ik);
-            }
-        }
-        for(int i=0;i<skeleton.bones.Count;i++)
-        {
-            var visited=new HashSet<int>();int parent=i;
-            while(parent>=0){if(parent>=skeleton.bones.Count||!visited.Add(parent))throw new InvalidDataException("Invalid PMD hierarchy");parent=skeleton.bones[parent].parent;}
-        }
-        foreach(var ik in skeleton.iks)if(ik.target>=skeleton.bones.Count||ik.effector>=skeleton.bones.Count||ik.links.Any(i=>i>=skeleton.bones.Count)||ik.iterations>10000||float.IsNaN(ik.limit)||float.IsInfinity(ik.limit)||ik.limit<0)throw new InvalidDataException("Invalid PMD IK");
-        if(createTransforms)skeleton.CreateTransforms();return skeleton;
-    }
     internal void CreateTransforms() { foreach (var _ in CreateTransformSteps()) { } }
     internal IEnumerable<int> CreateTransformSteps()
     {

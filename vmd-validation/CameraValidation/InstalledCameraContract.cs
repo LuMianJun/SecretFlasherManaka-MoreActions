@@ -33,7 +33,7 @@ internal static class InstalledCameraContract
         string npcDll = Path.Combine(game, "BepInEx", "plugins", "Seleka2NpcSpectators", "Seleka2.NpcSpectators.dll");
         VerifyWorkerMethods(baseDll, "WaveAudio", new[] { "Decode" });
         VerifyWorkerMethods(mmdDll, "MmdMotion", new[] { "Read", "ConvertPosition", "ConvertRotation" });
-        VerifyWorkerMethods(mmdDll, "MmdSkeleton", new[] { "ReadPmd", "CopyData" });
+        VerifyWorkerMethods(mmdDll, "MmdSkeleton", new[] { "CopyData" });
         VerifyWorkerMethods(mmdDll, "GameMmdSkeleton", new[] { "CreateData" });
         VerifyWorkerMethods(mmdDll, "RuntimeVmdSource", new[] { ".ctor" });
         Check(baseDll, new() { ["ActionPlaybackApi"] = new[] { "get_PlaybackPositionSeconds", "add_PoseApplied", "remove_PoseApplied", "add_PlaybackChanged" },
@@ -78,6 +78,13 @@ internal static class InstalledCameraContract
         }
         if (!controllerMove) throw new Exception("Root motion must use CharacterController.Move");
         if (mmdRefs.Contains("UnityEngine.AssetBundleModule") || mmdRefs.Contains("UnityEngine.AnimationModule")) throw new Exception("MMD must use the direct VMD implementation");
+        foreach (var typeHandle in m.TypeDefinitions)
+        {
+            var type = m.GetTypeDefinition(typeHandle);
+            if (m.GetString(type.Name) == "MmdHandDiagnostics") throw new Exception("Temporary hand diagnostics still compiled");
+            if (type.GetMethods().Any(h => m.GetString(m.GetMethodDefinition(h).Name) == "ReadPmd"))
+                throw new Exception("Retired model parser still compiled");
+        }
         foreach (var handle in m.MemberReferences)
         {
             var member = m.GetMemberReference(handle);
@@ -97,10 +104,10 @@ internal static class InstalledCameraContract
             if (folder == "WAVEFILE")
             {
                 using var json = JsonDocument.Parse(File.ReadAllText(Path.Combine(pack, "action.json"))); var data = json.RootElement;
-                if (data.EnumerateObject().Count() != 1 || Math.Abs(data.GetProperty("audioDelaySeconds").GetDouble() - 160d / 30) > .000001 || !resolved.MatchedModel)
-                    throw new Exception("WAVEFILE must retain only its music delay override and auto-discover the paired skeleton");
+                if (data.EnumerateObject().Count() != 1 || Math.Abs(data.GetProperty("audioDelaySeconds").GetDouble() - 160d / 30) > .000001 || resolved.ReferencePose != Seleka2.Mmd.MmdReferencePose.A)
+                    throw new Exception("WAVEFILE must retain only its music delay override and use the generated A-pose skeleton");
             }
-            else if (File.Exists(Path.Combine(pack, "action.json")) || resolved.MatchedModel) throw new Exception("Shake must use manifest-free defaults");
+            else if (File.Exists(Path.Combine(pack, "action.json"))) throw new Exception("Shake must use manifest-free defaults");
         }
         if (!File.Exists(Path.Combine(root, "README.zh-CN.md"))) throw new Exception("Player guide missing");
         foreach (var guideRoot in new[] { Path.GetDirectoryName(baseDll)!, root })
@@ -109,7 +116,7 @@ internal static class InstalledCameraContract
         var definition = b.TypeDefinitions.Select(b.GetTypeDefinition).Single(t => b.GetString(t.Name) == "ActionDefinition");
         if (definition.GetProperties().Any(h => b.GetString(b.GetPropertyDefinition(h).Name) == "SchemaVersion")) throw new Exception("Obsolete schema version remains");
         Console.WriteLine("PASS installed native settings/Harmony targets, three settings hooks, no custom hotkey/IMGUI/Tab preview dependencies, shared time API and standalone NPC interface");
-        if (withExamplePacks) Console.WriteLine("PASS both installed motions use folder IDs and automatic VMD/WAV/camera/model discovery; minimal WAVEFILE delay, manifest-free Shake, player guide and no schema version or retired resources");
+        if (withExamplePacks) Console.WriteLine("PASS both installed motions use folder IDs and automatic VMD/WAV/camera discovery with game-generated skeletons; minimal WAVEFILE delay, manifest-free Shake, player guide and no schema version or retired resources");
         Console.WriteLine("PASS installed event registry/driver/native receivers/optional NPC bridge and event player guides");
     }
 

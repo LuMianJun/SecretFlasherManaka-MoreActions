@@ -29,7 +29,7 @@ public sealed class MmdPackPreparation : MonoBehaviour
                     try
                     {
                         var timer = System.Diagnostics.Stopwatch.StartNew();
-                        var source = new RuntimeVmdSource(pack.MotionPath, pack.ModelPath, pack.MatchedModel, pack.ReferencePose);
+                        var source = new RuntimeVmdSource(pack.MotionPath, pack.ReferencePose);
                         CameraPack camera = null; Exception cameraError = null;
                         try { camera = MmdCameraPacks.Read(pack.Directory, pack.Json); } catch (Exception e) { cameraError = e; }
                         return new Result(source, camera, cameraError, timer.ElapsedMilliseconds);
@@ -63,7 +63,7 @@ public sealed class MmdPackPreparation : MonoBehaviour
         if (!announced && completed == jobs.Count)
         {
             announced = true;
-            global::Plugin.LogSource.LogInfo("MMD_ACTIONS_READY version=0.9.9 packs=" + registered + " directVmd=true asyncPreparation=true");
+            global::Plugin.LogSource.LogInfo("MMD_ACTIONS_READY version=0.10.0 packs=" + registered + " directVmd=true asyncPreparation=true");
         }
     }
 }
