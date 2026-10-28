@@ -60,12 +60,12 @@ namespace UnityEngine.AI
     public sealed class NavMeshAgent
     {
         public bool updatePosition=true, updateRotation=true, isStopped, enabled=true, isOnNavMesh=true, hasPath=true, pathPending;
-        public int areaMask=-1, DestinationWrites;
+        public int areaMask=-1, DestinationWrites, SetPathCalls;
         public float baseOffset;
         public Vector3 destination=new(0,0,20), nextPosition, steeringTarget;
         public NavMeshPathStatus pathStatus=NavMeshPathStatus.PathComplete, CalculateStatus=NavMeshPathStatus.PathComplete;
         public bool CalculatePath(Vector3 point, NavMeshPath path) { path.status=CalculateStatus;path.Destination=point;return true; }
-        public bool SetPath(NavMeshPath path) { destination=path.Destination;steeringTarget=destination;hasPath=true;pathStatus=path.status;return true; }
+        public bool SetPath(NavMeshPath path) { SetPathCalls++;destination=path.Destination;steeringTarget=destination;hasPath=true;pathStatus=path.status;return true; }
         public bool SetDestination(Vector3 point) { destination=point;hasPath=true;DestinationWrites++;return true; }
         public void ResetPath() { hasPath=false; }
         public bool Raycast(Vector3 next,out NavMeshHit hit) { hit=new(){position=next};return false; }
@@ -84,7 +84,11 @@ namespace ExposureUnnoticed2.Object3D.NPC.Script
     public sealed class Smooth { public float Target=1, Current=1; }
     public sealed class NpcAnimationManager { public Smooth speed=new(); public void SetSpeed(float v)=>speed.Target=v;public float GetCurrentMoveSpeed()=>speed.Current; }
     public sealed class NpcComponentAccessor { public NpcController NpcController;public NpcStateModel StateModel=new();public NavMeshAgent NavAgent=new();public NpcLocomotion NpcLocomotion;public NpcAnimationManager NpcAnimationManager=new(); }
-    public sealed class NpcLocomotion { public NpcComponentAccessor nca; public Vector3 moveV,lastSetDestinationPoint;public Quaternion targetRotation;public float lastCalcNearNpcTime;public int skipFixedUpdateFrame;public void SetMoveZero()=>moveV=Vector3.zero; }
+    public sealed class NpcLocomotion { public NpcComponentAccessor nca; public Vector3 moveV,lastSetDestinationPoint;public Quaternion targetRotation;public float lastCalcNearNpcTime;public int skipFixedUpdateFrame;public void SetMoveZero()=>moveV=Vector3.zero;
+        public int SimpleUpdateCalls;public Vector3 SimpleTarget;public float SimpleStopDistance;
+        // Records delegation only; does not emulate native navigation or physics.
+        public void SimpleUpdateFromOtherState(Vector3 target,float stopDist=.2f) { SimpleUpdateCalls++;SimpleTarget=target;SimpleStopDistance=stopDist; }
+    }
     public sealed class NpcController
     {
         public IntPtr Pointer; public int id; public bool IsAlive=true;public GameObject GameObject=new();public Transform Transform=new(); public NpcComponentAccessor Nca=new();

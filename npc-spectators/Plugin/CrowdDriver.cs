@@ -163,7 +163,7 @@ public sealed class CrowdDriver : MonoBehaviour
             spectators.Add(npc.Pointer, spectator); occupied.Add(slot.Index);
             try
             {
-                spectator.Acquire(path);
+                spectator.Acquire();
                 Plugin.Logger.LogInfo("CROWD_RECRUIT npc=" + npc.id + " slot=" + slot.Index + " destination=" + hit.position);
                 return true;
             }
@@ -199,22 +199,6 @@ public sealed class CrowdDriver : MonoBehaviour
         Plugin.Logger.LogInfo("CROWD_RELEASE npc=" + spectator.Id + " reason=" + reason);
     }
 
-    internal void PrepareFixedStep(NpcLocomotion locomotion)
-    {
-        var npc = locomotion.nca?.NpcController;
-        if (!active || npc == null || !spectators.TryGetValue(npc.Pointer, out var spectator)) return;
-        try
-        {
-            if (!Eligible(npc)) { Release(npc.Pointer, "NPC busy before movement"); return; }
-            spectator.PrepareFixedStep();
-        }
-        catch (Exception e)
-        {
-            Plugin.Logger.LogWarning("CROWD_STEP_FAILED npc=" + npc.id + " " + e.Message);
-            Release(npc.Pointer, "navigation step failure"); retryAfter[npc.Pointer] = Time.unscaledTime + 5;
-        }
-    }
-
     void End(string reason)
     {
         if (!active && spectators.Count == 0) return;
@@ -236,7 +220,7 @@ internal sealed class Spectator
     internal bool Arrived { get; private set; }
     readonly NavMeshAgent agent;
     readonly NpcLocomotion locomotion;
-    readonly bool positionBefore, rotationBefore, stoppedBefore, pathBefore;
+    readonly bool stoppedBefore, pathBefore;
     readonly Vector3 destinationBefore, cachedDestinationBefore;
     readonly Quaternion rotationTargetBefore;
     readonly float speedBefore;
@@ -245,59 +229,36 @@ internal sealed class Spectator
     {
         Npc = npc; Slot = slot; Destination = destination; Id = npc.id;
         agent = npc.Nca.NavAgent; locomotion = npc.Nca.NpcLocomotion;
-        positionBefore = agent.updatePosition; rotationBefore = agent.updateRotation; stoppedBefore = agent.isStopped;
+        stoppedBefore = agent.isStopped;
         pathBefore = agent.hasPath; destinationBefore = agent.destination;
         cachedDestinationBefore = locomotion.lastSetDestinationPoint; rotationTargetBefore = locomotion.targetRotation;
         speedBefore = npc.Nca.NpcAnimationManager.speed.Target;
     }
-    internal void Acquire(NavMeshPath path)
+    internal void Acquire()
     {
-        // Native FixedUpdate already moves the NPC root and resolves nearby collisions.
-        // Disable automatic agent transform writes to avoid two movement owners.
-        agent.updatePosition = false; agent.updateRotation = false;
-        agent.nextPosition = Npc.Transform.position; agent.isStopped = false;
-        locomotion.SetMoveZero();
-        if (!agent.SetPath(path)) throw new InvalidOperationException("Crowd path was rejected.");
+        // Keep the native agent flags and movement owner. Gathering supplies
+        // a temporary destination, just like native interaction approaches.
+        locomotion.SetMoveZero(); agent.isStopped = false;
+        if (!agent.SetDestination(Destination)) throw new InvalidOperationException("Crowd destination was rejected.");
         locomotion.lastSetDestinationPoint = Destination;
     }
     internal void Drive(Vector3 center)
     {
         var root = Npc.Transform;
         var animation = Npc.Nca.NpcAnimationManager;
-        agent.nextPosition = root.position;
         Arrived = CrowdDriver.HorizontalSquare(root.position - Destination) <= 0.35f * 0.35f;
-        if (Arrived)
+        if (!Arrived)
         {
-            locomotion.SetMoveZero(); animation.SetSpeed(0); agent.isStopped = true;
-            Vector3 facing = center - root.position; facing.y = 0;
-            if (facing.sqrMagnitude > 0.001f) locomotion.targetRotation = Quaternion.LookRotation(facing);
+            agent.isStopped = false; animation.SetSpeed(1);
+            // Existing native approach routine owns turning, moveV, speed and
+            // agent synchronization; native FixedUpdate/collision stays intact.
+            locomotion.SimpleUpdateFromOtherState(Destination, 0.35f);
+            return;
         }
-        else
-        {
-            agent.isStopped = false;
-            if (agent.pathPending) { locomotion.SetMoveZero(); animation.SetSpeed(0); return; }
-            if (!agent.hasPath || agent.pathStatus != NavMeshPathStatus.PathComplete)
-                throw new InvalidOperationException("Spectator path is no longer complete.");
-            Vector3 direction = agent.steeringTarget - root.position; direction.y = 0;
-            if (direction.sqrMagnitude < 0.0001f) { locomotion.SetMoveZero(); animation.SetSpeed(0); return; }
-            direction = direction.normalized;
-            locomotion.targetRotation = Quaternion.LookRotation(direction);
-            animation.SetSpeed(1);
-            // Reuse the native walk scale and animation smoothing. Turning reduces
-            // speed without moving sideways; cap the final step at the destination.
-            float speed = ExposureUnnoticed2.Master.Common.MCommon.PlayerWalkSpeed * 0.9f
-                * Npc.Nca.StateModel.MoveSpeedScale * animation.GetCurrentMoveSpeed();
-            float alignment = Mathf.Clamp01(Vector3.Dot(root.forward, direction));
-            float remaining = Mathf.Sqrt(CrowdDriver.HorizontalSquare(root.position - Destination));
-            speed = Mathf.Min(speed * alignment, remaining / Mathf.Max(Time.fixedDeltaTime * 3, 0.02f));
-            locomotion.moveV = direction * speed;
-            if (Time.unscaledTime - locomotion.lastCalcNearNpcTime >= 0.5f)
-            {
-                Npc.Nca.StateModel.NearNpc = NpcManager.Instance.GetNearOtherNpc(Npc);
-                locomotion.lastCalcNearNpcTime = Time.unscaledTime;
-            }
-        }
-        root.rotation = Quaternion.RotateTowards(root.rotation, locomotion.targetRotation, Time.deltaTime * 180);
+        locomotion.SetMoveZero(); animation.SetSpeed(0); agent.isStopped = true;
+        Vector3 facing = center - root.position; facing.y = 0;
+        if (facing.sqrMagnitude > 0.001f) locomotion.targetRotation = Quaternion.LookRotation(facing);
+        root.rotation = Quaternion.RotateTowards(root.rotation, locomotion.targetRotation, Time.deltaTime * 90);
     }
     internal void Restore()
     {
@@ -312,27 +273,10 @@ internal sealed class Spectator
         agent.nextPosition = Npc.Transform.position;
         if (pathBefore && float.IsFinite(destinationBefore.x) && float.IsFinite(destinationBefore.y) && float.IsFinite(destinationBefore.z)) agent.SetDestination(destinationBefore);
         else agent.ResetPath();
-        agent.updatePosition = positionBefore; agent.updateRotation = rotationBefore; agent.isStopped = stoppedBefore;
+        agent.isStopped = stoppedBefore;
     }
 
-    internal void PrepareFixedStep()
-    {
-        if (locomotion.moveV.sqrMagnitude < 0.000001f) return;
-        Vector3 position = Npc.Transform.position;
-        // Shopping-mall native movement accumulates up to three fixed frames for
-        // distant NPCs. Project precisely the step that that method will consume.
-        float dt = Time.fixedDeltaTime * (locomotion.skipFixedUpdateFrame + 1);
-        if (dt <= 0) { locomotion.SetMoveZero(); return; }
-        Vector3 next = position + locomotion.moveV * dt;
-        agent.nextPosition = position;
-        if (agent.Raycast(next, out var edge)) next = edge.position;
-        Vector3 floorQuery = next; floorQuery.y -= agent.baseOffset;
-        if (!NavMesh.SamplePosition(floorQuery, out var floor, 0.3f, agent.areaMask)
-            || Math.Abs(floor.position.y + agent.baseOffset - position.y) > 0.5f)
-            throw new InvalidOperationException("Navigation step is outside the current floor.");
-        next = floor.position; next.y += agent.baseOffset;
-        locomotion.moveV = (next - position) / dt;
-    }
+
 }
 
 [HarmonyPatch(typeof(NpcLocomotion), "OnUpdate")]
@@ -355,10 +299,4 @@ static class CrowdInterruptPatch
 static class CrowdTickPatch
 {
     static void Prefix() { CrowdDriver.Current?.Update(); }
-}
-
-[HarmonyPatch(typeof(NpcLocomotion), "OnFixedUpdate")]
-static class CrowdFixedStepPatch
-{
-    static void Prefix(NpcLocomotion __instance) { CrowdDriver.Current?.PrepareFixedStep(__instance); }
 }
