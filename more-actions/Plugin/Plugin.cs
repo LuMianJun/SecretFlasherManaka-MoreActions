@@ -92,9 +92,9 @@ public sealed class ActionDriver : MonoBehaviour
         var animator = PlayerController.Instance?.Pca?.Animator;
         ActionTargetApi.Target = animator == null ? null : animator.gameObject;
         ActionTargetApi.IsReady = animator != null && animator.enabled && animator.isInitialized;
-        if (Owner != null && Owner != PlayerController.Instance) { Stop("scene/player changed"); Owner = null; }
+        if (Owner != null && Owner != PlayerController.Instance) { StopWithDiagnostics("driver update", "scene/player changed"); Owner = null; }
         if (nativeExit != null && Owner == null) Stop("pending player destroyed");
-        if (Playing && Owner == null) Stop("player destroyed");
+        if (Playing && Owner == null) StopWithDiagnostics("driver update", "player destroyed");
         SyncPause();
     }
 
@@ -251,7 +251,24 @@ public sealed class ActionDriver : MonoBehaviour
         return true;
     }
 
-
+    [HideFromIl2Cpp]
+    internal void StopWithDiagnostics(string phase, string reason, Vector3? expected = null)
+    {
+        try
+        {
+            if (Playing)
+            {
+                bool available = Owner != null;
+                var state = available ? Owner.Pca?.PlayerState : null;
+                ActionCancellationDiagnostics.Record(Definition.Id, phase, reason, clock.Elapsed(AudioSettings.dspTime),
+                    expected ?? expectedPosition, available ? Owner.transform.position : default, available,
+                    PlayerInputBlocked, NativeOperationInputBlocked, InGameUiManager.Instance?.IsOpenSomeUi == true, clock.Paused,
+                    state, expected.HasValue);
+            }
+        }
+        catch (Exception e) { Plugin.LogSource?.LogWarning("ACTION_CANCEL_DIAGNOSTIC_FAILED "+e.Message); }
+        finally { Stop(reason); }
+    }
 
     [HideFromIl2Cpp]
     internal void BeforeNativeUpdate(PlayerController player)
@@ -268,14 +285,14 @@ public sealed class ActionDriver : MonoBehaviour
             || InputManager.IsDownFrame(InputManager.InputType.Interact) || InputManager.IsDownFrame(InputManager.InputType.DrinkWater)
             || InputManager.IsDownFrame(InputManager.InputType.EyeMask));
         if (reason != null || nativeInput || (player.transform.position - expectedPosition).sqrMagnitude > 0.0004f)
-            Stop(reason ?? (nativeInput ? "native input" : "external displacement"));
+            StopWithDiagnostics("before native update", reason ?? (nativeInput ? "native input" : "external displacement"));
     }
 
     [HideFromIl2Cpp]
     internal void Tick(PlayerController player)
     {
         if (tickFrame == Time.frameCount) return; tickFrame = Time.frameCount;
-        if (Owner != player) { Stop("player changed"); Owner = player; }
+        if (Owner != player) { StopWithDiagnostics("player update", "player changed"); Owner = player; }
         SyncPause();
         var ui = InGameUiManager.Instance;
         var ring = RingMenuParentView.Instance;
@@ -292,7 +309,7 @@ public sealed class ActionDriver : MonoBehaviour
         }
         if (!Playing) return;
         var reason = Reason(Definition, Owner, ui != null && ui.IsOpenSomeUi);
-        if (reason != null || ActionRegistry.Get(Definition.Id) != Definition) { Stop(reason ?? "action removed"); return; }
+        if (reason != null || ActionRegistry.Get(Definition.Id) != Definition) { StopWithDiagnostics("request/update", reason ?? "action removed"); return; }
         UpdateVolume();
     }
 
@@ -372,7 +389,7 @@ public sealed class ActionDriver : MonoBehaviour
         SyncPause();
         var ui = InGameUiManager.Instance;
         string reason = Reason(Definition, Owner, ui != null && ui.IsOpenSomeUi);
-        if (reason != null || (Owner.transform.position - expectedPosition).sqrMagnitude > 0.0004f) { Stop(reason ?? "external displacement"); return; }
+        if (reason != null || (Owner.transform.position - expectedPosition).sqrMagnitude > 0.0004f) { StopWithDiagnostics("before pose", reason ?? "external displacement"); return; }
         double eventTime = clock.Elapsed(AudioSettings.dspTime);
         float time = (float)eventTime;
         if (!clock.HasStarted(AudioSettings.dspTime)) return;
@@ -380,7 +397,7 @@ public sealed class ActionDriver : MonoBehaviour
         float duration = clock.Duration(running.Duration, running.Audio == null ? 0 : running.Audio.length);
         bool finished = !clock.Paused && !Definition.Loop && eventTime >= duration;
         float poseTime = Definition.Loop ? (float)(eventTime % running.Duration) : Mathf.Min(time, running.Duration);
-        if (!pose.Apply(poseTime)) { Stop("avatar disappeared"); return; }
+        if (!pose.Apply(poseTime)) { StopWithDiagnostics("pose apply", "avatar disappeared"); return; }
         if (!clock.Paused) ActionPlaybackApi.SetRootCycleOffset(default);
         if (rootMotion != null && !clock.Paused)
         {
@@ -391,7 +408,7 @@ public sealed class ActionDriver : MonoBehaviour
             if (revision != eventRevision || !Playing) return;
             // Only a successful controller-owned step updates this guard. All
             // user input and unrelated position changes still cancel playback.
-            if (!arrived) { Stop(motionReason); NotifyBlocked(motionReason); return; }
+            if (!arrived) { StopWithDiagnostics("root motion", motionReason, mover.HasGoal ? mover.Goal : null); NotifyBlocked(motionReason); return; }
             expectedPosition = Owner.transform.position;
             var cycle = moving.LoopRootDisplacement;
             ActionPlaybackApi.SetRootCycleOffset(new Vector3((float)(cycle.x * loops), 0, (float)(cycle.z * loops)));
@@ -401,7 +418,7 @@ public sealed class ActionDriver : MonoBehaviour
         // A native callback may have stopped this playback or changed state.
         if (revision != eventRevision || !Playing) return;
         reason = Reason(Definition, Owner, ui != null && ui.IsOpenSomeUi);
-        if (reason != null) { Stop(reason); return; }
+        if (reason != null) { StopWithDiagnostics("after events", reason); return; }
         if (Plugin.FollowCamera.Value && Definition.FollowFaceCamera)
             try { faceCamera.RefreshAfterPose(); } catch (Exception e) { try { faceCamera.End(); } catch { } Plugin.LogSource.LogWarning("ACTION_CAMERA_FAILED " + e.Message); }
         else faceCamera.End();
@@ -432,7 +449,7 @@ public sealed class ActionDriver : MonoBehaviour
         {
             var ui = InGameUiManager.Instance;
             string reason = Reason(action.Definition, Owner, ui != null && ui.IsOpenSomeUi);
-            if (reason != null) { Stop(reason); return false; }
+            if (reason != null) { StopWithDiagnostics("event callback", reason); return false; }
         }
         return true;
     }

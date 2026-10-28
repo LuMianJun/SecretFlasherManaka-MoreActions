@@ -14,6 +14,8 @@ internal sealed class ActionRootMotion
     const int MaxSteps = 128;
     const float PositionTolerance = .02f;
     internal float Distance { get; private set; }
+    internal Vector3 Goal { get; private set; }
+    internal bool HasGoal { get; private set; }
 
     internal ActionRootMotion(CharacterController controller, Transform player, Func<bool> canContinue)
     {
@@ -28,6 +30,7 @@ internal sealed class ActionRootMotion
     internal bool Apply(Vector3 displacement, Vector3 cycle, double loops, out string reason)
     {
         reason = null;
+        HasGoal = false;
         if (controller == null || player == null || !controller.enabled) { reason = "root controller unavailable"; return false; }
         if (!Finite(displacement) || !Finite(cycle) || !double.IsFinite(loops) || loops < 0) { reason = "invalid root displacement"; return false; }
         double x = anchor.x + (double)displacement.x + loops * cycle.x;
@@ -36,6 +39,7 @@ internal sealed class ActionRootMotion
         if (!Finite(current)) { reason = "invalid controller position"; return false; }
         var goal = new Vector3((float)x, current.y, (float)z);
         if (!Finite(goal)) { reason = "invalid root displacement"; return false; }
+        Goal = goal; HasGoal = true;
         float distance = HorizontalDistance(goal, current);
         if (!float.IsFinite(distance) || distance > StepLength * MaxSteps) { reason = "root trajectory discontinuity"; return false; }
         int steps = Math.Max(1, (int)Math.Ceiling(distance / StepLength));

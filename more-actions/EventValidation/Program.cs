@@ -190,6 +190,33 @@ try
         ExposureUnnoticed2.Scripts.InGame.SexManager.Instance=null;
     }
 
+    JsonElement LastCancellation()
+    {
+        const string prefix="ACTION_CANCEL_DIAGNOSTIC ";
+        using var doc=JsonDocument.Parse(Plugin.LogSource.Messages.Last(m=>m.StartsWith(prefix)).Substring(prefix.Length));return doc.RootElement.Clone();
+    }
+    Start(Definition());Frame(.3);player.transform.position=new Vector3(0,.03f,0);Frame(.4);
+    var cancellation=LastCancellation();
+    Check(!driver.Playing&&cancellation.GetProperty("reason").GetString()=="external displacement"&&Math.Abs(cancellation.GetProperty("delta")[1].GetSingle()-.03f)<1e-5&&cancellation.GetProperty("horizontalM").GetDouble()==0,"Y-only cancellation is distinguished from input and records its full 3D displacement");
+    Check(cancellation.GetProperty("inputs").GetArrayLength()==0&&Math.Abs(cancellation.GetProperty("seconds").GetDouble()-.3)<1e-5&&cancellation.GetProperty("toleranceM").GetDouble()==.02,"Cancellation snapshot preserves playback time, input flags and the unchanged 2cm threshold");
+    Start(Definition());player.transform.position=new Vector3(.01f,.01f,.01f);Frame(.2);Check(driver.Playing,"Sub-threshold 3D external motion remains allowed");
+    player.transform.position=new Vector3(.01f,.02f,.01f);Frame(.3);cancellation=LastCancellation();
+    Check(!driver.Playing&&cancellation.GetProperty("distanceM").GetDouble()>.02&&cancellation.GetProperty("horizontalM").GetDouble()<.02,"Combined XYZ threshold uses the existing 3D rule, not just horizontal movement");
+    Start(Definition());InputManager.Down.Add(InputManager.InputType.OpenClothesA);Frame(.2);cancellation=LastCancellation();
+    Check(cancellation.GetProperty("reason").GetString()=="native input"&&cancellation.GetProperty("inputs").EnumerateArray().Any(v=>v.GetString()=="OpenClothesA"),"Native operation cancellation records the specific pressed input");
+    Start(Definition());InputResolver.RingShortcutInput=(ExposureUnnoticed2.ObjectUI.InGame.RingMenu.RingMenuParentView.RingItemType)45;Frame(.2);cancellation=LastCancellation();
+    Check(cancellation.GetProperty("reason").GetString()=="native input"&&cancellation.GetProperty("ringShortcut").GetString()!="None","Ring shortcut cancellation includes the native shortcut identity");
+    Start(Definition());player.Pca.PlayerState.IsEcstasyMotion=true;Frame(.2);cancellation=LastCancellation();
+    Check(cancellation.GetProperty("ecstasy").GetBoolean()&&cancellation.GetProperty("nativeAction").GetInt32()==-1,"State-specific diagnostics distinguish ecstasy from an occupied native action");
+    Start(Definition());InputManager.Down.Add(InputManager.InputType.Cancel);InputManager.Down.Add(InputManager.InputType.Interact);player.transform.position=new Vector3(0,.04f,0);Frame(.2);cancellation=LastCancellation();
+    Check(cancellation.GetProperty("reason").GetString()=="native input"&&cancellation.GetProperty("inputs").GetArrayLength()==2&&cancellation.GetProperty("externalDisplacement").GetBoolean(),"Generic Cancel remains diagnostic context while an actual operation/displacement triggers the stop");
+    int cancellationCount=Plugin.LogSource.Messages.Count(m=>m.StartsWith("ACTION_CANCEL_DIAGNOSTIC "));Frame(.3);Frame(.4);
+    Check(Plugin.LogSource.Messages.Count(m=>m.StartsWith("ACTION_CANCEL_DIAGNOSTIC "))==cancellationCount,"Inactive frames do not produce repeated cancellation diagnostics");
+    Start(Definition());InputManager.Move=new Vector3(1,0,0);Frame(.2);cancellation=LastCancellation();
+    Check(cancellation.GetProperty("reason").GetString()=="moving"&&cancellation.GetProperty("moveInput")[0].GetSingle()==1,"Movement-policy cancellation records the actual movement vector");
+    Start(Definition());player.Pca.PlayerAction.ChangeAction(ExposureUnnoticed2.Master.Action.ActionType.None);cancellation=LastCancellation();
+    Check(!driver.Playing&&cancellation.GetProperty("phase").GetString()=="native action entry","Native action entry hook emits its own cancellation source");
+
     void RetryWithState(Action configure)
     {
         driver.Stop("warning setup");configure();MessagePanelView.Messages.Clear();MessagePanelView.Types.Clear();PlayerFacade.Instance.HandChecks.Clear();
@@ -329,10 +356,13 @@ try
     walk=new RootPose();Start(Definition(),playbackPose:walk);
     player.Pca.CharacterController.Resolve=d=>new Vector3(Math.Min(d.x,.25f-player.transform.position.x),0,d.z);Frame(.6);
     Check(!driver.Playing&&walk.Disposed&&Math.Abs(player.transform.position.x-.25f)<1e-5,"A wall stops playback at a reachable position without disabling collision");
+    cancellation=LastCancellation();
+    Check(cancellation.GetProperty("positionReference").GetString()=="root motion goal"&&Math.Abs(cancellation.GetProperty("expected")[0].GetSingle()-.5f)<1e-5&&Math.Abs(cancellation.GetProperty("actual")[0].GetSingle()-.25f)<1e-5&&!cancellation.GetProperty("externalDisplacement").GetBoolean(),"Collision diagnostic retains the intended root goal without mislabeling blocked travel as an external push");
     walk=new RootPose();Start(Definition(),playbackPose:walk);player.Pca.CharacterController.Resolve=d=>{driver.Stop("controller callback");return d;};Frame(.6);
     Check(!driver.Playing&&walk.Disposed&&player.Pca.CharacterController.Moves.Count==1,"Reentrant native/controller cancellation prevents all remaining sweep steps");
     walk=new RootPose();Start(Definition(),playbackPose:walk);player.Pca.CharacterController.Resolve=_=>new Vector3(float.NaN,0,0);Frame(.3);
     Check(!driver.Playing&&walk.Disposed,"Nonfinite controller output is reported rather than treated as successful motion");
+    Check(LastCancellation().GetProperty("actual")[0].GetString()=="NaN"&&!Plugin.LogSource.Messages.Any(m=>m.Contains("ACTION_CANCEL_DIAGNOSTIC_FAILED")),"Nonfinite cancellation snapshots remain serializable and do not prevent cleanup");
     var loopWalk=Definition();loopWalk.Loop=true;walk=new RootPose();Start(loopWalk,playbackPose:walk);Frame(1.4);
     Check(driver.Playing&&Math.Abs(player.transform.position.x-1.3f)<1e-5,"Loop root motion accumulates complete cycles");Frame(2.2);
     Check(driver.Playing&&Math.Abs(player.transform.position.x-2.1f)<1e-5,"Loop boundary does not snap back to the first-frame position");driver.Stop("test cleanup");

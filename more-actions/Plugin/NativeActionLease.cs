@@ -30,7 +30,7 @@ static class NativeActionEntryPatch
 {
     static void Prefix(PlayerAction __instance, ActionType __0)
     {
-        if (ActionDriver.Current?.Owns(__instance) == true) ActionDriver.Current.Stop("native action " + __0);
+        if (ActionDriver.Current?.Owns(__instance) == true) ActionDriver.Current.StopWithDiagnostics("native action entry", "native action " + __0);
     }
 }
 [HarmonyPatch(typeof(PlayerController), "ChangeState")]
@@ -38,6 +38,6 @@ static class NativeStateEntryPatch
 {
     static void Prefix(PlayerController __instance, PlayerStateModel.PlayerState __0)
     {
-        if ((int)__0 != 0 && ActionDriver.Current?.Owner == __instance) ActionDriver.Current.Stop("native state " + __0);
+        if ((int)__0 != 0 && ActionDriver.Current?.Owner == __instance) ActionDriver.Current.StopWithDiagnostics("native state entry", "native state " + __0);
     }
 }
