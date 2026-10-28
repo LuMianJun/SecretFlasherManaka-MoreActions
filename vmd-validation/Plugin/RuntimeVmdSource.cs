@@ -177,7 +177,7 @@ public sealed class RuntimeVmdPose : IActionPose, IActionRootMotionPose, IAction
     readonly bool[] write;
     readonly ActionFaceMorphLayer face;
     readonly List<MmdMorphBindings.Binding> morphs = new();
-    readonly float originHeight;
+    readonly float referenceHipHeight;
     readonly Vector3 originHip;
     readonly Quaternion rootBasis;
     readonly bool writeHip;
@@ -224,7 +224,11 @@ public sealed class RuntimeVmdPose : IActionPose, IActionRootMotionPose, IAction
                 }
             }
             rootBasis = rig.liveRoot.rotation;
-            rig.source.Evaluate(motion, 0); originHip = rig.source.byName["下半身"].node.position; originHeight = originHip.y;
+            referenceHipHeight = rig.source.byName["下半身"].rest.y;
+            rig.source.Evaluate(motion, 0); originHip = rig.source.byName["下半身"].node.position;
+            if (writeHip)
+                global::Plugin.LogSource?.LogInfo("MMD_VERTICAL_BASELINE id="+action.Id+" mode=reference-rest firstOffsetM="+
+                    ((originHip.y-referenceHipHeight)*rig.scale).ToString("F5",System.Globalization.CultureInfo.InvariantCulture));
             if (writeHip && action.Loop)
             {
                 rig.source.Evaluate(motion, motion.lastFrame);
@@ -250,9 +254,10 @@ public sealed class RuntimeVmdPose : IActionPose, IActionRootMotionPose, IAction
         {
             // Parent-of-all/center/groove are composed by the source hierarchy,
             // following UnityVMDPlayer's displacement handling. Controller
-            // locomotion consumes X/Z once; only Y remains on the live hips.
+            // locomotion anchors X/Z to the first frame. Y uses the reference
+            // skeleton, preserving an authored first-frame crouch or jump.
             RootDisplacement = HorizontalWorld(rig.source.byName["下半身"].node.position - originHip);
-            float vertical = (rig.source.byName["下半身"].node.position.y - originHeight) * rig.scale;
+            float vertical = (rig.source.byName["下半身"].node.position.y - referenceHipHeight) * rig.scale;
             rig.hip.localPosition = rig.hip.localPosition + rig.hip.parent.InverseTransformVector(rig.liveRoot.rotation * Vector3.up * vertical);
         }
         face?.Begin();

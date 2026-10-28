@@ -104,6 +104,44 @@ using(var pose=new RuntimeVmdPose(fixture.avatar,new ActionDefinition{Loop=true}
 using(var pose=new RuntimeVmdPose(fixture.avatar,new ActionDefinition{WriteHipTranslation=false},fullMove))
 {pose.Apply(1);Check(!pose.HasRootMotion&&pose.RootDisplacement.sqrMagnitude==0,"Explicit translation-off keeps its existing opt-out semantics");}
 
+// A motion can start crouched or airborne: vertical reference is the bind
+// skeleton, while horizontal travel is still anchored at the selected start.
+var initialHeightActor=Avatar();initialHeightActor.avatar.transform.localScale=Vector3.one*1.2f;
+initialHeightActor.avatar.transform.rotation=Quaternion.AngleAxis(73,Vector3.up);
+initialHeightActor.avatar.transform.position=new(3,2,-4);
+var initialHeightHip=initialHeightActor.bones[hips];var initialHeightBase=initialHeightHip.position;
+var initialHeightMotion=Motion();
+initialHeightMotion.tracks["センター"]=[new(){frame=0,q=Quaternion.identity,interpolation=new byte[64],p=new(1,-1.25f,2)},new(){frame=30,q=Quaternion.identity,interpolation=new byte[64],p=new(3,2.5f,5)}];
+using(var pose=new RuntimeVmdPose(initialHeightActor.avatar,new ActionDefinition{Loop=true},initialHeightMotion))
+{
+    pose.Apply(0);
+    Check(Math.Abs(initialHeightHip.position.y-initialHeightBase.y+.1f)<1e-5,"First-frame crouch preserves its authored 10cm descent on a scaled avatar");
+    Check(pose.RootDisplacement.sqrMagnitude<1e-8,"Nonzero first-frame X/Z still anchors to the character's starting position");
+    pose.Apply(1);
+    Check(Math.Abs(initialHeightHip.position.y-initialHeightBase.y-.2f)<1e-5,"Later authored rise is relative to reference height rather than recentered crouch");
+    var cycle=initialHeightActor.avatar.transform.rotation*new Vector3(.16f,0,.24f);
+    Check(Vector3.Distance(pose.RootDisplacement,cycle)<1e-5&&Vector3.Distance(pose.LoopRootDisplacement,cycle)<1e-5,"Vertical reference change preserves heading-aware horizontal and loop trajectories");
+    for(int i=0;i<3;i++)pose.Apply(0);
+    Check(Math.Abs(initialHeightHip.position.y-initialHeightBase.y+.1f)<1e-5,"Repeated loop starts preserve crouch height without accumulating an offset");
+}
+Check(Vector3.Distance(initialHeightHip.position,initialHeightBase)<1e-5,"Stopping the first-frame crouch restores the native hip baseline");
+using(var pose=new RuntimeVmdPose(initialHeightActor.avatar,new ActionDefinition{WriteHipTranslation=false},initialHeightMotion))
+{
+    pose.Apply(0);Check(Vector3.Distance(initialHeightHip.position,initialHeightBase)<1e-5,"Translation opt-out also suppresses the authored initial vertical offset");
+}
+var elevatedStart=Motion();elevatedStart.tracks["センター"]=[new(){frame=0,q=Quaternion.identity,interpolation=new byte[64],p=new(0,1.25f,0)}];
+using(var pose=new RuntimeVmdPose(initialHeightActor.avatar,new ActionDefinition(),elevatedStart))
+{
+    pose.Apply(0);Check(Math.Abs(initialHeightHip.position.y-initialHeightBase.y-.1f)<1e-5,"An airborne first frame remains airborne rather than being locked to the floor");
+}
+var composedHeight=Motion();
+foreach(var (name,height) in new[]{("全ての親",.25f),("センター",-1f),("グルーブ",-.5f)})
+    composedHeight.tracks[name]=[new(){frame=0,q=Quaternion.identity,interpolation=new byte[64],p=new(0,height,0)}];
+using(var pose=new RuntimeVmdPose(initialHeightActor.avatar,new ActionDefinition(),composedHeight))
+{
+    pose.Apply(0);Check(Math.Abs(initialHeightHip.position.y-initialHeightBase.y+.1f)<1e-5,"Initial parent/center/groove translations compose before vertical reference conversion");
+}
+
 // World-metric source calibration must include even a default prefab's root
 // scale, while root movement/heading remain absent from the shape signature.
 MmdRigCache.Clear();var metricAvatar=Avatar();var metricBefore=MmdTargetSnapshot.Read(metricAvatar.avatar);
@@ -235,7 +273,18 @@ if(args.Length>0)
             using var cue=source.CreatePose(fixture.avatar,definition);cue.Apply(75/30f);var first=((IActionRootMotionPose)cue).RootDisplacement;cue.Apply(91/30f);var last=((IActionRootMotionPose)cue).RootDisplacement;
             Check(first.x<-.04f&&last.x<-.13f&&first.y==0&&last.y==0,"Actual CH4NGE hand cue retains the previously omitted horizontal root trajectory");
             Console.WriteLine($"CH4NGE root trajectory: frame75=({first.x:F5},{first.z:F5})m frame91=({last.x:F5},{last.z:F5})m");
-
+            var contactActor=Avatar();contactActor.avatar.transform.localScale=Vector3.one*1.2f;
+            var contactHip=contactActor.bones[hips];float contactBase=contactHip.position.y;
+            using(var contactPose=source.CreatePose(contactActor.avatar,definition))
+            {
+                contactPose.Apply(0);float initialDrop=contactHip.position.y-contactBase;
+                Check(initialDrop<-.068f&&initialDrop>-.070f,"Actual CH4NGE retains its previously cancelled 6.87cm initial pelvis descent");
+                Check(((IActionRootMotionPose)contactPose).RootDisplacement.sqrMagnitude<1e-8,"Actual CH4NGE still starts with no horizontal teleport");
+                contactPose.Apply(5);contactPose.Apply(0);
+                Check(Math.Abs(contactHip.position.y-contactBase-initialDrop)<1e-5,"Actual CH4NGE reuses the same vertical reference after sampling later frames");
+                Console.WriteLine($"CH4NGE initial authored pelvis offset: {initialDrop:F6}m (old first-frame rebasing incorrectly produced 0m)");
+            }
+            Check(Math.Abs(contactHip.position.y-contactBase)<1e-5,"Stopping actual CH4NGE removes its retained initial vertical offset");
         }
 
         if(Path.GetFileName(folder)=="Samsa")
@@ -310,12 +359,16 @@ if(args.Length>0)
             using var oldScaleSolver=GameMmdSkeleton.Create(traceBind);oldScaleSolver.useIk=true;
             oldScaleSolver.Evaluate(samsa,0);float oldOriginY=oldScaleSolver.byName["下半身"].node.position.y;
             oldScaleSolver.Evaluate(samsa,25.0733f*30);
-            float expectedPelvis=.9206f+(oldScaleSolver.byName["下半身"].node.position.y-oldOriginY)*.08f;
-            float oldRenderedKnee=expectedPelvis+(oldScaleSolver.byName["左ひざ"].node.position.y-oldScaleSolver.byName["下半身"].node.position.y)*.08f*1.2f;
+            float oldRebasedPelvis=.9206f+(oldScaleSolver.byName["下半身"].node.position.y-oldOriginY)*.08f;
+            float initialPelvisOffset=(oldOriginY-oldScaleSolver.byName["下半身"].rest.y)*.08f;
+            float expectedPelvis=oldRebasedPelvis+initialPelvisOffset;
+            float oldRenderedKnee=oldRebasedPelvis+(oldScaleSolver.byName["左ひざ"].node.position.y-oldScaleSolver.byName["下半身"].node.position.y)*.08f*1.2f;
+            float oldKneeAtFixedReference=oldRenderedKnee+initialPelvisOffset;
             var traceMetric=MmdTargetSnapshot.Read(traceActor.avatar);
             using var worldScaleSolver=GameMmdSkeleton.CreateData(traceMetric.Positions);worldScaleSolver.CreateTransforms();worldScaleSolver.useIk=true;
             worldScaleSolver.Evaluate(samsa,25.0733f*30);
             float expectedWorldKnee=expectedPelvis+(worldScaleSolver.byName["左ひざ"].node.position.y-worldScaleSolver.byName["下半身"].node.position.y)*.08f;
+            float expectedWorldFoot=expectedPelvis+(worldScaleSolver.byName["左足首"].node.position.y-worldScaleSolver.byName["下半身"].node.position.y)*.08f;
             using(var tracePose=new RuntimeVmdPose(traceActor.avatar,new ActionDefinition(),samsa))
             {
                 tracePose.Apply(25.0733f);
@@ -323,10 +376,10 @@ if(args.Length>0)
                 float actualKnee=traceActor.bones[hips+"/UpperLeg_L/LowerLeg_L"].position.y;
                 float actualFoot=traceActor.bones[hips+"/UpperLeg_L/LowerLeg_L/Foot_L"].position.y;
                 Check(oldRenderedKnee<-.04f,"Captured runtime reference reproduces old under-floor knee placement");
-                Check(Math.Abs(actualPelvis-expectedPelvis)<.0001f,"World-metric fix preserves authored pelvis descent without height compensation");
-                Check(Math.Abs(actualKnee-expectedWorldKnee)<.0001f&&actualKnee-oldRenderedKnee>.04f,"Rendered knee follows the world-sized source pose rather than the old undersized solve");
-                Check(actualFoot>.15f&&actualFoot<.21f,"World-metric foot lands near its .18m authored ankle goal instead of the old .31m mapped goal");
-                Console.WriteLine($"Samsa runtime matrix regression: pelvis={actualPelvis:F6} oldKnee={oldRenderedKnee:F6} newKnee={actualKnee:F6} newAnkle={actualFoot:F6}m");
+                Check(Math.Abs(actualPelvis-expectedPelvis)<.0001f&&initialPelvisOffset<-.018f,"Samsa retains initial pelvis descent as well as the world-metric correction");
+                Check(Math.Abs(actualKnee-expectedWorldKnee)<.0001f&&actualKnee-oldKneeAtFixedReference>.04f,"Rendered knee follows the world-sized solve at the corrected common height reference");
+                Check(Math.Abs(actualFoot-expectedWorldFoot)<.0001f&&actualFoot>.14f&&actualFoot<.19f,"Samsa ankle follows the world-sized solve after preserving the authored initial descent");
+                Console.WriteLine($"Samsa runtime matrix regression: pelvis={actualPelvis:F6} oldKnee={oldRenderedKnee:F6} newKnee={actualKnee:F6} newAnkle={actualFoot:F6} initialOffset={initialPelvisOffset:F6}m");
             }
 
             Check(maxFootError<=maxOldFootError+.001f,"Knee limit does not increase the window's worst pre-existing foot-goal error");
