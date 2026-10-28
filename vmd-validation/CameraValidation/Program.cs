@@ -11,6 +11,12 @@ if(args.Length==2&&args[0]=="--injection-check")
     catch(Exception e) { Console.Error.WriteLine(e.Message);Environment.ExitCode=1; }
     return;
 }
+if(args.Length==2&&args[0]=="--dependency-check")
+{
+    try { InstalledCameraContract.VerifyPresenceDependency(args[1]); }
+    catch(Exception e) { Console.Error.WriteLine(e.Message);Environment.ExitCode=1; }
+    return;
+}
 bool packageOnly = args.Length > 1 && args[0] == "--package";
 int assertions = 0;
 void Check(bool ok, string name) { assertions++; if (!ok) throw new Exception(name); }

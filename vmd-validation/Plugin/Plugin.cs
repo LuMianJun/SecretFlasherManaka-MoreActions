@@ -10,7 +10,7 @@ using BepInEx.Configuration;
 using Seleka2.ModSettings;
 
 [BepInPlugin(Guid, "Seleka2 MMD Actions", "0.10.0")]
-[BepInDependency(Seleka2.Actions.Plugin.Guid, "0.5.3")]
+[BepInDependency(Seleka2.Actions.Plugin.Guid)]
 public sealed class Plugin : BasePlugin
 {
     public const string Guid = "local.seleka2.vmdprobe";

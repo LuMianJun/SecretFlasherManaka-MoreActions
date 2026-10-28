@@ -5,6 +5,33 @@ using System.Text.Json;
 
 internal static class InstalledCameraContract
 {
+    internal static void VerifyPresenceDependency(string file)
+    {
+        using var pe=new PEReader(File.OpenRead(file));var metadata=pe.GetMetadataReader();
+        var plugin=metadata.TypeDefinitions.Select(h=>metadata.GetTypeDefinition(h))
+            .Single(t=>metadata.GetString(t.Name)=="Plugin"&&metadata.GetString(t.Namespace)=="");
+        int found=0;
+        foreach(var h in plugin.GetCustomAttributes())
+        {
+            var attribute=metadata.GetCustomAttribute(h);
+            if(attribute.Constructor.Kind!=HandleKind.MemberReference)continue;
+            var ctor=metadata.GetMemberReference((MemberReferenceHandle)attribute.Constructor);
+            if(ctor.Parent.Kind!=HandleKind.TypeReference)continue;
+            var type=metadata.GetTypeReference((TypeReferenceHandle)ctor.Parent);
+            if(metadata.GetString(type.Name)!="BepInDependency"||metadata.GetString(type.Namespace)!="BepInEx")continue;
+            var signature=metadata.GetBlobReader(ctor.Signature);signature.ReadSignatureHeader();
+            if(signature.ReadCompressedInteger()!=2||signature.ReadSignatureTypeCode()!=SignatureTypeCode.Void||signature.ReadSignatureTypeCode()!=SignatureTypeCode.String)
+                throw new Exception("Unexpected BepInDependency constructor");
+            if(signature.ReadByte()!=0x11)throw new Exception("MMD dependency must use presence/load-order, not a version string");
+            var blob=metadata.GetBlobReader(attribute.Value);
+            if(blob.ReadUInt16()!=1||blob.ReadSerializedString()!="local.seleka2.moreactions"||blob.ReadInt32()!=1)
+                throw new Exception("MMD must retain its More Actions hard dependency");
+            found++;
+        }
+        if(found!=1)throw new Exception("Expected one MMD More Actions dependency");
+        Console.WriteLine("PASS MMD dependency: More Actions presence/load-order only; no version lock");
+    }
+
     internal static void VerifyDriverInjectionBoundary(string file)
     {
         using var pe = new PEReader(File.OpenRead(file)); var metadata = pe.GetMetadataReader();
@@ -65,6 +92,7 @@ internal static class InstalledCameraContract
             ["FPCameraController"] = new[] { "OnLateUpdate" },
             ["EventMethodManager"] = new[] { "LateUpdate" },
             ["PlayerController"] = new[] { "OnUpdate", "OnLateUpdate", "ChangeState", "get_Pca" },
+            ["PlayerAction"] = new[] { "ChangeAction" },
             ["PlayerClassAccessor"] = new[] { "get_CharacterController" },
             ["PlayerKneeAdjuster"] = new[] { "OnLateUpdate", "get_KneeOffsetY" },
             ["PlayerToeHeelController"] = new[] { "OnLateUpdate" },
@@ -83,14 +111,25 @@ internal static class InstalledCameraContract
         string mmdDll = Path.Combine(game, "BepInEx", "plugins", "Seleka2VmdProbe", "Seleka2.VmdProbe.dll");
         string npcDll = Path.Combine(game, "BepInEx", "plugins", "Seleka2NpcSpectators", "Seleka2.NpcSpectators.dll");
         VerifyDriverInjectionBoundary(baseDll);
+        VerifyPresenceDependency(mmdDll);
+        Check(Path.Combine(game,"BepInEx","interop","UnityEngine.AnimationModule.dll"),new()
+        {
+            ["Animator"] = new[] { "GetLayerIndex", "IsInTransition", "GetCurrentAnimatorStateInfo" },
+            ["AnimatorStateInfo"] = new[] { "IsName" }
+        });
+        Check(Path.Combine(game,"BepInEx","interop","UnityEngine.AudioModule.dll"),new()
+        { ["AudioSource"] = new[] { "Pause", "UnPause", "PlayScheduled" } });
         VerifyWorkerMethods(baseDll, "WaveAudio", new[] { "Decode" });
         VerifyWorkerMethods(mmdDll, "MmdMotion", new[] { "Read", "ConvertPosition", "ConvertRotation" });
         VerifyWorkerMethods(mmdDll, "MmdSkeleton", new[] { "CopyData" });
         VerifyWorkerMethods(mmdDll, "GameMmdSkeleton", new[] { "CreateData" });
         VerifyWorkerMethods(mmdDll, "RuntimeVmdSource", new[] { ".ctor" });
         Check(baseDll, new() { ["ActionPlaybackApi"] = new[] { "get_PlaybackPositionSeconds", "add_PoseApplied", "remove_PoseApplied", "add_PlaybackChanged" },
+            ["ActionDriver"] = new[] { "PrepareNativeIdle", "StopWithDiagnostics", "SyncPause" },
+            ["ActionCancellationDiagnostics"] = new[] { "Record" },
+            ["MotionAudioClock"] = new[] { "SetPaused", "HasStarted", "get_Paused" },
             ["ActionDefinition"] = new[] { "get_KeepGameExpressions", "set_KeepGameExpressions" },
-            ["ActionFaceMorphLayer"] = new[] { "Begin", "Write", "RestoreNativeFace" }, ["IActionFacePose"] = new[] { "RestoreNativeFace" },
+            ["FixedModelFace"] = new[] { "Find", "Validate", "get_MmdMorphs", "get_NativeExpressions" }, ["ActionFaceMorphLayer"] = new[] { "BindMorph", "IsProtectedMorph", "Begin", "Write", "RestoreNativeFace" }, ["IActionFacePose"] = new[] { "RestoreNativeFace" },
             ["ActionBodyPoseLease"] = new[] { "ApplyBaseline", "RestoreNativeBody", "BeginNativeBody", "EndNativeBody", "Dispose" },
             ["NativeBodyPassPatch"] = new[] { "Prefix", "Finalizer" },
             ["NativeKneePosePatch"] = new[] { "Prefix", "Finalizer" },
@@ -100,7 +139,7 @@ internal static class InstalledCameraContract
             ["ActionRootMotion"] = new[] { "Apply" }, ["IActionRootMotionPose"] = new[] { "get_RootDisplacement", "get_LoopRootDisplacement" },
             ["ActionEventRegistry"] = new[] { "Register" }, ["ActionEventRunner"] = new[] { "Advance", "Close" },
             ["NativeActionEvents"] = new[] { "Register" }, ["ClipActionEvents"] = new[] { "Read" } });
-        Check(mmdDll, new() { ["MotionPlaybackApi"] = new[] { "get_IsPlaying", "get_CurrentMotionId", "add_PlaybackChanged" }, ["MmdCameraDriver"] = new[] { "Update", "OnDisable", "OnDestroy" } });
+        Check(mmdDll, new() { ["MotionPlaybackApi"] = new[] { "get_IsPlaying", "get_CurrentMotionId", "add_PlaybackChanged" }, ["MmdCameraDriver"] = new[] { "Update", "OnDisable", "OnDestroy" }, ["MmdMorphBindings"] = new[] { "Create" } });
         Check(npcDll, new() { ["CrowdApi"] = new[] { "SetSource" }, ["CrowdDriver"] = new[] { "get_ManualRequested", "set_ManualRequested" }, ["ActionEventBridge"] = new[] { "Refresh", "Dispose" } });
         foreach (var file in new[] { baseDll, mmdDll, npcDll })
         {
