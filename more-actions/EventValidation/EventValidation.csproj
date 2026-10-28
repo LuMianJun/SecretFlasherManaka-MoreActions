@@ -1,6 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup><OutputType>Exe</OutputType><TargetFramework>net10.0</TargetFramework><ImplicitUsings>enable</ImplicitUsings><AssemblyName>Seleka2.MoreActions</AssemblyName></PropertyGroup>
   <ItemGroup>
+    <Compile Include="../Plugin/NativeActionLease.cs" Link="NativeActionLease.cs" />
     <Compile Include="../Plugin/Plugin.cs" Link="Plugin.cs" /><Compile Include="../Plugin/NativeBodyPose.cs" Link="NativeBodyPose.cs" /><Compile Include="../Plugin/ActionRootMotion.cs" Link="ActionRootMotion.cs" />
     <Compile Include="../Plugin/ActionEvents.cs" Link="ActionEvents.cs" />
     <Compile Include="../Plugin/NativeActionEvents.cs" Link="NativeActionEvents.cs" />

@@ -155,7 +155,7 @@ namespace ExposureUnnoticed2.Object3D.Player.Scripts
     public sealed class PlayerController
     {
         public static PlayerController Instance; public UnityEngine.GameObject gameObject = new(); public UnityEngine.Transform transform = new(); public PlayerClassAccessor Pca = new();
-        public PlayerController() { Pca.CharacterController.transform=transform; }
+        public PlayerController() { Pca.CharacterController.transform=transform; Pca.PlayerAction.Pca=Pca; }
     }
     public sealed class PlayerClassAccessor
     {
@@ -165,10 +165,23 @@ namespace ExposureUnnoticed2.Object3D.Player.Scripts
     public sealed class PlayerStateModel
     {
         public enum PlayerState { Idle, Busy } public IntPtr Pointer = (IntPtr)1; public PlayerState CurrentState;
-        public bool IsEcstasyMotion, IsCrouch, IsSit; public ActionRecord CurrentAction = new();
+        public bool IsEcstasyMotion, IsCrouch, IsSit,IsGamanBaibu;public float PoseActionCoolTime; public ActionRecord CurrentAction = new();
         public sealed class ActionRecord { public int Type = -1; }
     }
-    public sealed class PlayerAction { public IntPtr Pointer; }
+    public sealed class PlayerAction
+    {
+        public IntPtr Pointer;public PlayerClassAccessor Pca;public int Rejections;
+        public readonly List<ExposureUnnoticed2.Master.Action.ActionType> Changes=new();
+        public Action OnChange;
+        public void ChangeAction(ExposureUnnoticed2.Master.Action.ActionType next)
+        {
+            typeof(NativeActionEntryPatch).GetMethod("Prefix",System.Reflection.BindingFlags.Static|System.Reflection.BindingFlags.NonPublic)!.Invoke(null,new object[]{this,next});
+            Changes.Add(next);
+            if(Rejections>0){Rejections--;return;}
+            Pca.PlayerState.CurrentAction.Type=(int)next;Pca.Animator.Transitioning=true;Pca.Animator.ActionState="Action.Pose";
+            OnChange?.Invoke();
+        }
+    }
     public sealed class PlayerFacade
     {
         public static PlayerFacade Instance = new(); public PlayerClassAccessor pca;

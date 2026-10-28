@@ -15,6 +15,7 @@ using ExposureUnnoticed2.Scripts.Base;
 using ExposureUnnoticed2.Scripts.InGame;
 using Seleka2.ModSettings;
 using Il2CppInterop.Runtime.Attributes;
+using ExposureUnnoticed2.Master.Action;
 
 namespace Seleka2.Actions;
 
@@ -72,6 +73,18 @@ public sealed class ActionDriver : MonoBehaviour
     Vector3 expectedPosition;
     int tickFrame = -1, applyFrame = -1;
     internal bool CheckingAvailability;
+    int requestRevision;
+    sealed class NativeExit
+    {
+        internal string Id;
+        internal int FromType, Attempts, ReadyFrame = -1;
+        internal bool Accepted;
+        internal float WaitSeconds;
+        internal PlayerController Player;
+        internal Animator Animator;
+        internal ActionDefinition Definition;
+    }
+    NativeExit nativeExit;
 
     public void Update()
     {
@@ -79,16 +92,20 @@ public sealed class ActionDriver : MonoBehaviour
         var animator = PlayerController.Instance?.Pca?.Animator;
         ActionTargetApi.Target = animator == null ? null : animator.gameObject;
         ActionTargetApi.IsReady = animator != null && animator.enabled && animator.isInitialized;
-        if (Owner != null && Owner != PlayerController.Instance) { Stop("scene/player changed"); requests.Clear(); Owner = null; }
-        if (Playing && Owner == null) { Stop("player destroyed"); requests.Clear(); }
+        if (Owner != null && Owner != PlayerController.Instance) { Stop("scene/player changed"); Owner = null; }
+        if (nativeExit != null && Owner == null) Stop("pending player destroyed");
+        if (Playing && Owner == null) Stop("player destroyed");
         SyncPause();
     }
 
     [HideFromIl2Cpp]
     internal void Request(string id)
     {
-        if (!Playing && id != null && ActionRegistry.Get(id) != null && requests.PendingId == id) { requests.Clear(); return; }
-        requests.Request(id);
+        if (!Playing && id != null && ActionRegistry.Get(id) != null && (requests.PendingId == id || nativeExit?.Id == id))
+        {
+            requests.Clear(); requestRevision++; AbandonNativeExit("selected again"); return;
+        }
+        requests.Request(id); requestRevision++; AbandonNativeExit("new request");
     }
     [HideFromIl2Cpp]
     internal bool Owns(PlayerStateModel state) => Playing && Owner != null && Owner.Pca?.PlayerState?.Pointer == state?.Pointer;
@@ -123,20 +140,25 @@ public sealed class ActionDriver : MonoBehaviour
     }
 
     [HideFromIl2Cpp]
-    internal string Reason(ActionDefinition definition, PlayerController player, bool uiOpen)
+    static bool SwitchablePose(PlayerStateModel state) => state?.CurrentAction != null
+        && (int)state.CurrentAction.Type >= 50000 && (int)state.CurrentAction.Type < 60001 && !state.IsGamanBaibu;
+
+    [HideFromIl2Cpp]
+    internal string Reason(ActionDefinition definition, PlayerController player, bool uiOpen, bool allowNativeExit = false)
     {
         var state = player == null ? null : player.Pca?.PlayerState;
         var game = InGameManager.Instance;
         var temp = game == null ? null : game.TempInGameState;
+        bool skipPlayingAction = allowNativeExit && SwitchablePose(state);
         var availability = new ActionAvailability(state?.CurrentAction != null, state != null && (int)state.CurrentState == 0,
-            state?.CurrentAction != null && (int)state.CurrentAction.Type != -1, state != null && state.IsEcstasyMotion,
+            !skipPlayingAction && state?.CurrentAction != null && (int)state.CurrentAction.Type != -1, state != null && state.IsEcstasyMotion,
             state != null && state.IsCrouch, state != null && state.IsSit,
             GameState.GameStateData != null && GameStateFacade.IsAttachSomeHandcuffs(), SexManager.Instance != null && SexManager.Instance.IsSexMode,
             !PlayerInputBlocked && InputManager.GetVector3(InputManager.InputType.Move).sqrMagnitude > 0.0001f, uiOpen && !Playing,
             player == null || !player.gameObject.activeInHierarchy || temp == null || temp.IsGameOver || temp.IsPlayingSomePerformance || temp.IsTimeStop);
         var reason = ActionPolicy.BlockReason(definition, availability);
         if (reason != null) return reason;
-        return CanUseNativeHands(definition, false) ? null : "native hand/action gate";
+        return CanUseNativeHands(definition, false, skipPlayingAction) ? null : "native hand/action gate";
     }
 
     [HideFromIl2Cpp]
@@ -164,6 +186,74 @@ public sealed class ActionDriver : MonoBehaviour
     }
 
     [HideFromIl2Cpp]
+    void AbandonNativeExit(string reason)
+    {
+        if (nativeExit == null) return;
+        var previous = nativeExit;
+        nativeExit = null;
+        Plugin.LogSource?.LogInfo("ACTION_NATIVE_EXIT_CANCELLED id="+previous.Id+" from="+previous.FromType+" reason="+reason);
+    }
+
+    [HideFromIl2Cpp]
+    void RequeueNativeExit(string id, int revision, NativeExit exit)
+    {
+        if (requestRevision == revision && nativeExit == exit) requests.Request(id);
+    }
+
+    [HideFromIl2Cpp]
+    bool PrepareNativeIdle(string id, int revision)
+    {
+        var state = Owner.Pca.PlayerState; var animator = Owner.Pca.Animator;
+        if (animator == null || !animator.enabled || !animator.isInitialized)
+        { AbandonNativeExit("animator unavailable"); return false; }
+        int type = (int)state.CurrentAction.Type;
+        int layer = animator.GetLayerIndex("Action");
+        if (layer < 0) throw new InvalidOperationException("Native Action animation layer missing");
+        bool idlePose = !animator.IsInTransition(layer) && animator.GetCurrentAnimatorStateInfo(layer).IsName("Action.NoMotion");
+        if (nativeExit == null)
+        {
+            if (type == -1 && idlePose) return true;
+            nativeExit = new NativeExit { Id=id, Definition=ActionRegistry.Get(id), FromType=type, Player=Owner, Animator=animator, Accepted=type == -1 };
+        }
+        var exit = nativeExit;
+        if (exit.Id != id || exit.Definition != ActionRegistry.Get(id) || exit.Player != Owner || exit.Animator != animator || Owner != PlayerController.Instance)
+        { AbandonNativeExit("target changed"); return false; }
+        exit.WaitSeconds += Math.Max(0, Time.deltaTime);
+        if (exit.WaitSeconds > 5)
+        { AbandonNativeExit("timeout"); return false; }
+        if (type != -1)
+        {
+            if (exit.Accepted || type != exit.FromType || !SwitchablePose(state))
+            { AbandonNativeExit("native action changed"); return false; }
+            if (!float.IsFinite(state.PoseActionCoolTime))
+            { AbandonNativeExit("invalid pose cooldown"); return false; }
+            if (state.PoseActionCoolTime > 0) { RequeueNativeExit(id, revision, exit); return false; }
+            // Native may reject one same-frame switch. Retry on the next
+            // controller frame, never repeatedly reset a pending transition.
+            if (exit.Attempts >= 2) { AbandonNativeExit("native exit rejected"); return false; }
+            exit.Attempts++;
+            Owner.Pca.PlayerAction.ChangeAction(ActionType.None);
+            if (requestRevision != revision || nativeExit != exit) return false;
+            if ((int)state.CurrentAction.Type == -1)
+            {
+                exit.Accepted = true;
+                Plugin.LogSource?.LogInfo("ACTION_NATIVE_EXIT id="+id+" from="+exit.FromType+" frame="+Time.frameCount);
+            }
+            RequeueNativeExit(id, revision, exit); return false;
+        }
+        if (!idlePose) { exit.ReadyFrame = -1; RequeueNativeExit(id, revision, exit); return false; }
+        // A further native frame supplies a fresh baseline after NoMotion is
+        // reached. Do not capture the old pose immediately after ChangeAction.
+        if (exit.ReadyFrame < 0) { exit.ReadyFrame = Time.frameCount; RequeueNativeExit(id, revision, exit); return false; }
+        if (Time.frameCount <= exit.ReadyFrame) { RequeueNativeExit(id, revision, exit); return false; }
+        nativeExit = null;
+        Plugin.LogSource?.LogInfo("ACTION_NATIVE_IDLE_READY id="+id+" from="+exit.FromType+" frame="+Time.frameCount);
+        return true;
+    }
+
+
+
+    [HideFromIl2Cpp]
     internal void BeforeNativeUpdate(PlayerController player)
     {
         if (!Playing || Owner != player) return;
@@ -185,7 +275,7 @@ public sealed class ActionDriver : MonoBehaviour
     internal void Tick(PlayerController player)
     {
         if (tickFrame == Time.frameCount) return; tickFrame = Time.frameCount;
-        if (Owner != player) { Stop("player changed"); requests.Clear(); Owner = player; }
+        if (Owner != player) { Stop("player changed"); Owner = player; }
         SyncPause();
         var ui = InGameUiManager.Instance;
         var ring = RingMenuParentView.Instance;
@@ -193,7 +283,12 @@ public sealed class ActionDriver : MonoBehaviour
         if (request != null)
         {
             if (Definition?.Id == request) Stop("selected again");
-            else { Stop("switch action"); Start(request); }
+            else
+            {
+                int selected = requestRevision;
+                if (Playing) { Stop("switch action"); if (requestRevision != selected + 1) return; }
+                Start(request);
+            }
         }
         if (!Playing) return;
         var reason = Reason(Definition, Owner, ui != null && ui.IsOpenSomeUi);
@@ -205,20 +300,25 @@ public sealed class ActionDriver : MonoBehaviour
     void Start(string id)
     {
         var definition = ActionRegistry.Get(id);
-        if (definition == null) return;
-        string reason = Reason(definition, Owner, InGameUiManager.Instance != null && InGameUiManager.Instance.IsOpenSomeUi);
+        if (definition == null) { AbandonNativeExit("action removed"); return; }
+        int request = requestRevision;
+        string reason = Reason(definition, Owner, InGameUiManager.Instance != null && InGameUiManager.Instance.IsOpenSomeUi, true);
         if (reason != null)
         {
+            AbandonNativeExit(reason);
             if (reason == "player unavailable") return;
             if (ShowNativePostureWarning(definition)) return;
             if (definition.RequiresStanding && Owner?.Pca?.PlayerState?.IsSit == true) return;
-            NotifyBlocked(reason); return;
+            NotifyBlocked(reason);
+            return;
         }
         try
         {
             if (!ActionAssets.TryGet(definition, out var loaded)) { requests.Request(id); return; }
             if (definition.RuntimeSource is IPreparedActionSource prepared && !prepared.IsPrepared(Owner.Pca.Animator.gameObject)) { requests.Request(id); return; }
             if (loaded.Audio != null && loaded.Audio.loadState != AudioDataLoadState.Loaded) throw new Exception("Audio still loading; select the action again");
+            if (request != requestRevision || !PrepareNativeIdle(id, request)) return;
+            if (request != requestRevision || ActionRegistry.Get(id) != definition) return;
             int revision = ++eventRevision;
             var embedded = definition.UseClipEvents && loaded.Clip != null ? ClipActionEvents.Read(loaded.Clip) : Array.Empty<ActionEventDefinition>();
             events = new ActionEventRunner(definition, embedded, loaded.Duration,
@@ -341,7 +441,7 @@ public sealed class ActionDriver : MonoBehaviour
     {
         if (stopping) return;
         stopping = true;
-        requests.Clear();
+        requests.Clear(); requestRevision++; AbandonNativeExit(reason);
         var previous = running; var previousPose = pose; var previousEvents = events; var previousRoot = rootMotion;
         try
         {
