@@ -28,11 +28,12 @@ namespace HarmonyLib { [AttributeUsage(AttributeTargets.Class)] public sealed cl
 namespace UnityEngine
 {
     public class MonoBehaviour { public MonoBehaviour(IntPtr pointer) { _=pointer; } }
-    public class GameObject { public bool activeInHierarchy = true; }
+    public class GameObject { public bool activeInHierarchy = true; public int layer; }
     public struct Vector3(float x, float y, float z)
     {
         public float x = x, y = y, z = z;
         public float sqrMagnitude => x*x+y*y+z*z;
+        public float magnitude => MathF.Sqrt(sqrMagnitude);
         public Vector3 normalized => this / MathF.Sqrt(sqrMagnitude);
         public static Vector3 zero => new(0,0,0);
         public static Vector3 operator +(Vector3 a, Vector3 b) => new(a.x+b.x,a.y+b.y,a.z+b.z);
@@ -42,7 +43,25 @@ namespace UnityEngine
         public static float Dot(Vector3 a, Vector3 b) => a.x*b.x+a.y*b.y+a.z*b.z;
     }
     public struct Quaternion { public Vector3 Facing; public static Quaternion LookRotation(Vector3 v)=>new(){Facing=v.normalized}; public static Quaternion RotateTowards(Quaternion a,Quaternion b,float angle)=>b; }
-    public sealed class Transform { public Vector3 position; public Quaternion rotation=Quaternion.LookRotation(new(0,0,1)); public Vector3 forward=>rotation.Facing; }
+    public sealed class Transform { public Transform parent; public bool IsChildOf(Transform root) { for(var t=this;t!=null;t=t.parent)if(ReferenceEquals(t,root))return true;return false; } public Vector3 position; public Quaternion rotation=Quaternion.LookRotation(new(0,0,1)); public Vector3 forward=>rotation.Facing; }
+    public sealed class Collider { public bool isTrigger; public Transform transform=new(); public GameObject gameObject=new(); }
+    public struct RaycastHit { public Collider collider; }
+    public enum QueryTriggerInteraction { UseGlobal, Ignore, Collide }
+    public static class LayerMask
+    {
+        public static int GetMask(params string[] names)
+        { int mask=0;foreach(var name in names)mask|=name switch {"Ignore Raycast"=>1<<2,"Player"=>1<<6,"PlayerFace"=>1<<7,"Npc"=>1<<12,"NpcSightArea"=>1<<13,_=>0};return mask; }
+    }
+    public static class Physics
+    {
+        public static Func<Vector3,Vector3,float,RaycastHit[]> Cast;
+        public static int Casts;
+        public static RaycastHit[] RaycastAll(Vector3 origin,Vector3 direction,float distance,int mask,QueryTriggerInteraction trigger)
+        {
+            Casts++;return (Cast?.Invoke(origin,direction,distance)??Array.Empty<RaycastHit>())
+                .Where(h=>h.collider==null||((mask&(1<<h.collider.gameObject.layer))!=0&&!(trigger==QueryTriggerInteraction.Ignore&&h.collider.isTrigger))).ToArray();
+        }
+    }
     public static class Mathf { public static float Clamp(float x,float a,float b)=>Math.Clamp(x,a,b); public static float Clamp01(float x)=>Clamp(x,0,1); public static float Min(float a,float b)=>MathF.Min(a,b); public static float Max(float a,float b)=>MathF.Max(a,b); public static float Sqrt(float v)=>MathF.Sqrt(v); }
     public static class Time { public static int frameCount; public static float unscaledTime, fixedDeltaTime=0.02f, deltaTime=0.02f; }
 }
@@ -55,18 +74,20 @@ namespace UnityEngine.AI
     {
         public static bool Reachable = true;
         public static float FloorOffset;
-        public static bool SamplePosition(Vector3 p,out NavMeshHit hit,float distance,int areaMask) { p.y+=FloorOffset;hit=new(){position=p}; return Reachable; }
+        public static Func<Vector3,Vector3> Project;
+        public static int Samples;
+        public static bool SamplePosition(Vector3 p,out NavMeshHit hit,float distance,int areaMask) { Samples++;p=Project?.Invoke(p)??p;p.y+=FloorOffset;hit=new(){position=p}; return Reachable; }
     }
     public sealed class NavMeshAgent
     {
         public bool updatePosition=true, updateRotation=true, isStopped, enabled=true, isOnNavMesh=true, hasPath=true, pathPending;
-        public int areaMask=-1, DestinationWrites, SetPathCalls;
+        public int areaMask=-1, DestinationWrites, PathCalculations, SetPathCalls;
         public float baseOffset;
         public Vector3 destination=new(0,0,20), nextPosition, steeringTarget;
         public NavMeshPathStatus pathStatus=NavMeshPathStatus.PathComplete, CalculateStatus=NavMeshPathStatus.PathComplete;
-        public bool CalculatePath(Vector3 point, NavMeshPath path) { path.status=CalculateStatus;path.Destination=point;return true; }
+        public bool CalculatePath(Vector3 point, NavMeshPath path) { PathCalculations++;path.status=CalculateStatus;path.Destination=point;return true; }
         public bool SetPath(NavMeshPath path) { SetPathCalls++;destination=path.Destination;steeringTarget=destination;hasPath=true;pathStatus=path.status;return true; }
-        public bool SetDestination(Vector3 point) { destination=point;hasPath=true;DestinationWrites++;return true; }
+        public bool SetDestination(Vector3 point) { destination=point;steeringTarget=point;hasPath=true;DestinationWrites++;return true; }
         public void ResetPath() { hasPath=false; }
         public bool Raycast(Vector3 next,out NavMeshHit hit) { hit=new(){position=next};return false; }
     }

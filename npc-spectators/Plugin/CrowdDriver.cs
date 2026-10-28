@@ -19,6 +19,8 @@ public sealed class CrowdDriver : MonoBehaviour
     readonly Dictionary<IntPtr, Spectator> spectators = new();
     readonly Dictionary<IntPtr, float> retryAfter = new();
     readonly HashSet<int> occupied = new();
+    readonly Dictionary<int, bool> visibility = new();
+    readonly List<Transform> actors = new();
     MmdBridge bridge;
     PlayerController player;
     NpcManager manager;
@@ -122,6 +124,9 @@ public sealed class CrowdDriver : MonoBehaviour
     void Scan()
     {
         var list = manager.ExistNpcList;
+        visibility.Clear(); actors.Clear(); actors.Add(player.transform);
+        for (int i = 0; i < list.Count; i++)
+            if (list[i] != null && list[i].Transform != null) actors.Add(list[i].Transform);
         var alive = new HashSet<IntPtr>();
         for (int i = 0; i < list.Count; i++) if (list[i] != null) alive.Add(list[i].Pointer);
         foreach (var pair in spectators.ToArray())
@@ -152,11 +157,15 @@ public sealed class CrowdDriver : MonoBehaviour
             .ThenBy(s => HorizontalSquare(center + new Vector3(s.X, 0, s.Z) - npcPosition)))
         {
             Vector3 desired = center + new Vector3(slot.X, 0, slot.Z);
+            if (!visibility.TryGetValue(slot.Index, out bool clear))
+                visibility[slot.Index] = clear = CrowdVisibility.IsClear(center, desired, actors);
+            if (!clear) continue;
             // This game's stripped interop omits NavMeshQueryFilter. Sample by the
             // agent's area mask, then CalculatePath on that agent verifies its type.
             if (!NavMesh.SamplePosition(desired, out var hit, 0.9f, agent.areaMask) || Math.Abs(hit.position.y - center.y) > 1f
                 || HorizontalSquare(hit.position - center) < radius * radius * 0.8f
                 || spectators.Values.Any(s => HorizontalSquare(s.Destination - hit.position) < separation * separation)) continue;
+            if (!CrowdVisibility.IsClear(center, hit.position, actors)) continue;
             var path = new NavMeshPath();
             if (!agent.CalculatePath(hit.position, path) || path.status != NavMeshPathStatus.PathComplete) continue;
             var spectator = new Spectator(npc, slot.Index, hit.position);
@@ -204,7 +213,7 @@ public sealed class CrowdDriver : MonoBehaviour
         if (!active && spectators.Count == 0) return;
         active = false;
         foreach (var pointer in spectators.Keys.ToArray()) Release(pointer, reason);
-        occupied.Clear(); retryAfter.Clear(); slots = null;
+        occupied.Clear(); retryAfter.Clear(); visibility.Clear(); actors.Clear(); slots = null;
         Plugin.Logger.LogInfo("CROWD_END reason=" + reason);
     }
     internal static float HorizontalSquare(Vector3 v) => v.x * v.x + v.z * v.z;

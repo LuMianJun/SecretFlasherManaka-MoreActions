@@ -134,11 +134,62 @@ Check(driver.Drive(normal.Nca.NpcLocomotion),"manual restart failed");
 NpcManager.Instance=new();Tick();Check(normal.Nca.NavAgent.updatePosition,"scene switch not restored");driver.OnDestroy();
 Check(!Seleka2.NpcSpectators.Plugin.Logger.Lines.Any(s=>s.Contains("FAILED")),"driver emitted unexpected failure");
 Pass("production driver: standalone settings/native trigger, MMD link, partial path exclusion, interruption, time-stop, scene cleanup");
+// Standpoint visibility and native-navigation ownership. Synthetic ray hits
+// exercise selection; they are not a rendering/physics or native movement emulator.
+var playerRoot=new Transform();var actorRoot=new Transform();
+var actorRoots=new[]{playerRoot,actorRoot};
+var wall=new Collider();var playerCollider=new Collider{transform=new Transform{parent=playerRoot}};
+var npcCollider=new Collider{transform=new Transform{parent=actorRoot}};
+var trigger=new Collider{isTrigger=true};var npcLayer=new Collider();npcLayer.gameObject.layer=12;
+Physics.Cast=(_,_,_)=>new[]{new RaycastHit{collider=playerCollider},new RaycastHit{collider=npcCollider},new RaycastHit{collider=trigger},new RaycastHit{collider=npcLayer}};
+Check(CrowdVisibility.IsClear(Vector3.zero,new(3,0,0),actorRoots),"Actors and triggers must not occlude gathering");
+Physics.Cast=(_,_,_)=>new[]{new RaycastHit{collider=playerCollider},new RaycastHit{collider=wall}};
+Check(!CrowdVisibility.IsClear(Vector3.zero,new(3,0,0),actorRoots),"A wall behind a player hit must still be tested");
+RaycastHit[] WallAtX(Vector3 origin,Vector3 direction,float distance,float halfWidth=float.PositiveInfinity)
+{
+    if(Math.Abs(direction.x)<1e-6f)return [];
+    float t=(1-origin.x)/direction.x;
+    return t>0&&t<=distance&&Math.Abs(origin.z+direction.z*t)<=halfWidth?new[]{new RaycastHit{collider=wall}}:[];
+}
+Physics.Cast=(o,d,t)=>WallAtX(o,d,t);
+Check(!CrowdVisibility.IsClear(Vector3.zero,new(3,0,0),actorRoots)&&!CrowdVisibility.IsClear(Vector3.zero,new(6,0,0),actorRoots),"A wall within the minimum ring rejects both inner and outer positions behind it");
+Check(CrowdVisibility.IsClear(Vector3.zero,new(-3,0,0),actorRoots),"An occluded direction must not erase the opposite side");
+Physics.Cast=(o,d,t)=>WallAtX(o,d,t,.2f);
+Check(!CrowdVisibility.IsClear(Vector3.zero,new(3,0,0),actorRoots)&&CrowdVisibility.IsClear(Vector3.zero,new(3,0,3),actorRoots),"A narrow pillar rejects only intersecting rays");
+Physics.Cast=(o,_,_)=>o.y<1?new[]{new RaycastHit{collider=wall}}:[];
+Check(!CrowdVisibility.IsClear(Vector3.zero,new(3,0,0),actorRoots),"Waist-height obstruction cannot be missed by a clear chest ray");
+Physics.Cast=(o,_,_)=>o.y>1?new[]{new RaycastHit{collider=wall}}:[];
+Check(!CrowdVisibility.IsClear(Vector3.zero,new(3,0,0),actorRoots),"Chest-height obstruction cannot be missed by a clear waist ray");
+Physics.Cast=null;
+
+CrowdDriver SelectionScene(int id)
+{
+    MotionPlaybackApi.Publish("",false);
+    PlayerController.Instance=new();NpcManager.Instance=new();InGameManager.Instance=new();InGameUiManager.Instance=new();
+    var candidate=new NpcController(id);candidate.Transform.position=new(0,0,8);NpcManager.Instance.ExistNpcList.Add(candidate);
+    var gather=new CrowdDriver(IntPtr.Zero);CrowdDriver.Current=gather;gather.ManualRequested=true;
+    return gather;
+}
+Physics.Cast=(_,_,_)=>new[]{new RaycastHit{collider=wall}};
+var hidden=SelectionScene(50);var hiddenNpc=NpcManager.Instance.ExistNpcList[0];int sampledBefore=NavMesh.Samples;
+Time.frameCount++;Time.unscaledTime+=.3f;hidden.Update();
+Check(!hidden.Drive(hiddenNpc.Nca.NpcLocomotion)&&NavMesh.Samples==sampledBefore&&hiddenNpc.Nca.NavAgent.PathCalculations==0,"Occluded raw directions are rejected before NavMesh sampling and path calculation");hidden.OnDestroy();
+Physics.Cast=(o,d,t)=>WallAtX(o,d,t);
+NavMesh.Project=_=>new(3,0,0);
+var projected=SelectionScene(51);var projectedNpc=NpcManager.Instance.ExistNpcList[0];
+Time.frameCount++;Time.unscaledTime+=.3f;projected.Update();
+Check(!projected.Drive(projectedNpc.Nca.NpcLocomotion)&&projectedNpc.Nca.NavAgent.PathCalculations==0,"A raw visible slot projected behind the wall is rejected before path calculation");projected.OnDestroy();
+NavMesh.Project=null;
+var visible=SelectionScene(52);var visibleNpc=NpcManager.Instance.ExistNpcList[0];
+Time.frameCount++;Time.unscaledTime+=.3f;visible.Update();
+Check(visible.Drive(visibleNpc.Nca.NpcLocomotion)&&visibleNpc.Nca.NavAgent.destination.x<1&&visibleNpc.Nca.NpcLocomotion.SimpleUpdateCalls>0,"Visible side remains recruitable using the native approach routine");visible.OnDestroy();
+Physics.Cast=null;
+
 var flagsNpc=new NpcController(53);flagsNpc.Nca.NavAgent.updatePosition=false;flagsNpc.Nca.NavAgent.updateRotation=false;
 var flags=new Spectator(flagsNpc,0,new(0,0,3));flags.Acquire();
 Check(!flagsNpc.Nca.NavAgent.updatePosition&&!flagsNpc.Nca.NavAgent.updateRotation,"Acquisition leaves nonstandard native update flags intact");
 flagsNpc.Nca.NavAgent.updatePosition=true;flagsNpc.Nca.NavAgent.updateRotation=true;flags.Restore();
 Check(flagsNpc.Nca.NavAgent.updatePosition&&flagsNpc.Nca.NavAgent.updateRotation,"Restoration must not overwrite update flags the plugin never owned");
-Pass("native movement flags remain with their original owner");
+Pass("radial occlusion, actor/trigger exclusions, projected point recheck and native movement ownership");
 
 Console.WriteLine("Offline boundary validation complete. Real native navigation and Harmony dispatch require user gameplay testing.");

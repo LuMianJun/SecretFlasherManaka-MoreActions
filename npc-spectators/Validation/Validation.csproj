@@ -5,6 +5,7 @@
     <Compile Include="../Plugin/ActionEventBridge.cs" Link="ActionEventBridge.cs" />
     <Compile Include="../Plugin/CrowdPolicy.cs" Link="CrowdPolicy.cs" />
     <Compile Include="../Plugin/CrowdDriver.cs" Link="CrowdDriver.cs" />
+    <Compile Include="../Plugin/CrowdVisibility.cs" Link="CrowdVisibility.cs" />
     <Compile Include="../Plugin/MmdBridge.cs" Link="MmdBridge.cs" />
     <Compile Include="../../vmd-validation/Plugin/MotionPlaybackApi.cs" Link="MotionPlaybackApi.cs" />
   </ItemGroup>

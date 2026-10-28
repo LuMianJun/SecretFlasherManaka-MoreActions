@@ -21,6 +21,10 @@ internal static class InstalledContract
             ["NavMeshAgent"]=new[]{"CalculatePath","SetDestination","ResetPath","get_isOnNavMesh","get_isStopped","set_isStopped"},
             ["NavMeshPath"]=new[]{"get_status"}
         });
+        CheckApi(Path.Combine(gameDirectory,"BepInEx","interop","UnityEngine.PhysicsModule.dll"),new()
+        {
+            ["Physics"]=new[]{"RaycastAll"},["Collider"]=new[]{"get_isTrigger"}
+        });
         CheckApi(motionDll,new(){["MotionPlaybackApi"]=new[]{"get_IsPlaying","get_CurrentMotionId","add_PlaybackChanged","remove_PlaybackChanged"}});
         using var crowd=new PEReader(File.OpenRead(crowdDll));var cm=crowd.GetMetadataReader();
         using var motion=new PEReader(File.OpenRead(motionDll));var mm=motion.GetMetadataReader();
@@ -38,7 +42,7 @@ internal static class InstalledContract
         }
         if(!nativeApproach)throw new Exception("Native spectator approach call missing");
         if(cm.TypeDefinitions.Any(h=>cm.GetString(cm.GetTypeDefinition(h).Name)=="CrowdFixedStepPatch"))throw new Exception("Old custom fixed-step patch still compiled");
-        Console.WriteLine("PASS: native target approach; no custom movement velocity or navigation-step override");
+        Console.WriteLine("PASS: native target approach and scene-ray visibility; no custom movement velocity or navigation-step override");
         Console.WriteLine("PASS: two separate DLLs without mutual assembly references; optional playback API exists");
     }
     static void CheckApi(string file,Dictionary<string,string[]> contract)
