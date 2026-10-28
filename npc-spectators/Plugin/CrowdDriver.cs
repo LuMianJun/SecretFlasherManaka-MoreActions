@@ -90,7 +90,8 @@ public sealed class CrowdDriver : MonoBehaviour
         bool mmd = Plugin.FollowMmd.Value && !string.IsNullOrEmpty(bridge.MotionId) && (Plugin.FollowAllMmd.Value || CrowdPolicy.Matches(Plugin.MmdActions.Value, bridge.MotionId));
         bool requested = manual || native || mmd || CrowdApi.Requested;
         if (!requested) { End("triggers ended"); return; }
-        if (active && (player.transform.position - center).sqrMagnitude > 1f) End("player moved; rebuild gathering");
+        // Keep the gathering anchor for this entire request. Authored action
+        // movement must not release spectators or replace their destinations.
         if (!active) Begin("manual=" + manual + " native=" + nativeId + " mmd=" + bridge.MotionId);
         if (Time.unscaledTime >= nextScan) { nextScan = Time.unscaledTime + 0.25f; Scan(); }
 
@@ -188,7 +189,7 @@ public sealed class CrowdDriver : MonoBehaviour
         try
         {
             if (!Eligible(npc)) { Release(npc.Pointer, "NPC busy"); return false; }
-            spectator.Drive(center);
+            spectator.Drive(player.transform.position);
             return true;
         }
         catch (Exception e)

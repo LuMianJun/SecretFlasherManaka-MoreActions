@@ -9,7 +9,7 @@ using Seleka2.ModSettings;
 
 namespace Seleka2.NpcSpectators;
 
-[BepInPlugin("local.seleka2.npcspectators", "Seleka2 NPC Spectators", "0.2.0")]
+[BepInPlugin("local.seleka2.npcspectators", "Seleka2 NPC Spectators", "0.3.1")]
 [BepInDependency("local.seleka2.moreactions", BepInDependency.DependencyFlags.SoftDependency)]
 public sealed class Plugin : BasePlugin
 {
@@ -39,6 +39,6 @@ public sealed class Plugin : BasePlugin
         ModOptions.Number("crowd.radius", "[NPC围观] 围观半径", "[Spectators] Radius", Radius, 18, 80, 0.1f, "m", "玩家与第一圈围观行人的距离。", "Distance from the player to the inner spectator ring.");
         ModOptions.Number("crowd.spacing", "[NPC围观] 行人间距", "[Spectators] Spacing", Spacing, 8, 30, 0.1f, "m", "围观目标位置之间的最小间距。", "Minimum separation between spectator destinations.");
         new Harmony("local.seleka2.npcspectators").PatchAll(typeof(Plugin).Assembly);
-        Log.LogInfo("CROWD_READY version=0.2.0 standalone=settings native=HipShake optionalMmd=true");
+        Log.LogInfo("CROWD_READY version=0.3.1 standalone=settings native=HipShake optionalMmd=true");
     }
 }

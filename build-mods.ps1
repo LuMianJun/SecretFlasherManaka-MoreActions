@@ -1,6 +1,6 @@
 param(
     [Parameter(Mandatory=$true)][string]$GameDir,
-    [string]$OutputDir = (Join-Path $PSScriptRoot 'releases/game-rig-only-0.10.0')
+    [string]$OutputDir = (Join-Path $PSScriptRoot 'releases/crowd-fixed-center-0.3.1')
 )
 $ErrorActionPreference = 'Stop'
 $gameRoot = (Resolve-Path -LiteralPath $GameDir).Path

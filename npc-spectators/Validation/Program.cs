@@ -185,6 +185,44 @@ Time.frameCount++;Time.unscaledTime+=.3f;visible.Update();
 Check(visible.Drive(visibleNpc.Nca.NpcLocomotion)&&visibleNpc.Nca.NavAgent.destination.x<1&&visibleNpc.Nca.NpcLocomotion.SimpleUpdateCalls>0,"Visible side remains recruitable using the native approach routine");visible.OnDestroy();
 Physics.Cast=null;
 
+// One gathering keeps its original destinations while the performer moves.
+var stable=SelectionScene(54);var stableNpc=NpcManager.Instance.ExistNpcList[0];
+void StableTick() { Time.frameCount++;Time.unscaledTime+=.3f;stable.Update(); }
+int startLogs=Seleka2.NpcSpectators.Plugin.Logger.Lines.Count(s=>s.StartsWith("CROWD_START"));
+StableTick();Check(stable.Drive(stableNpc.Nca.NpcLocomotion),"Initial fixed-center gathering did not recruit");
+var anchor=PlayerController.Instance.transform.position;
+var firstGoal=stableNpc.Nca.NavAgent.destination;int initialWrites=stableNpc.Nca.NavAgent.DestinationWrites,initialPaths=stableNpc.Nca.NavAgent.PathCalculations;
+foreach(var moved in new[]{new Vector3(4,0,2),new Vector3(-5,0,3),new Vector3(9,0,-4)})
+{
+    PlayerController.Instance.transform.position=moved;StableTick();
+    Check(stable.Drive(stableNpc.Nca.NpcLocomotion)&&Same(stableNpc.Nca.NavAgent.destination,firstGoal)
+        &&Same(stableNpc.Nca.NpcLocomotion.SimpleTarget,firstGoal),"Performer displacement changed an existing spectator's target");
+    Check(stableNpc.Nca.NavAgent.DestinationWrites==initialWrites&&stableNpc.Nca.NavAgent.PathCalculations==initialPaths,"Performer displacement caused destination reassignment or path selection");
+}
+Check(Seleka2.NpcSpectators.Plugin.Logger.Lines.Count(s=>s.StartsWith("CROWD_START"))==startLogs+1,"Movement restarted the gathering");
+var lateNpc=new NpcController(55);lateNpc.Transform.position=new(0,0,-8);NpcManager.Instance.ExistNpcList.Add(lateNpc);StableTick();
+Check(stable.Drive(lateNpc.Nca.NpcLocomotion)&&CrowdDriver.HorizontalSquare(lateNpc.Nca.NavAgent.destination-anchor)<16,
+    "Late recruits must use the original anchor rather than the moved player");
+stableNpc.Transform.position=firstGoal;PlayerController.Instance.transform.position=firstGoal+new Vector3(8,0,0);StableTick();stable.Drive(stableNpc.Nca.NpcLocomotion);
+Check(stableNpc.Nca.NavAgent.isStopped&&stableNpc.Nca.NpcLocomotion.moveV.sqrMagnitude==0&&stableNpc.Transform.forward.x>.99f,
+    "Arrived NPC must stop and face the current player, not the fixed anchor");
+PlayerController.Instance.transform.position=firstGoal+new Vector3(-8,0,0);StableTick();stable.Drive(stableNpc.Nca.NpcLocomotion);
+Check(stableNpc.Transform.forward.x<-.99f&&stableNpc.Nca.NavAgent.DestinationWrites==initialWrites,"Facing a moving player must not restart navigation");
+stable.ManualRequested=false;StableTick();Check(!stable.Drive(stableNpc.Nca.NpcLocomotion)&&Same(stableNpc.Nca.NavAgent.destination,new(0,0,20)),"Normal trigger end failed to restore patrol");
+stable.ManualRequested=true;StableTick();Check(stable.Drive(stableNpc.Nca.NpcLocomotion),"New gathering did not recruit");
+Check(!Same(stableNpc.Nca.NavAgent.destination,firstGoal)&&CrowdDriver.HorizontalSquare(stableNpc.Nca.NavAgent.destination-PlayerController.Instance.transform.position)<16,
+    "A new gathering must capture the new player position");
+InputManager.Move=new(.2f,0,0);StableTick();Check(!stable.Drive(stableNpc.Nca.NpcLocomotion),"Actual manual movement input must still cancel manual gathering");InputManager.Move=Vector3.zero;
+stable.ManualRequested=true;StableTick();InputManager.Cancel=true;StableTick();Check(!stable.Drive(stableNpc.Nca.NpcLocomotion),"Cancel input must still end manual gathering");InputManager.Cancel=false;
+MotionPlaybackApi.Publish("wavefile",true);StableTick();Check(stable.Drive(stableNpc.Nca.NpcLocomotion),"MMD start did not gather");
+var mmdGoal=stableNpc.Nca.NavAgent.destination;int mmdWrites=stableNpc.Nca.NavAgent.DestinationWrites;
+PlayerController.Instance.transform.position+=new Vector3(12,0,0);StableTick();
+Check(stable.Drive(stableNpc.Nca.NpcLocomotion)&&Same(stableNpc.Nca.NavAgent.destination,mmdGoal)&&stableNpc.Nca.NavAgent.DestinationWrites==mmdWrites,
+    "MMD root displacement reassigned the gathering target");
+MotionPlaybackApi.Publish("wavefile",false);StableTick();Check(!stable.Drive(stableNpc.Nca.NpcLocomotion),"MMD stop did not release fixed-center gathering");
+stable.OnDestroy();
+Pass("stable gathering anchor, unchanged navigation targets, live facing, late recruits and normal end/re-entry/cancellation");
+
 var flagsNpc=new NpcController(53);flagsNpc.Nca.NavAgent.updatePosition=false;flagsNpc.Nca.NavAgent.updateRotation=false;
 var flags=new Spectator(flagsNpc,0,new(0,0,3));flags.Acquire();
 Check(!flagsNpc.Nca.NavAgent.updatePosition&&!flagsNpc.Nca.NavAgent.updateRotation,"Acquisition leaves nonstandard native update flags intact");
