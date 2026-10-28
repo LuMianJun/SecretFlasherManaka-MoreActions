@@ -105,11 +105,31 @@ public sealed class ActionDriver : MonoBehaviour
             player == null || !player.gameObject.activeInHierarchy || temp == null || temp.IsGameOver || temp.IsPlayingSomePerformance || temp.IsTimeStop);
         var reason = ActionPolicy.BlockReason(definition, availability);
         if (reason != null) return reason;
+        return CanUseNativeHands(definition, false) ? null : "native hand/action gate";
+    }
+
+    [HideFromIl2Cpp]
+    bool CanUseNativeHands(ActionDefinition definition, bool showWarning, bool skipPlayingAction = false)
+    {
         // Call the original hand gate with only the pack's declared skips. The
         // lease patch is bypassed solely during this owner's availability check.
+        bool previous = CheckingAvailability;
         CheckingAvailability = true;
-        try { return PlayerFacade.Instance.CanUseHand(false, !definition.RequiresHands, false, false, !definition.RequiresStanding) ? null : "native hand/action gate"; }
-        finally { CheckingAvailability = false; }
+        try { return PlayerFacade.Instance.CanUseHand(showWarning, !definition.RequiresHands, false, skipPlayingAction, !definition.RequiresStanding); }
+        finally { CheckingAvailability = previous; }
+    }
+
+    [HideFromIl2Cpp]
+    bool ShowNativePostureWarning(ActionDefinition definition)
+    {
+        var state = Owner?.Pca?.PlayerState;
+        if (state?.CurrentAction == null || GameState.GameStateData == null || PlayerFacade.Instance == null) return false;
+        bool handcuffed = definition.RequiresHands && GameStateFacade.IsAttachSomeHandcuffs();
+        bool crouching = definition.RequiresStanding && state.IsCrouch;
+        if (!handcuffed && !crouching) return false;
+        // Native CanUseHand owns warning priority, localization and Caution
+        // styling. Do not use this to report normal custom-action switching.
+        return !CanUseNativeHands(definition, true);
     }
 
     [HideFromIl2Cpp]
@@ -155,7 +175,13 @@ public sealed class ActionDriver : MonoBehaviour
         var definition = ActionRegistry.Get(id);
         if (definition == null) return;
         string reason = Reason(definition, Owner, InGameUiManager.Instance != null && InGameUiManager.Instance.IsOpenSomeUi);
-        if (reason != null) { NotifyBlocked(reason); return; }
+        if (reason != null)
+        {
+            if (reason == "player unavailable") return;
+            if (ShowNativePostureWarning(definition)) return;
+            if (definition.RequiresStanding && Owner?.Pca?.PlayerState?.IsSit == true) return;
+            NotifyBlocked(reason); return;
+        }
         try
         {
             if (!ActionAssets.TryGet(definition, out var loaded)) { requests.Request(id); return; }
@@ -185,14 +211,15 @@ public sealed class ActionDriver : MonoBehaviour
             if (eventRevision != revision || !Playing) return;
             Plugin.LogSource.LogInfo("ACTION_START id=" + id + " bones=" + pose.BoneCount + " audioDelay=" + definition.AudioDelaySeconds + " poseMs=" + poseTimer.ElapsedMilliseconds + " rootMotion=" + (rootMotion != null));
         }
-        catch (Exception e) { Stop("start failed"); Plugin.LogSource.LogError("ACTION_START_FAILED id=" + id + " " + e); NotifyBlocked(e.Message); }
+        catch (Exception e) { Stop("start failed"); Plugin.LogSource.LogError("ACTION_START_FAILED id=" + id + " " + e); }
     }
 
     [HideFromIl2Cpp]
     void NotifyBlocked(string reason)
     {
+        if (reason == "stand first" || reason == "player unavailable") return;
         bool chinese = GameState.OptionData != null && ((int)GameState.OptionData.Language == 2 || (int)GameState.OptionData.Language == 3);
-        string text = chinese ? reason switch { "handcuffed" => "佩戴手铐时无法执行这个动作。", "stand first" => "请先站立，再执行这个动作。", "moving" => "请先停止移动。", "root motion blocked" => "动作走位受阻，已停止。", _ => "自定义动作暂时无法开始：" + reason } : "Custom action unavailable: " + reason;
+        string text = chinese ? reason switch { "handcuffed" => "佩戴手铐时无法执行这个动作。", "moving" => "请先停止移动。", "root motion blocked" => "动作走位受阻，已停止。", _ => "自定义动作暂时无法开始：" + reason } : "Custom action unavailable: " + reason;
         MessagePanelView.AddMessage(text, MessagePanelView.MessageType.Log);
     }
 

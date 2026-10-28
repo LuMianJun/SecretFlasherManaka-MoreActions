@@ -2,6 +2,7 @@
 // Offline boundaries only: production driver, scheduler, native adapters and
 // optional NPC registration are linked unchanged by EventValidation.csproj.
 using Seleka2.Actions;
+using ExposureUnnoticed2.Scripts.Base;
 namespace Il2CppInterop.Runtime.Attributes
 {
     [AttributeUsage(AttributeTargets.Method|AttributeTargets.Property|AttributeTargets.Constructor|AttributeTargets.Event)]
@@ -114,7 +115,12 @@ namespace ExposureUnnoticed2.ObjectUI.InGame.RingMenu
 }
 namespace ExposureUnnoticed2.ObjectUI.InGame.MessagePanel
 {
-    public static class MessagePanelView { public enum MessageType { Log } public static List<string> Messages = new(); public static void AddMessage(string message, MessageType type) => Messages.Add(message); }
+    public static class MessagePanelView
+    {
+        public enum MessageType { Log, Caution }
+        public static List<string> Messages = new(); public static List<MessageType> Types = new();
+        public static void AddMessage(string message, MessageType type) { Messages.Add(message); Types.Add(type); }
+    }
 }
 namespace ExposureUnnoticed2.Object3D.Player.ScriptableObject
 {
@@ -145,7 +151,25 @@ namespace ExposureUnnoticed2.Object3D.Player.Scripts
         public sealed class ActionRecord { public int Type = -1; }
     }
     public sealed class PlayerAction { public IntPtr Pointer; }
-    public sealed class PlayerFacade { public static PlayerFacade Instance = new(); public PlayerClassAccessor pca; public bool CanUseHand(bool a, bool b, bool c, bool d, bool e) => true; }
+    public sealed class PlayerFacade
+    {
+        public static PlayerFacade Instance = new(); public PlayerClassAccessor pca;
+        public readonly List<(bool ShowWarning,bool SkipHandcuff,bool SkipCrouch,bool CheckingAvailability)> HandChecks=new();
+        public bool CanUseHand(bool showWarning, bool skipHandcuff, bool skipBasket, bool skipPlayingAction, bool skipCrouch)
+        {
+            HandChecks.Add((showWarning,skipHandcuff,skipCrouch,ActionDriver.Current?.CheckingAvailability==true));
+            // Controlled boundary for the original gate's order and warning
+            // ownership; production invokes the game's actual native method.
+            string key=!skipHandcuff&&GameStateFacade.Handcuffed?"log_cant_use_hand_by_handcuff":
+                !skipCrouch&&pca.PlayerState.IsCrouch?"log_cant_use_hand_by_crouch":
+                (!skipPlayingAction&&pca.PlayerState.CurrentAction.Type!=-1)||pca.PlayerState.CurrentState!=PlayerStateModel.PlayerState.Idle||pca.PlayerState.IsEcstasyMotion||ExposureUnnoticed2.Scripts.InGame.SexManager.Instance?.IsSexMode==true?"log_cant_use_hand_by_other":null;
+            if(showWarning&&key!=null)
+                ExposureUnnoticed2.ObjectUI.InGame.MessagePanel.MessagePanelView.AddMessage(
+                    "native:"+GameState.OptionData.Language+":"+key,
+                    ExposureUnnoticed2.ObjectUI.InGame.MessagePanel.MessagePanelView.MessageType.Caution);
+            return key==null;
+        }
+    }
     public sealed class PlayerSoundManager
     {
         public List<ExposureUnnoticed2.Scripts.Sound.InGameSoundManager.SeType> Calls = new(); public Action Callback;
@@ -176,7 +200,9 @@ namespace Seleka2.Actions
     internal sealed class LoadedAction
     {
         public ActionDefinition Definition; public UnityEngine.AudioClip Audio; public UnityEngine.AnimationClip Clip; public float Duration = 1;
-        public TestPose LastPose;public IActionPose NextPose;public IActionPose CreatePose(UnityEngine.GameObject target) => NextPose ?? (LastPose = new TestPose());
+        public TestPose LastPose;public IActionPose NextPose;public Exception CreateError;public int Creates;
+        public IActionPose CreatePose(UnityEngine.GameObject target)
+        { Creates++;if(CreateError!=null)throw CreateError;return NextPose ?? (LastPose = new TestPose()); }
     }
     internal sealed class TestPose : IActionPose
     {

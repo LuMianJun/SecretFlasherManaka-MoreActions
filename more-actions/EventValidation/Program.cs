@@ -6,6 +6,8 @@ using ExposureUnnoticed2.Object3D.Player.Scripts;
 using ExposureUnnoticed2.Object3D.Player.ScriptableObject;
 using ExposureUnnoticed2.Scripts.Base;
 using ExposureUnnoticed2.Scripts.Sound;
+using ExposureUnnoticed2.ObjectUI.InGame.MessagePanel;
+using ExposureUnnoticed2.Object3D.IngameManager;
 
 int count = 0, ids = 0;
 var calls = new List<string>(); var errors = new List<string>(); var activeLeases = new HashSet<string>();
@@ -100,6 +102,7 @@ void Frame(double time)
 void Start(ActionDefinition def, AnimationClip clip = null, float audioLength=0, IActionSource runtimeSource=null, IActionPose playbackPose=null)
 {
     driver?.OnDestroy(); InputManager.Down.Clear(); InputManager.Move=default; GameStateFacade.Handcuffed=false;
+    InputResolver.RingShortcutInput=ExposureUnnoticed2.ObjectUI.InGame.RingMenu.RingMenuParentView.RingItemType.None;
     player=new PlayerController(); PlayerController.Instance=player; PlayerFacade.Instance.pca=player.Pca;
     ActionRegistry.RegisterRuntime(def,runtimeSource ?? new Source(),root,"validation");
     loaded=new LoadedAction{NextPose=playbackPose,Definition=ActionRegistry.Get(def.Id),Clip=clip, Audio=audioLength>0?new AudioClip{length=audioLength}:null}; ActionAssets.Items[def.Id]=loaded;
@@ -107,6 +110,54 @@ void Start(ActionDefinition def, AnimationClip clip = null, float audioLength=0,
 }
 try
 {
+    void RetryWithState(Action configure)
+    {
+        driver.Stop("warning setup");configure();MessagePanelView.Messages.Clear();MessagePanelView.Types.Clear();PlayerFacade.Instance.HandChecks.Clear();
+        driver.Request(loaded.Definition.Id);Frame(0);
+    }
+    Start(Definition());
+    RetryWithState(()=>GameStateFacade.Handcuffed=true);
+    Check(!driver.Playing&&MessagePanelView.Messages.SequenceEqual(new[]{"native:2:log_cant_use_hand_by_handcuff"})&&MessagePanelView.Types.Single()==MessagePanelView.MessageType.Caution,"Handcuff denial delegates exactly one localized Caution to the original gate");
+    Check(PlayerFacade.Instance.HandChecks.Count==1&&PlayerFacade.Instance.HandChecks[0].ShowWarning&&PlayerFacade.Instance.HandChecks[0].CheckingAvailability&&!driver.CheckingAvailability,"Native warning bypasses the custom occupation hook and restores the check scope");
+    Frame(.1);Frame(.2);
+    Check(MessagePanelView.Messages.Count==1,"A rejected request does not emit the native warning on following frames");
+    Start(Definition());
+    RetryWithState(()=>player.Pca.PlayerState.IsCrouch=true);
+    Check(!driver.Playing&&MessagePanelView.Messages.SequenceEqual(new[]{"native:2:log_cant_use_hand_by_crouch"})&&MessagePanelView.Types.Single()==MessagePanelView.MessageType.Caution,"Crouch denial uses the original crouching warning rather than custom stand-first text");
+    Start(Definition());
+    RetryWithState(()=>{GameStateFacade.Handcuffed=true;player.Pca.PlayerState.IsCrouch=true;player.Pca.PlayerState.CurrentAction.Type=100;});
+    Check(!driver.Playing&&MessagePanelView.Messages.SequenceEqual(new[]{"native:2:log_cant_use_hand_by_handcuff"}),"Original handcuff-first warning priority is retained when several conditions block playback");
+    Start(Definition());GameState.OptionData.Language=0;
+    RetryWithState(()=>player.Pca.PlayerState.IsCrouch=true);
+    Check(MessagePanelView.Messages.SequenceEqual(new[]{"native:0:log_cant_use_hand_by_crouch"}),"Native gate controls warning localization for the currently selected language");GameState.OptionData.Language=2;
+    var optionalStanding=Definition();optionalStanding.RequiresStanding=false;Start(optionalStanding);
+    RetryWithState(()=>player.Pca.PlayerState.IsCrouch=true);
+    Check(driver.Playing&&MessagePanelView.Messages.Count==0&&PlayerFacade.Instance.HandChecks.All(c=>c.SkipCrouch&&!c.ShowWarning),"Pack standing opt-out does not produce a false native crouching warning");
+    var optionalHands=Definition();optionalHands.RequiresHands=false;optionalHands.BodyMask=ActionBodyMask.LowerBody;optionalHands.WriteFaceMorphs=false;Start(optionalHands);
+    RetryWithState(()=>GameStateFacade.Handcuffed=true);
+    Check(driver.Playing&&MessagePanelView.Messages.Count==0&&PlayerFacade.Instance.HandChecks.All(c=>c.SkipHandcuff&&!c.ShowWarning),"Valid hand-independent pack retains its declared skip without a handcuff warning");
+    Start(Definition());
+    RetryWithState(()=>player.Pca.PlayerState.IsSit=true);
+    Check(!driver.Playing&&MessagePanelView.Messages.Count==0&&!PlayerFacade.Instance.HandChecks.Any(c=>c.ShowWarning),"Sitting-only restriction stays silent and is not mislabeled as native crouching");
+    Start(Definition());RetryWithState(()=>{player.Pca.PlayerState.IsSit=true;player.Pca.PlayerState.CurrentAction.Type=100;});
+    Check(!driver.Playing&&MessagePanelView.Messages.Count==0,"A native chair action also blocks silently instead of falling back to the generic action-busy message");
+    Start(Definition());
+    RetryWithState(()=>player.Pca.PlayerState.CurrentAction.Type=100);
+    Check(!driver.Playing&&!PlayerFacade.Instance.HandChecks.Any(c=>c.ShowWarning),"Native action restrictions stay intact without adding an occupation warning to this change");
+    Start(Definition());
+    RetryWithState(()=>{GameStateFacade.Handcuffed=true;player.gameObject.activeInHierarchy=false;});
+    Check(!driver.Playing&&MessagePanelView.Messages.Count==0&&!PlayerFacade.Instance.HandChecks.Any(c=>c.ShowWarning),"Unavailable player stays silent without entering the native posture-warning path");
+    Start(Definition());RetryWithState(()=>InputManager.Move=new Vector3(1,0,0));
+    Check(!driver.Playing&&MessagePanelView.Messages.SequenceEqual(new[]{"请先停止移动。"}),"Moving-start restriction retains its explicit player hint");
+    Start(Definition());RetryWithState(()=>loaded.CreateError=new InvalidOperationException("startup fixture failure"));
+    Check(!driver.Playing&&MessagePanelView.Messages.Count==0&&Plugin.LogSource.Messages.Any(m=>m.Contains("ACTION_START_FAILED")&&m.Contains("startup fixture failure")),"Startup exception is logged and cleaned up without a gameplay notification");
+    Start(Definition());var switchFrom=loaded.LastPose;var switchTo=Definition();
+    ActionRegistry.RegisterRuntime(switchTo,new Source(),root,"validation");ActionAssets.Items[switchTo.Id]=new LoadedAction{Definition=ActionRegistry.Get(switchTo.Id)};
+    MessagePanelView.Messages.Clear();MessagePanelView.Types.Clear();PlayerFacade.Instance.HandChecks.Clear();driver.Request(switchTo.Id);Frame(0);
+    Check(driver.Playing&&ActionPlaybackApi.CurrentActionId==switchTo.Id&&switchFrom.Disposed&&MessagePanelView.Messages.Count==0,"Selecting another custom action switches without an occupation warning");
+    driver.Request(switchTo.Id);Frame(0);
+    Check(!driver.Playing&&MessagePanelView.Messages.Count==0,"Selecting the same custom action stops without an occupation warning");
+
     var bodyPose=new BodyPose();Start(Definition(),playbackPose:bodyPose);
     AudioSettings.dspTime=0;Check(driver.BeginNativeBody(player)==null,"DSP lead does not prematurely own native body correction");
     AudioSettings.dspTime=.2;
