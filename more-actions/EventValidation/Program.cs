@@ -103,6 +103,7 @@ void Start(ActionDefinition def, AnimationClip clip = null, float audioLength=0,
 {
     driver?.OnDestroy(); InputManager.Down.Clear(); InputManager.Move=default; GameStateFacade.Handcuffed=false;
     InputResolver.RingShortcutInput=ExposureUnnoticed2.ObjectUI.InGame.RingMenu.RingMenuParentView.RingItemType.None;
+    Time.timeScale=1;Time.deltaTime=1/60f;InGameUiManager.Instance.IsOpenSomeUi=false;InGameUiManager.Instance.IsOpenSomeCancelInputUi=false;InGameUiManager.Instance.IsOpenFade=false;
     player=new PlayerController(); PlayerController.Instance=player; PlayerFacade.Instance.pca=player.Pca;
     ActionRegistry.RegisterRuntime(def,runtimeSource ?? new Source(),root,"validation");
     loaded=new LoadedAction{NextPose=playbackPose,Definition=ActionRegistry.Get(def.Id),Clip=clip, Audio=audioLength>0?new AudioClip{length=audioLength}:null}; ActionAssets.Items[def.Id]=loaded;
@@ -158,6 +159,61 @@ try
     driver.Request(switchTo.Id);Frame(0);
     Check(!driver.Playing&&MessagePanelView.Messages.Count==0,"Selecting the same custom action stops without an occupation warning");
 
+    Start(Definition(),audioLength:5);Frame(.3);
+    int rawCancelDiagnostics=Plugin.LogSource.Messages.Count(m=>m.StartsWith("ACTION_CANCEL_DIAGNOSTIC "));
+    InputManager.Down.Add(InputManager.InputType.Cancel);Frame(.4);
+    Check(driver.Playing&&Plugin.LogSource.Messages.Count(m=>m.StartsWith("ACTION_CANCEL_DIAGNOSTIC "))==rawCancelDiagnostics,"Standalone generic Cancel is not a custom-action stop command");
+    InputManager.Down.Add(InputManager.InputType.SystemMenu);Frame(.5);
+    Check(driver.Playing&&!InGameUiManager.Instance.IsOpenSomeUi&&Time.timeScale==1,"Esc before native menu initialization survives without a menu-key exception");
+    InputManager.Down.Clear();InGameUiManager.Instance.IsOpenSomeCancelInputUi=true;Time.timeScale=0;Frame(.6);
+    double escFrozen=ActionPlaybackApi.PlaybackPositionSeconds;Frame(5);
+    Check(driver.Playing&&ActionPlaybackApi.PlaybackPositionSeconds==escFrozen,"Native game pause still freezes the action after Esc opens its menu");
+    InGameUiManager.Instance.IsOpenSomeCancelInputUi=false;Time.timeScale=1;InputManager.Down.Add(InputManager.InputType.Cancel);Frame(5.6);
+    Check(driver.Playing,"Generic Cancel after the menu closes also has no global stop rule");
+    InputManager.Down.Clear();driver.Request(loaded.Definition.Id);Frame(5.7);
+    Check(!driver.Playing,"Explicit same-action selection still stops playback");
+    Start(Definition(),audioLength:5);InputManager.Down.Add(InputManager.InputType.GameMenu);InputManager.Down.Add(InputManager.InputType.Cancel);Frame(.2);
+    Check(driver.Playing,"A Cancel shared with another menu does not stop playback either");
+
+    calls.Clear();var menuMotion=Definition(E(.7,"menu-later"));menuMotion.OnStart=new[]{E(null,"menu-start")};menuMotion.OnCancel=new[]{E(null,"menu-cancel")};
+    Start(menuMotion,audioLength:5);Frame(.4);var menuAudio=AudioSource.Created.Last();
+    var menuPose=loaded.LastPose;InGameUiManager.Instance.IsOpenSomeCancelInputUi=true;Time.timeScale=0;Frame(.5);
+    float frozenPose=menuPose.Samples.Last();double frozenTime=ActionPlaybackApi.PlaybackPositionSeconds;
+    InputManager.Down.Add(InputManager.InputType.Cancel);InputManager.Down.Add(InputManager.InputType.Crouch);InputManager.Move=new Vector3(1,0,0);Frame(10);
+    Check(driver.Playing&&!menuPose.Disposed&&!calls.Contains("menu-cancel")&&menuPose.Samples.Last()==frozenPose&&ActionPlaybackApi.PlaybackPositionSeconds==frozenTime,"Pause menu preserves the action and freezes pose/shared camera time despite UI navigation inputs");
+    Check(menuAudio.Pauses==1&&menuAudio.Resumes==0&&menuAudio.Scheduled.Count==1&&!calls.Contains("menu-later"),"Already playing music pauses exactly once while future action events remain frozen");
+    InputManager.Down.Clear();InputManager.Move=default;InGameUiManager.Instance.IsOpenSomeCancelInputUi=false;Time.timeScale=1;Frame(10.5);
+    Check(driver.Playing&&Math.Abs(menuPose.Samples.Last()-frozenPose)<1e-5&&menuAudio.Resumes==1&&menuAudio.Scheduled.Count==1,"Closing the pause menu resumes the same music channel and motion position");
+    Frame(10.9);Check(calls.Count(c=>c=="menu-start")==1&&calls.Count(c=>c=="menu-later")==1&&!calls.Contains("menu-cancel"),"Resume fires future events once without replaying start/cancel callbacks");
+
+    var delayedMenu=Definition();delayedMenu.AudioDelaySeconds=160/30d;Start(delayedMenu,audioLength:2);Frame(.3);
+    var delayedAudio=AudioSource.Created.Last();double originalAudioSchedule=delayedAudio.Scheduled.Single();int stopsBeforeMenu=delayedAudio.Stops;
+    InGameUiManager.Instance.IsOpenSomeCancelInputUi=true;Time.timeScale=0;Frame(.5);Frame(9);
+    Check(driver.Playing&&delayedAudio.Stops==stopsBeforeMenu+1&&delayedAudio.Pauses==0,"Pending delayed BGM is unscheduled so it cannot start while the game is paused");
+    InGameUiManager.Instance.IsOpenSomeCancelInputUi=false;Time.timeScale=1;Frame(10.5);
+    Check(delayedAudio.Scheduled.Count==2&&Math.Abs(delayedAudio.Scheduled.Last()-originalAudioSchedule-10)<1e-5&&delayedAudio.Resumes==0,"Delayed BGM is rescheduled with its original remaining delay after resume");
+
+    calls.Clear();var earlyMenu=Definition();earlyMenu.OnStart=new[]{E(null,"early-start")};Start(earlyMenu,audioLength:2);
+    var earlyPose=loaded.LastPose;InGameUiManager.Instance.IsOpenSomeCancelInputUi=true;Time.timeScale=0;Frame(.05);Frame(10);
+    Check(driver.Playing&&earlyPose.Samples.Count==0&&!calls.Contains("early-start"),"Pausing during the scheduling lead does not prematurely apply a pose or start events");
+    InGameUiManager.Instance.IsOpenSomeCancelInputUi=false;Time.timeScale=1;Frame(10.05);Frame(10.11);
+    Check(earlyPose.Samples.Count==1&&calls.Count(c=>c=="early-start")==1,"Scheduling lead completes normally after menu resume");
+
+    Start(Definition(),audioLength:5);Frame(.2);float nonPausingPose=loaded.LastPose.Samples.Last();
+    InGameUiManager.Instance.IsOpenSomeCancelInputUi=true;InputManager.Down.Add(InputManager.InputType.Cancel);InputManager.Move=new Vector3(1,0,0);Frame(.5);
+    Check(driver.Playing&&loaded.LastPose.Samples.Last()>nonPausingPose,"Input-blocking menu without time pause keeps the action advancing and consumes menu inputs");
+    InputManager.Down.Clear();InputManager.Move=default;InGameUiManager.Instance.IsOpenSomeCancelInputUi=false;
+    InputManager.Down.Add(InputManager.InputType.Cancel);Frame(.6);Check(driver.Playing,"Generic Cancel outside a non-pausing menu remains unrelated to action lifetime");
+
+    var menuLoop=Definition();menuLoop.Loop=true;var menuWalk=new RootPose();Start(menuLoop,playbackPose:menuWalk);Frame(1.4);
+    var menuPosition=player.transform.position;var menuCycle=ActionPlaybackApi.RootCycleOffset;
+    InGameUiManager.Instance.IsOpenSomeCancelInputUi=true;Time.timeScale=0;Frame(1.5);Frame(8);
+    Check(driver.Playing&&player.transform.position.sqrMagnitude==menuPosition.sqrMagnitude&&ActionPlaybackApi.RootCycleOffset.sqrMagnitude==menuCycle.sqrMagnitude,"Paused looping motion preserves root position and camera cycle offset without moving the controller");
+
+    Start(Definition());driver.Stop("queued menu setup");InGameUiManager.Instance.IsOpenSomeCancelInputUi=true;Time.timeScale=0;driver.Request(loaded.Definition.Id);Frame(.3);
+    Check(!driver.Playing,"New action requests stay queued while a menu pauses gameplay");
+    InGameUiManager.Instance.IsOpenSomeCancelInputUi=false;Time.timeScale=1;Frame(.4);Check(driver.Playing,"Queued action starts once the menu closes and gameplay resumes");
+
     var bodyPose=new BodyPose();Start(Definition(),playbackPose:bodyPose);
     AudioSettings.dspTime=0;Check(driver.BeginNativeBody(player)==null,"DSP lead does not prematurely own native body correction");
     AudioSettings.dspTime=.2;
@@ -189,8 +245,8 @@ try
     InputManager.Move=new Vector3(1,0,0);Frame(.5);
     Check(!driver.Playing&&walk.Disposed&&player.transform.position.x==reached,"User movement cancels and leaves player at the reached position");
     walk=new RootPose();Start(Definition(),playbackPose:walk);Frame(.3);reached=player.transform.position.x;
-    InputManager.Down.Add(InputManager.InputType.Cancel);Frame(.4);
-    Check(!driver.Playing&&walk.Disposed&&player.transform.position.x==reached,"Cancel restores the pose without teleporting the player back");
+    ActionPlaybackApi.Stop();Frame(.4);
+    Check(!driver.Playing&&walk.Disposed&&player.transform.position.x==reached,"Explicit API stop restores the pose without teleporting the player back");
     walk=new RootPose();Start(Definition(),playbackPose:walk);
     player.Pca.CharacterController.Resolve=d=>new Vector3(Math.Min(d.x,.25f-player.transform.position.x),0,d.z);Frame(.6);
     Check(!driver.Playing&&walk.Disposed&&Math.Abs(player.transform.position.x-.25f)<1e-5,"A wall stops playback at a reachable position without disabling collision");
@@ -209,7 +265,10 @@ try
     calls.Clear(); var waiting=Definition(E(0,"async-start")); ActionAssets.Pending.Add(waiting.Id);
     Start(waiting); Frame(.2); Check(!driver.Playing && calls.Count==0,"Unprepared action waits without firing lifecycle effects");
     InputManager.Down.Add(InputManager.InputType.Cancel); Frame(.3); ActionAssets.Pending.Remove(waiting.Id); InputManager.Down.Clear(); Frame(.4);
-    Check(!driver.Playing && calls.Count==0,"Cancel removes pending playback; later readiness never auto-starts it");
+    Check(driver.Playing && calls.Count==0,"Generic Cancel does not consume a resource-waiting request");
+    waiting=Definition(E(0,"explicit-pending"));ActionAssets.Pending.Add(waiting.Id);Start(waiting);Frame(.2);
+    driver.Request(waiting.Id);Frame(.3);ActionAssets.Pending.Remove(waiting.Id);Frame(.4);
+    Check(!driver.Playing&&calls.Count==0,"Selecting the same resource-waiting action explicitly withdraws the request");
     waiting=Definition(E(0,"ready-start")); ActionAssets.Pending.Add(waiting.Id); Start(waiting); Frame(.2);
     ActionAssets.Pending.Remove(waiting.Id); Frame(.3); Check(driver.Playing,"A still-requested action starts once assets become ready");
     driver.Stop("test cleanup");
@@ -223,7 +282,7 @@ try
     Frame(1.2); Check(calls.SequenceEqual(new[]{"start","zero","half","last","finish"})&&!driver.Playing&&loaded.LastPose.Disposed&&!ActionPlaybackApi.IsPlaying,"Driver drains terminal interval, finishes, restores pose and publishes stop");
     calls.Clear(); def=Definition(E(1,"last")); def.OnFinish=new[]{E(null,"finish")}; def.AudioDelaySeconds=.5; Start(def,audioLength:2);
     Frame(1.2); Check(driver.Playing&&calls.SequenceEqual(new[]{"last"}),"Motion events finish while long/delayed music continues"); Frame(2.7); Check(!driver.Playing&&calls.Last()=="finish","Finish waits for complete audio timeline");
-    calls.Clear(); def=Definition(E(.8,"future")); def.OnStart=new[]{E(null,"scope",lease:true)}; def.OnCancel=new[]{E(null,"cancel")}; Start(def); Frame(.2); InputManager.Down.Add(InputManager.InputType.Cancel); Frame(.3);
+    calls.Clear(); def=Definition(E(.8,"future")); def.OnStart=new[]{E(null,"scope",lease:true)}; def.OnCancel=new[]{E(null,"cancel")}; Start(def); Frame(.2); ActionPlaybackApi.Stop(); Frame(.3);
     Check(!driver.Playing&&activeLeases.Count==0&&calls.Contains("cancel")&&!calls.Contains("future")&&loaded.LastPose.Disposed,"Native cancellation releases scopes without future events");
     def=Definition(new ActionEventDefinition{Time=.1,Event="native.playSe",Args=Args(new{type="FootStepSneaker"})}); Start(def); Frame(.3);
     Check(player.Pca.PlayerSoundManager.Calls.SequenceEqual(new[]{InGameSoundManager.SeType.FootStepSneaker}),"Native sound adapter calls current player's original sound manager");

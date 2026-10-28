@@ -137,6 +137,15 @@ try
 
     var clock = new MotionAudioClock(); clock.Start(100, 160 / 30d);
     Check(Math.Abs(clock.AudioStartDsp - clock.MotionStartDsp - 160 / 30d) < .00001 && Close(clock.Position(101.1), 1), "Existing WAVEFILE audio delay and camera clock share motion origin");
+    clock.SetPaused(101.1,true);
+    Check(Close(clock.Position(110),1)&&clock.HasStarted(110),"Game pause freezes the shared animation/camera clock");
+    Check(!clock.SetPaused(105,true),"Repeated pause does not replace the original pause timestamp");
+    clock.SetPaused(111.1,false);
+    Check(Close(clock.Position(111.1),1)&&Math.Abs(clock.AudioStartDsp-clock.MotionStartDsp-160/30d)<.00001,"Resume preserves progress and the music-camera delay relation");
+    clock.Start(200,0);clock.SetPaused(200.05,true);
+    Check(!clock.HasStarted(210)&&clock.Position(210)==0,"A paused scheduling lead cannot start the camera prematurely");
+    clock.SetPaused(210.05,false);Check(clock.HasStarted(210.11)&&Close(clock.Position(210.11),.01f),"Lead continues from its remaining time after resume");
+    clock.Stop();Check(!clock.Active&&!clock.Paused&&clock.Position(220)==0,"Stop clears active and pause clock state");
     Action<string, double> bad = (_, _) => throw new Exception("isolated"); int calls = 0;
     Action<string, double> good = (_, _) => calls++;
     ActionPlaybackApi.PoseApplied += bad; ActionPlaybackApi.PoseApplied += good;

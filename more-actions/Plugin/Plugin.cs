@@ -68,6 +68,7 @@ public sealed class ActionDriver : MonoBehaviour
     int eventRevision;
     bool stopping;
     AudioSource audio;
+    bool audioPendingWhenPaused;
     Vector3 expectedPosition;
     int tickFrame = -1, applyFrame = -1;
     internal bool CheckingAvailability;
@@ -80,16 +81,46 @@ public sealed class ActionDriver : MonoBehaviour
         ActionTargetApi.IsReady = animator != null && animator.enabled && animator.isInitialized;
         if (Owner != null && Owner != PlayerController.Instance) { Stop("scene/player changed"); requests.Clear(); Owner = null; }
         if (Playing && Owner == null) { Stop("player destroyed"); requests.Clear(); }
+        SyncPause();
     }
 
     [HideFromIl2Cpp]
-    internal void Request(string id) => requests.Request(id);
+    internal void Request(string id)
+    {
+        if (!Playing && id != null && ActionRegistry.Get(id) != null && requests.PendingId == id) { requests.Clear(); return; }
+        requests.Request(id);
+    }
     [HideFromIl2Cpp]
     internal bool Owns(PlayerStateModel state) => Playing && Owner != null && Owner.Pca?.PlayerState?.Pointer == state?.Pointer;
     [HideFromIl2Cpp]
     internal bool Owns(PlayerFacade facade) => Playing && Owner != null && facade?.pca?.PlayerState?.Pointer == Owner.Pca?.PlayerState?.Pointer;
     [HideFromIl2Cpp]
     internal bool Owns(PlayerAction action) => Playing && Owner != null && Owner.Pca?.PlayerAction?.Pointer == action?.Pointer;
+
+    [HideFromIl2Cpp]
+    bool PlayerInputBlocked => Time.timeScale <= 0 || InGameUiManager.Instance?.IsOpenSomeCancelInputUi == true
+        || InGameUiManager.Instance?.IsOpenFade == true;
+    [HideFromIl2Cpp]
+    bool NativeOperationInputBlocked => PlayerInputBlocked || InGameUiManager.Instance?.IsOpenSomeUi == true;
+
+    [HideFromIl2Cpp]
+    void SyncPause()
+    {
+        if (!Playing) return;
+        bool paused = Time.timeScale <= 0;
+        if (paused == clock.Paused) return;
+        double now = AudioSettings.dspTime;
+        if (paused) audioPendingWhenPaused = running.Audio != null && now < clock.AudioStartDsp;
+        clock.SetPaused(now, paused);
+        if (audio == null || running.Audio == null) return;
+        if (paused)
+        {
+            // Stop a future schedule so delayed BGM cannot start in a pause.
+            if (audioPendingWhenPaused) audio.Stop(); else audio.Pause();
+        }
+        else if (audioPendingWhenPaused) audio.PlayScheduled(clock.AudioStartDsp);
+        else audio.UnPause();
+    }
 
     [HideFromIl2Cpp]
     internal string Reason(ActionDefinition definition, PlayerController player, bool uiOpen)
@@ -101,7 +132,7 @@ public sealed class ActionDriver : MonoBehaviour
             state?.CurrentAction != null && (int)state.CurrentAction.Type != -1, state != null && state.IsEcstasyMotion,
             state != null && state.IsCrouch, state != null && state.IsSit,
             GameState.GameStateData != null && GameStateFacade.IsAttachSomeHandcuffs(), SexManager.Instance != null && SexManager.Instance.IsSexMode,
-            InputManager.GetVector3(InputManager.InputType.Move).sqrMagnitude > 0.0001f, uiOpen,
+            !PlayerInputBlocked && InputManager.GetVector3(InputManager.InputType.Move).sqrMagnitude > 0.0001f, uiOpen && !Playing,
             player == null || !player.gameObject.activeInHierarchy || temp == null || temp.IsGameOver || temp.IsPlayingSomePerformance || temp.IsTimeStop);
         var reason = ActionPolicy.BlockReason(definition, availability);
         if (reason != null) return reason;
@@ -136,17 +167,18 @@ public sealed class ActionDriver : MonoBehaviour
     internal void BeforeNativeUpdate(PlayerController player)
     {
         if (!Playing || Owner != player) return;
+        SyncPause();
         (pose as IActionBodyPose)?.RestoreNativeBody();
         (pose as IActionFacePose)?.RestoreNativeFace();
         var ui = InGameUiManager.Instance;
         var reason = Reason(Definition, player, ui != null && ui.IsOpenSomeUi);
-        bool nativeInput = InputResolver.RingShortcutInput != RingMenuParentView.RingItemType.None
+        bool nativeInput = !NativeOperationInputBlocked && (InputResolver.RingShortcutInput != RingMenuParentView.RingItemType.None
             || InputManager.IsDownFrame(InputManager.InputType.OpenClothesA) || InputManager.IsDownFrame(InputManager.InputType.OpenClothesB)
             || InputManager.IsDownFrame(InputManager.InputType.CloseClothesA) || InputManager.IsDownFrame(InputManager.InputType.Crouch)
             || InputManager.IsDownFrame(InputManager.InputType.Interact) || InputManager.IsDownFrame(InputManager.InputType.DrinkWater)
-            || InputManager.IsDownFrame(InputManager.InputType.EyeMask);
-        if (reason != null || nativeInput || InputManager.IsDownFrame(InputManager.InputType.Cancel) || (player.transform.position - expectedPosition).sqrMagnitude > 0.0004f)
-            Stop(reason ?? "native input/cancel");
+            || InputManager.IsDownFrame(InputManager.InputType.EyeMask));
+        if (reason != null || nativeInput || (player.transform.position - expectedPosition).sqrMagnitude > 0.0004f)
+            Stop(reason ?? (nativeInput ? "native input" : "external displacement"));
     }
 
     [HideFromIl2Cpp]
@@ -154,10 +186,10 @@ public sealed class ActionDriver : MonoBehaviour
     {
         if (tickFrame == Time.frameCount) return; tickFrame = Time.frameCount;
         if (Owner != player) { Stop("player changed"); requests.Clear(); Owner = player; }
-        if (InputManager.IsDownFrame(InputManager.InputType.Cancel)) { requests.Clear(); Stop("cancel"); return; }
+        SyncPause();
         var ui = InGameUiManager.Instance;
         var ring = RingMenuParentView.Instance;
-        var request = requests.Take(ring != null && ring.IsOpenRing, ui != null && ui.IsOpenSomeUi);
+        var request = requests.Take(ring != null && ring.IsOpenRing, (ui != null && ui.IsOpenSomeUi) || Time.timeScale <= 0);
         if (request != null)
         {
             if (Definition?.Id == request) Stop("selected again");
@@ -165,7 +197,7 @@ public sealed class ActionDriver : MonoBehaviour
         }
         if (!Playing) return;
         var reason = Reason(Definition, Owner, ui != null && ui.IsOpenSomeUi);
-        if (reason != null || ActionRegistry.Get(Definition.Id) != Definition || InputManager.IsDownFrame(InputManager.InputType.Cancel)) { Stop(reason ?? "action removed/cancel"); return; }
+        if (reason != null || ActionRegistry.Get(Definition.Id) != Definition) { Stop(reason ?? "action removed"); return; }
         UpdateVolume();
     }
 
@@ -196,7 +228,7 @@ public sealed class ActionDriver : MonoBehaviour
             pose = loaded.CreatePose(Owner.Pca.Animator.gameObject);
             if (pose is IActionRootMotionPose moving && moving.HasRootMotion)
                 rootMotion = new ActionRootMotion(Owner.Pca.CharacterController, Owner.transform, () => eventRevision == revision && Playing);
-            clock.Start(AudioSettings.dspTime, loaded.Audio == null ? 0 : definition.AudioDelaySeconds);
+            clock.Start(AudioSettings.dspTime, loaded.Audio == null ? 0 : definition.AudioDelaySeconds); audioPendingWhenPaused = false;
             if (loaded.Audio != null)
             {
                 if (audio == null) { audio = gameObject.AddComponent<AudioSource>(); audio.playOnAwake = false; audio.spatialBlend = 0; audio.pitch = 1; audio.loop = false; }
@@ -237,19 +269,20 @@ public sealed class ActionDriver : MonoBehaviour
     internal void Apply()
     {
         if (!Playing || applyFrame == Time.frameCount) return; applyFrame = Time.frameCount;
+        SyncPause();
         var ui = InGameUiManager.Instance;
         string reason = Reason(Definition, Owner, ui != null && ui.IsOpenSomeUi);
-        if (reason != null || (Owner.transform.position - expectedPosition).sqrMagnitude > 0.0004f) { Stop(reason ?? "moved"); return; }
+        if (reason != null || (Owner.transform.position - expectedPosition).sqrMagnitude > 0.0004f) { Stop(reason ?? "external displacement"); return; }
         double eventTime = clock.Elapsed(AudioSettings.dspTime);
         float time = (float)eventTime;
-        if (AudioSettings.dspTime < clock.MotionStartDsp) return;
+        if (!clock.HasStarted(AudioSettings.dspTime)) return;
         int revision = eventRevision;
         float duration = clock.Duration(running.Duration, running.Audio == null ? 0 : running.Audio.length);
-        bool finished = !Definition.Loop && eventTime >= duration;
+        bool finished = !clock.Paused && !Definition.Loop && eventTime >= duration;
         float poseTime = Definition.Loop ? (float)(eventTime % running.Duration) : Mathf.Min(time, running.Duration);
         if (!pose.Apply(poseTime)) { Stop("avatar disappeared"); return; }
-        ActionPlaybackApi.SetRootCycleOffset(default);
-        if (rootMotion != null)
+        if (!clock.Paused) ActionPlaybackApi.SetRootCycleOffset(default);
+        if (rootMotion != null && !clock.Paused)
         {
             var mover = rootMotion;
             var moving = (IActionRootMotionPose)pose;
@@ -258,13 +291,13 @@ public sealed class ActionDriver : MonoBehaviour
             if (revision != eventRevision || !Playing) return;
             // Only a successful controller-owned step updates this guard. All
             // user input and unrelated position changes still cancel playback.
-            expectedPosition = Owner.transform.position;
             if (!arrived) { Stop(motionReason); NotifyBlocked(motionReason); return; }
+            expectedPosition = Owner.transform.position;
             var cycle = moving.LoopRootDisplacement;
             ActionPlaybackApi.SetRootCycleOffset(new Vector3((float)(cycle.x * loops), 0, (float)(cycle.z * loops)));
         }
         if (revision != eventRevision || !Playing) return;
-        events.Advance(eventTime);
+        if (!clock.Paused) events.Advance(eventTime);
         // A native callback may have stopped this playback or changed state.
         if (revision != eventRevision || !Playing) return;
         reason = Reason(Definition, Owner, ui != null && ui.IsOpenSomeUi);
@@ -281,7 +314,7 @@ public sealed class ActionDriver : MonoBehaviour
     [HideFromIl2Cpp]
     internal IActionBodyPose BeginNativeBody(PlayerController player)
     {
-        if (!Playing || Owner != player || AudioSettings.dspTime < clock.MotionStartDsp) return null;
+        if (!Playing || Owner != player || !clock.HasStarted(AudioSettings.dspTime)) return null;
         var body = pose as IActionBodyPose;
         body?.BeginNativeBody();
         return body;
@@ -308,6 +341,7 @@ public sealed class ActionDriver : MonoBehaviour
     {
         if (stopping) return;
         stopping = true;
+        requests.Clear();
         var previous = running; var previousPose = pose; var previousEvents = events; var previousRoot = rootMotion;
         try
         {

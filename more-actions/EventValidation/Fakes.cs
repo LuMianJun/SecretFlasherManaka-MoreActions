@@ -8,7 +8,6 @@ namespace Il2CppInterop.Runtime.Attributes
     [AttributeUsage(AttributeTargets.Method|AttributeTargets.Property|AttributeTargets.Constructor|AttributeTargets.Event)]
     public sealed class HideFromIl2CppAttribute : Attribute {}
 }
-
 namespace BepInEx
 {
     [AttributeUsage(AttributeTargets.Class)] public sealed class BepInPlugin(string id, string name, string version) : Attribute {}
@@ -46,7 +45,15 @@ namespace UnityEngine
     public enum HideFlags { HideAndDontSave }
     public sealed class GameObject : Object { public bool activeInHierarchy = true; public T AddComponent<T>() where T : new() => new(); }
     public class MonoBehaviour(IntPtr pointer) : Object { public GameObject gameObject = new(); }
-    public sealed class Animator { public GameObject gameObject = new(); public bool enabled = true, isInitialized = true; }
+    public readonly struct AnimatorStateInfo(string name) {public bool IsName(string value)=>name==value;}
+    public sealed class Animator
+    {
+        public GameObject gameObject = new(); public bool enabled = true, isInitialized = true;
+        public bool ActionLayerPresent=true,Transitioning;public string ActionState="Action.NoMotion";
+        public int GetLayerIndex(string name)=>name=="Action"&&ActionLayerPresent?1:-1;
+        public bool IsInTransition(int layer)=>Transitioning;
+        public AnimatorStateInfo GetCurrentAnimatorStateInfo(int layer)=>new(ActionState);
+    }
     public struct Vector3(float x, float y, float z)
     {
         public float x = x, y = y, z = z; public float sqrMagnitude => x*x+y*y+z*z;
@@ -64,7 +71,7 @@ namespace UnityEngine
             transform.position=new Vector3(p.x+actual.x,p.y+actual.y,p.z+actual.z);return CollisionFlags.None;
         }
     }
-    public static class Time { public static int frameCount; }
+    public static class Time { public static int frameCount; public static float timeScale=1,deltaTime=1/60f; }
     public static class Mathf { public static float Min(float a, float b) => Math.Min(a,b); public static float Clamp01(float value) => Math.Clamp(value,0,1); }
     public static class AudioSettings { public static double dspTime; }
     public enum AudioDataLoadState { Loaded }
@@ -73,8 +80,12 @@ namespace UnityEngine
     public sealed class AudioMixer { public AudioMixerGroup[] FindMatchingGroups(string name) => Array.Empty<AudioMixerGroup>(); }
     public sealed class AudioSource : Object
     {
+        public static readonly List<AudioSource> Created=new();
+        public readonly List<double> Scheduled=new();public int Stops,Pauses,Resumes;
+        public AudioSource(){Created.Add(this);}
         public bool playOnAwake, loop; public float spatialBlend, pitch, volume; public AudioClip clip; public AudioMixerGroup outputAudioMixerGroup;
-        public void Stop() {} public void PlayScheduled(double time) {}
+        public void Stop() {Stops++;} public void PlayScheduled(double time) {Scheduled.Add(time);}
+        public void Pause(){Pauses++;}public void UnPause(){Resumes++;}
     }
     public sealed class AnimationEvent { public Object objectReferenceParameter; public string functionName; public int intParameter; public float time; }
     public sealed class AnimationClip : Object { public AnimationEvent[] events = Array.Empty<AnimationEvent>(); public float length = 1; }
@@ -88,9 +99,10 @@ namespace ExposureUnnoticed2.Scripts.Base
         public sealed class Options { public int Language = 2; public float SoundMaster100 = 100, SoundBgm100 = 100; }
     }
     public static class GameStateFacade { public static bool Handcuffed; public static bool IsAttachSomeHandcuffs() => Handcuffed; }
+    public static class Localizer {public static string Trans(string key)=>"native:"+GameState.OptionData.Language+":"+key;}
     public static class InputManager
     {
-        public enum InputType { Cancel, OpenClothesA, OpenClothesB, CloseClothesA, Crouch, Interact, DrinkWater, EyeMask, Move }
+        public enum InputType { Cancel, OpenClothesA, OpenClothesB, CloseClothesA, Crouch, Interact, DrinkWater, EyeMask, Move, SystemMenu, GameMenu }
         public static HashSet<InputType> Down = new(); public static UnityEngine.Vector3 Move;
         public static bool IsDownFrame(InputType input) => Down.Contains(input); public static UnityEngine.Vector3 GetVector3(InputType input) => Move;
     }
@@ -103,10 +115,16 @@ namespace ExposureUnnoticed2.Scripts.InGame
     public sealed class SexManager { public static SexManager Instance; public bool IsSexMode; }
 }
 namespace ExposureUnnoticed2.Scripts.Sound { public static class InGameSoundManager { public enum SeType { FootStepHeel=1, FootStepSneaker=31, Shiofuki=8 } } }
+namespace ExposureUnnoticed2.Master.Action { public enum ActionType { None=-1 } }
 namespace ExposureUnnoticed2.Object3D.IngameManager
 {
     public sealed class InGameManager { public static InGameManager Instance = new(); public Temp TempInGameState = new(); public sealed class Temp { public bool IsGameOver, IsPlayingSomePerformance, IsTimeStop; } }
-    public sealed class InGameUiManager { public static InGameUiManager Instance = new(); public bool IsOpenSomeUi; }
+    public sealed class InGameUiManager
+    {
+        public static InGameUiManager Instance = new();public bool IsOpenSomeCancelInputUi,IsOpenFade;
+        bool allowInputUi;
+        public bool IsOpenSomeUi {get=>allowInputUi||IsOpenSomeCancelInputUi;set=>allowInputUi=value;}
+    }
 }
 namespace ExposureUnnoticed2.Object3D.Camera { public sealed class FaceCameraController {} }
 namespace ExposureUnnoticed2.ObjectUI.InGame.RingMenu
