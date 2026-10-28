@@ -19,7 +19,7 @@ using ExposureUnnoticed2.Master.Action;
 
 namespace Seleka2.Actions;
 
-[BepInPlugin(Guid, "Seleka2 More Actions", "0.5.3")]
+[BepInPlugin(Guid, "Seleka2 More Actions", "0.7.2")]
 public sealed class Plugin : BasePlugin
 {
     public const string Guid = "local.seleka2.moreactions";
@@ -45,7 +45,7 @@ public sealed class Plugin : BasePlugin
         ActionDriver.Current = AddComponent<ActionDriver>();
         new Harmony(Guid).PatchAll(typeof(Plugin).Assembly);
         int count = ActionRegistry.LoadPacks(Path.GetFullPath(Path.Combine(Path.GetDirectoryName(typeof(Plugin).Assembly.Location), packs.Value)), Guid);
-        Log.LogInfo("MORE_ACTIONS_READY version=0.5.3 packs=" + count + " ring=true nativeRestrictions=true runtimeSources=true settings=true");
+        Log.LogInfo("MORE_ACTIONS_READY version=0.7.2 packs=" + count + " ring=true nativeRestrictions=true runtimeSources=true settings=true");
     }
 }
 
