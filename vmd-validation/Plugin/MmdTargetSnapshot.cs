@@ -15,7 +15,7 @@ internal sealed class MmdTargetSnapshot
     internal readonly Dictionary<string, Transform> Bones = new();
     internal readonly Dictionary<string, Matrix4x4> Rest = new();
     internal readonly List<(SkinnedMeshRenderer renderer, Mesh mesh)> Meshes = new();
-    internal readonly List<(SkinnedMeshRenderer renderer, int index, string source)> Morphs = new();
+    internal SkinnedMeshRenderer Face;
     internal readonly Dictionary<string, NVector> Positions = new();
     internal float[] Shape;
     internal string ShapePaths;
@@ -26,34 +26,19 @@ internal sealed class MmdTargetSnapshot
     internal Quaternion ArmatureRotation;
     internal MmdTargetSnapshot(GameObject target) { Target = target; }
 
-    IEnumerable<SkinnedMeshRenderer> RenderCandidates()
+    sealed class BindLayout
     {
-        var seen = new HashSet<int>();
-        foreach (string name in new[] { "Body.001", "Selestia_body" })
-        {
-            var node = Root.Find(name);
-            var renderer = node == null ? null : node.GetComponent<SkinnedMeshRenderer>();
-            if (renderer != null && seen.Add(renderer.GetInstanceID())) yield return renderer;
-            else yield return null;
-        }
-        var queue = new Queue<Transform>(); queue.Enqueue(Root);
-        while (queue.Count > 0)
-        {
-            var node = queue.Dequeue(); var renderer = node.GetComponent<SkinnedMeshRenderer>();
-            if (renderer != null && seen.Add(renderer.GetInstanceID())) yield return renderer;
-            else yield return null;
-            for (int i = 0; i < node.childCount; i++) { queue.Enqueue(node.GetChild(i)); if (i % 8 == 0) yield return null; }
-        }
+        internal Mesh Mesh;
+        internal readonly List<(string Path,int Index,Matrix4x4 Matrix)> Bones=new();
     }
+    static readonly Dictionary<int,BindLayout> bindLayouts=new();
 
     internal IEnumerable<int> Capture()
     {
         if (Target == null) throw new ArgumentException("VMD target missing");
         Root = Target.transform;
-        if (Root.Find("Armature") == null)
-            Root = Root.GetComponentsInChildren<Transform>(true).FirstOrDefault(t => t.Find("Armature") != null)
-                ?? throw new ArgumentException("VMD target has no Armature");
-        Armature = Root.Find("Armature");
+        Armature = Root.Find("Armature") ?? throw new ArgumentException("Fixed model Armature missing");
+        Face=FixedModelFace.Find(Target);
         ArmaturePosition = Armature.localPosition; ArmatureRotation = Armature.localRotation; ArmatureScale = Armature.localScale;
         var rootWorld=Root.localToWorldMatrix;var inverseHeading=Quaternion.Inverse(Root.rotation);
         MetricX=inverseHeading*(Vector3)rootWorld.GetColumn(0);
@@ -110,37 +95,38 @@ internal sealed class MmdTargetSnapshot
             Bones.Add(path, selected); resolved.Add(path, selected); yield return 0;
         }
         var byId = Bones.ToDictionary(p => p.Value.GetInstanceID(), p => p.Key);
-        foreach (var renderer in RenderCandidates())
+        // The two original model paths supply bind poses. Never walk clothing,
+        // physics bones or other meshes to discover renderers / morph names.
+        foreach(string meshPath in new[]{"Body.001","Selestia_body"})
         {
-            if (renderer == null) { yield return 0; continue; }
-            var mesh = renderer.sharedMesh; if (mesh == null) continue;
-            bool preferred = renderer.name == "Body.001" || renderer.name == "Selestia_body";
-            if (preferred) Meshes.Add((renderer, mesh));
-            if (renderer.name == "Body.001")
-                foreach (var pair in new[] { ("まばたき", "eye_close"), ("あ", "vrc.v_aa"), ("い", "vrc.v_ih"), ("う", "vrc.v_ou"), ("え", "vrc.v_e"), ("お", "vrc.v_oh") })
-                { int index = mesh.GetBlendShapeIndex(pair.Item2); if (index >= 0) Morphs.Add((renderer, index, pair.Item1)); }
-            if (Rest.Count == Bones.Count) break;
-            var bones = renderer.bones; var bind = mesh.bindposes;
-            if (bones == null || bind == null || bones.Length != bind.Length) continue;
-            // Build the relative matrix from local TRS values. World-space
-            // cancellation can otherwise make a moved actor look like a new shape.
-            var rootToMesh = Matrix4x4.identity;
-            for (var node = renderer.transform; node != Root; node = node.parent)
+            var node=Root.Find(meshPath);var renderer=node==null?null:node.GetComponent<SkinnedMeshRenderer>();
+            if(renderer==null||renderer.sharedMesh==null)continue;
+            var mesh=renderer.sharedMesh;Meshes.Add((renderer,mesh));
+            var bones=renderer.bones;
+            if(bones==null)continue;
+            int id=mesh.GetInstanceID();
+            bool cached=bindLayouts.TryGetValue(id,out var layout)&&layout.Mesh==mesh;
+            if(cached)foreach(var entry in layout.Bones)
+                if(entry.Index>=bones.Length||!Bones.TryGetValue(entry.Path,out var live)||bones[entry.Index]!=live){cached=false;break;}
+            if(!cached)
             {
-                if (node == null) throw new ArgumentException("Body renderer is outside the avatar");
-                rootToMesh = Matrix4x4.TRS(node.localPosition, node.localRotation, node.localScale) * rootToMesh;
-                yield return 0;
+                var bind=mesh.bindposes;
+                if(bind==null||bones.Length!=bind.Length)continue;
+                layout=new BindLayout{Mesh=mesh};
+                for(int i=0;i<bones.Length;i++)
+                {
+                    var bone=bones[i];
+                    if(bone!=null&&byId.TryGetValue(bone.GetInstanceID(),out var path))layout.Bones.Add((path,i,bind[i].inverse));
+                    if(i%8==0)yield return 0;
+                }
+                if(bindLayouts.Count>16)
+                    foreach(int dead in bindLayouts.Where(p=>p.Value.Mesh==null).Select(p=>p.Key).ToArray())bindLayouts.Remove(dead);
+                bindLayouts[id]=layout;
             }
-            bool used = false;
-            for (int i = 0; i < bones.Length; i++)
-            {
-                var bone = bones[i];
-                if (bone != null && byId.TryGetValue(bone.GetInstanceID(), out var path) && !Rest.ContainsKey(path))
-                { Rest.Add(path, rootToMesh * bind[i].inverse); used = true; }
-                if (i % 8 == 0) yield return 0;
-            }
-            if (used && !preferred) Meshes.Add((renderer, mesh));
-            if (Rest.Count == Bones.Count) break;
+            var rootToMesh=Matrix4x4.TRS(node.localPosition,node.localRotation,node.localScale);
+            foreach(var entry in layout.Bones)
+                if(!Rest.ContainsKey(entry.Path))Rest.Add(entry.Path,rootToMesh*entry.Matrix);
+            yield return 0;
         }
         foreach (var path in MotionRig.BonePaths()) if (!Rest.ContainsKey(path)) throw new ArgumentException("Target bind pose missing: " + path);
         var values = new List<float>();

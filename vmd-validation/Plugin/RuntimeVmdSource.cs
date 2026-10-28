@@ -45,7 +45,7 @@ internal sealed class RuntimeVmdRig
     }
     internal readonly List<Binding> bindings = new();
     internal readonly List<(string path, Transform live)> toes = new();
-    internal readonly List<(SkinnedMeshRenderer renderer, int index, string source)> morphs = new();
+    internal SkinnedMeshRenderer faceRenderer;
     internal GameObject target;
     internal float[] Shape;
     internal string ShapePaths;
@@ -69,12 +69,12 @@ internal sealed class RuntimeVmdRig
         target = snapshot.Target; liveRoot = snapshot.Root; hip = snapshot.Bones["Armature/Hips"];
         foreach (var b in bindings) b.live = snapshot.Bones[b.path];
         toes.Clear(); toes.AddRange(snapshot.Bones.Where(p=>p.Key.Contains("/Toe_", StringComparison.Ordinal)).Select(p=>(p.Key,p.Value)));
-        meshes.Clear(); meshes.AddRange(snapshot.Meshes); morphs.Clear(); morphs.AddRange(snapshot.Morphs);
+        meshes.Clear(); meshes.AddRange(snapshot.Meshes); faceRenderer=snapshot.Face;
         Shape = snapshot.Shape; ShapePaths = snapshot.ShapePaths; DetachedOnReturn = false;
     }
     internal void Detach()
     {
-        target = null; liveRoot = null; hip = null; meshes.Clear(); morphs.Clear();
+        target = null; liveRoot = null; hip = null; meshes.Clear(); faceRenderer=null;
         foreach (var b in bindings) b.live = null; toes.Clear();
     }
     internal IEnumerable<int> BuildSteps(MmdTargetSnapshot snapshot, MmdSkeleton template, MmdReferencePose referencePose = MmdReferencePose.A)
@@ -176,6 +176,7 @@ public sealed class RuntimeVmdPose : IActionPose, IActionRootMotionPose, IAction
     readonly ActionBodyPoseLease body;
     readonly bool[] write;
     readonly ActionFaceMorphLayer face;
+    readonly List<MmdMorphBindings.Binding> morphs = new();
     readonly float originHeight;
     readonly Vector3 originHip;
     readonly Quaternion rootBasis;
@@ -211,7 +212,17 @@ public sealed class RuntimeVmdPose : IActionPose, IActionRootMotionPose, IAction
             var owned = rig.bindings.Where((b,i)=>write[i]).Select(b=>b.live)
                 .Concat(rig.toes.Where(t=>ActionPolicy.WritesBone(action,t.path.Substring(0,t.path.LastIndexOf('/')))).Select(t=>t.live));
             body = new ActionBodyPoseLease(target, owned);
-            if (action.WriteFaceMorphs) face = new ActionFaceMorphLayer(target, action);
+            if (action.WriteFaceMorphs)
+            {
+                face = new ActionFaceMorphLayer(target, action);
+                morphs = MmdMorphBindings.Create(rig.faceRenderer, motion, face, out int ambiguous);
+                if (motion.morphs.Count > 0)
+                {
+                    var bound = morphs.Select(m=>m.Source).ToHashSet(StringComparer.Ordinal);
+                    var missing = motion.morphs.Keys.Where(n=>!bound.Contains(n)).ToArray();
+                    global::Plugin.LogSource?.LogInfo("MMD_MORPHS_BOUND id="+action.Id+" tracks="+motion.morphs.Count+" boundTracks="+bound.Count+" targets="+morphs.Count+" ambiguousTargets="+ambiguous+" unmapped="+string.Join(",",missing.Take(8)));
+                }
+            }
             rootBasis = rig.liveRoot.rotation;
             rig.source.Evaluate(motion, 0); originHip = rig.source.byName["下半身"].node.position; originHeight = originHip.y;
             if (writeHip && action.Loop)
@@ -245,8 +256,8 @@ public sealed class RuntimeVmdPose : IActionPose, IActionRootMotionPose, IAction
             rig.hip.localPosition = rig.hip.localPosition + rig.hip.parent.InverseTransformVector(rig.liveRoot.rotation * Vector3.up * vertical);
         }
         face?.Begin();
-        if (face != null) foreach (var m in rig.morphs)
-            if (m.renderer != null) face.Write(m.renderer, m.index, motion.Morph(m.source, seconds));
+        if (face != null) foreach (var m in morphs)
+            if (m.Renderer != null) face.Write(m.Renderer, m.Index, motion.Morph(m.Source, seconds));
         return true;
     }
 

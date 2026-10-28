@@ -21,15 +21,18 @@ public sealed class MmdRigPreparation : MonoBehaviour
     Task<MmdSkeleton> data;
     RuntimeVmdRig building;
     readonly System.Diagnostics.Stopwatch total = new();
-    long maxStepTicks;
+    long maxStepTicks, captureMs, workerMs, buildMs;
+    int captureSteps, buildSteps;
+    readonly System.Diagnostics.Stopwatch stage = new();
 
-    bool Advance(IEnumerator<int> work)
+    bool Advance(IEnumerator<int> work,int maxSteps)
     {
         var frame = System.Diagnostics.Stopwatch.StartNew();
-        for (int steps = 0; steps < 8; steps++)
+        for (int steps = 0; steps < maxSteps; steps++)
         {
             var operation = System.Diagnostics.Stopwatch.StartNew();
             bool more = work.MoveNext();
+            if(ReferenceEquals(work,capture))captureSteps++;else buildSteps++;
             maxStepTicks = Math.Max(maxStepTicks, operation.ElapsedTicks);
             if (!more) return true;
             if (frame.Elapsed.TotalMilliseconds >= 2) break;
@@ -52,10 +55,10 @@ public sealed class MmdRigPreparation : MonoBehaviour
             CancelWork();
             if (currentId != targetId && targetId != 0) MmdRigCache.DetachTarget(targetId);
             target = current; targetId = currentId; revision = MmdRigCache.Revision; registryRevision = ActionRegistry.Revision;
-            stableFrames = 0; index = 0; maxStepTicks = 0;
+            stableFrames = 0; index = 0; maxStepTicks = 0; captureMs=workerMs=buildMs=0; captureSteps=buildSteps=0;
             sources = ActionRegistry.GetAll().Select(d => d.RuntimeSource).OfType<RuntimeVmdSource>().GroupBy(s => s.SkeletonKey).Select(g => g.First()).ToArray();
         }
-        if (target == null || !ActionTargetApi.IsReady || InGameUiManager.Instance?.IsOpenSomeUi == true) { stableFrames = 0; return; }
+        if (target == null || !ActionTargetApi.IsReady) { stableFrames = 0; return; }
         if (++stableFrames <= 4 || index >= sources.Length) return;
         var source = sources[index];
         try
@@ -66,31 +69,31 @@ public sealed class MmdRigPreparation : MonoBehaviour
             }
             if (capture != null)
             {
-                if (!Advance(capture)) return;
-                capture.Dispose(); capture = null; return;
+                if (!Advance(capture,256)) return;
+                capture.Dispose(); capture = null; captureMs=total.ElapsedMilliseconds; return;
             }
             if (data == null && build == null)
             {
                 if (MmdRigCache.TryRebind(snapshot, source.ReferencePose))
                 {
-                    global::Plugin.LogSource.LogInfo("MMD_RIG_READY skeleton=" + source.SkeletonKey + " mode=rebind totalMs=" + total.ElapsedMilliseconds + " maxOperationMs=" + (maxStepTicks * 1000d / System.Diagnostics.Stopwatch.Frequency).ToString("F3"));
-                    index++; return;
+                    global::Plugin.LogSource.LogInfo("MMD_RIG_READY skeleton=" + source.SkeletonKey + " mode=rebind totalMs=" + total.ElapsedMilliseconds + " captureMs="+captureMs+" workerMs="+workerMs+" buildMs="+buildMs+" captureSteps="+captureSteps+" buildSteps="+buildSteps + " maxOperationMs=" + (maxStepTicks * 1000d / System.Diagnostics.Stopwatch.Frequency).ToString("F3"));
+                    index++; workerMs=buildMs=0; buildSteps=0; return;
                 }
                 var positions = snapshot.Positions; var referencePose = source.ReferencePose;
-                data = Task.Run(() => GameMmdSkeleton.CreateData(positions, referencePose));
+                stage.Restart(); data = Task.Run(() => GameMmdSkeleton.CreateData(positions, referencePose));
                 return;
             }
             if (data != null)
             {
                 if (!data.IsCompleted) return;
-                var template = data.GetAwaiter().GetResult(); data = null;
+                var template = data.GetAwaiter().GetResult(); data = null; workerMs=stage.ElapsedMilliseconds; stage.Restart();
                 building = new RuntimeVmdRig(); build = building.BuildSteps(snapshot, template, source.ReferencePose).GetEnumerator();
             }
-            if (!Advance(build)) return;
-            build.Dispose(); build = null;
+            if (!Advance(build,8)) return;
+            buildMs=stage.ElapsedMilliseconds; build.Dispose(); build = null;
             MmdRigCache.Publish(snapshot, building, source.ReferencePose); building = null;
-            global::Plugin.LogSource.LogInfo("MMD_RIG_READY skeleton=" + source.SkeletonKey + " mode=build totalMs=" + total.ElapsedMilliseconds + " maxOperationMs=" + (maxStepTicks * 1000d / System.Diagnostics.Stopwatch.Frequency).ToString("F3"));
-            index++;
+            global::Plugin.LogSource.LogInfo("MMD_RIG_READY skeleton=" + source.SkeletonKey + " mode=build totalMs=" + total.ElapsedMilliseconds + " captureMs="+captureMs+" workerMs="+workerMs+" buildMs="+buildMs+" captureSteps="+captureSteps+" buildSteps="+buildSteps + " maxOperationMs=" + (maxStepTicks * 1000d / System.Diagnostics.Stopwatch.Frequency).ToString("F3"));
+            index++; workerMs=buildMs=0; buildSteps=0;
         }
         catch (Exception e)
         {

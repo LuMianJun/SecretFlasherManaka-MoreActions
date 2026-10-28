@@ -10,6 +10,13 @@ int checks=0;
 void Check(bool ok,string label) { checks++; if(!ok) throw new Exception(label); }
 void Reject(Action action,string label) { bool failed=false; try { action(); } catch { failed=true; } Check(failed,label); }
 bool Finite(Quaternion q)=>float.IsFinite(q.x)&&float.IsFinite(q.y)&&float.IsFinite(q.z)&&float.IsFinite(q.w)&&Math.Abs(q.sqrMagnitude()-1)<.002;
+string[] FixedNames()
+{
+    var names=Enumerable.Range(0,FixedModelFace.ShapeCount).Select(i=>"shape"+i).ToArray();
+    names[0]="vrc.v_aa";names[19]="eye_close";
+    foreach(var entry in FixedModelFace.MmdMorphs)names[entry.Index]=entry.Name;
+    return names;
+}
 var positions=new Dictionary<string,Vector3>();
 const string hips="Armature/Hips", chest=hips+"/Spine/Chest";
 positions[hips]=new(0,1,0); positions[hips+"/Spine"]=new(0,1.1f,0); positions[chest]=new(0,1.35f,0);
@@ -59,7 +66,7 @@ using(var data=GameMmdSkeleton.Create(noToes,false)) Check(data.iks.Count==2,"Mi
         node.SetParent(avatar.transform.Find(path[..slash]),false); node.position=geometry[path]; node.rotation=restMatrices[path].rotation; bones[path]=node;
     }
     var body=new GameObject("Body.001"); body.transform.SetParent(avatar.transform,false);
-    var renderer=body.AddComponent<SkinnedMeshRenderer>(); renderer.bones=bones.Values.ToArray(); renderer.sharedMesh=new Mesh{bindposes=bones.Keys.Select(p=>restMatrices[p].inverse).ToArray()};
+    var renderer=body.AddComponent<SkinnedMeshRenderer>(); renderer.bones=bones.Values.ToArray(); renderer.sharedMesh=new Mesh{ShapeNames=FixedNames(),bindposes=bones.Keys.Select(p=>restMatrices[p].inverse).ToArray()};
     return (avatar,bones,renderer);
 }
 MmdMotion Motion()
@@ -228,6 +235,7 @@ if(args.Length>0)
             using var cue=source.CreatePose(fixture.avatar,definition);cue.Apply(75/30f);var first=((IActionRootMotionPose)cue).RootDisplacement;cue.Apply(91/30f);var last=((IActionRootMotionPose)cue).RootDisplacement;
             Check(first.x<-.04f&&last.x<-.13f&&first.y==0&&last.y==0,"Actual CH4NGE hand cue retains the previously omitted horizontal root trajectory");
             Console.WriteLine($"CH4NGE root trajectory: frame75=({first.x:F5},{first.z:F5})m frame91=({last.x:F5},{last.z:F5})m");
+
         }
 
         if(Path.GetFileName(folder)=="Samsa")
@@ -361,13 +369,15 @@ try
     var poseProviders=ActionRegistry.GetAll().Select(d=>(RuntimeVmdSource)d.RuntimeSource).ToArray();
     Check(poseProviders.Select(p=>p.ReferencePose).Distinct().Count()==2,"Async pack parsing forwards both default A and JSON T to providers");
     int coldBuilds=MmdRigCache.BuildCount,frames=0,maxCreated=0;
+    ExposureUnnoticed2.Object3D.IngameManager.InGameUiManager.Instance=new(){IsOpenSomeUi=true};
     timeout.Restart();
     while(!poseProviders.All(p=>p.IsPrepared(pumpAvatar.avatar)))
     {
         int before=GameObject.CreatedCount;pump.Update();maxCreated=Math.Max(maxCreated,GameObject.CreatedCount-before);frames++;
         if(timeout.Elapsed.TotalSeconds>10)throw new Exception("Rig preparation pump timed out");Thread.Sleep(1);
     }
-    Check(frames>10&&maxCreated<=16&&MmdRigCache.BuildCount==coldBuilds+2,"Actual production pump spreads both A/T cold builds over bounded frames");
+    ExposureUnnoticed2.Object3D.IngameManager.InGameUiManager.Instance=null;
+    Check(frames>10&&maxCreated<=16&&MmdRigCache.BuildCount==coldBuilds+2,"Production pump completes with UI open and preserves bounded A/T object creation");
     var replacement=Avatar();UnityEngine.Object.Destroy(pumpAvatar.avatar);ActionTargetApi.Target=replacement.avatar;
     timeout.Restart();
     while(!poseProviders.All(p=>p.IsPrepared(replacement.avatar)))
@@ -388,51 +398,50 @@ MmdRigCache.Clear();
 var faceFixture=Avatar();var faceRenderer=faceFixture.renderer;
 var faceAction=new ActionDefinition();var faceMotion=Motion();
 faceMotion.morphs["まばたき"]=[new(0,25),new(1,25)];
-faceRenderer.SetBlendShapeWeight(0,40);faceRenderer.SetBlendShapeWeight(6,65);faceRenderer.SetBlendShapeWeight(7,81);
+faceRenderer.SetBlendShapeWeight(425,40);faceRenderer.SetBlendShapeWeight(25,65);faceRenderer.SetBlendShapeWeight(55,81);
 ActionFaceSettings.KeepGameExpressions=true;
 using(var pose=new RuntimeVmdPose(faceFixture.avatar,faceAction,faceMotion))
 {
     pose.Apply(0);
-    Check(faceRenderer.GetBlendShapeWeight(0)==65,"Default VMD overlays native 40 and motion 25");
-    Check(faceRenderer.GetBlendShapeWeight(6)==65,"Overlay preserves native non-mapped mouth expression");
+    Check(faceRenderer.GetBlendShapeWeight(425)==65,"Default VMD overlays native 40 and motion 25");
+    Check(faceRenderer.GetBlendShapeWeight(25)==65,"Overlay preserves native non-mapped mouth expression");
     for(int i=0;i<30;i++)pose.Apply(.5f);
-    Check(faceRenderer.GetBlendShapeWeight(0)==65,"Repeated samples do not accumulate overlay");
-    pose.RestoreNativeFace();Check(faceRenderer.GetBlendShapeWeight(0)==40,"Pre-native restore removes motion contribution");
-    faceRenderer.SetBlendShapeWeight(0,85);pose.Apply(.5f);
-    Check(faceRenderer.GetBlendShapeWeight(0)==100,"Fresh native baseline used with bounded same-channel sum");
+    Check(faceRenderer.GetBlendShapeWeight(425)==65,"Repeated samples do not accumulate overlay");
+    pose.RestoreNativeFace();Check(faceRenderer.GetBlendShapeWeight(425)==40,"Pre-native restore removes motion contribution");
+    faceRenderer.SetBlendShapeWeight(425,85);pose.Apply(.5f);
+    Check(faceRenderer.GetBlendShapeWeight(425)==100,"Fresh native baseline used with bounded same-channel sum");
     ActionFaceSettings.KeepGameExpressions=false;pose.RestoreNativeFace();pose.Apply(.5f);
-    Check(faceRenderer.GetBlendShapeWeight(0)==25&&faceRenderer.GetBlendShapeWeight(6)==0,"UI off selects action alone, including clearing unmapped native expressions");
-    Check(faceRenderer.GetBlendShapeWeight(7)==81,"Unrelated customization shape is unchanged");
+    Check(faceRenderer.GetBlendShapeWeight(425)==25&&faceRenderer.GetBlendShapeWeight(25)==0,"UI off selects action alone, including clearing unmapped native expressions");
+    Check(faceRenderer.GetBlendShapeWeight(55)==81,"Unrelated customization shape is unchanged");
     ActionFaceSettings.KeepGameExpressions=true;pose.RestoreNativeFace();pose.Apply(.5f);
-    Check(faceRenderer.GetBlendShapeWeight(0)==100&&faceRenderer.GetBlendShapeWeight(6)==65,"UI re-enable takes effect in the same pose");
-    faceRenderer.SetBlendShapeWeight(0,12);pose.RestoreNativeFace();
-    Check(faceRenderer.GetBlendShapeWeight(0)==12,"Restoration preserves a newer native write");
+    Check(faceRenderer.GetBlendShapeWeight(425)==100&&faceRenderer.GetBlendShapeWeight(25)==65,"UI re-enable takes effect in the same pose");
+    faceRenderer.SetBlendShapeWeight(425,12);pose.RestoreNativeFace();
+    Check(faceRenderer.GetBlendShapeWeight(425)==12,"Restoration preserves a newer native write");
     pose.Apply(.5f);
 }
-Check(faceRenderer.GetBlendShapeWeight(0)==12&&faceRenderer.GetBlendShapeWeight(6)==65,"Dispose returns latest native values, not stale start snapshot");
+Check(faceRenderer.GetBlendShapeWeight(425)==12&&faceRenderer.GetBlendShapeWeight(25)==65,"Dispose returns latest native values, not stale start snapshot");
 faceAction.KeepGameExpressions=false;
 using(var pose=new RuntimeVmdPose(faceFixture.avatar,faceAction,faceMotion))
 {
-    pose.Apply(0);Check(faceRenderer.GetBlendShapeWeight(0)==25&&faceRenderer.GetBlendShapeWeight(6)==0,"Pack false vetoes UI true");
+    pose.Apply(0);Check(faceRenderer.GetBlendShapeWeight(425)==25&&faceRenderer.GetBlendShapeWeight(25)==0,"Pack false vetoes UI true");
     ActionFaceSettings.KeepGameExpressions=false;pose.RestoreNativeFace();pose.Apply(0);
     ActionFaceSettings.KeepGameExpressions=true;pose.RestoreNativeFace();pose.Apply(0);
-    Check(faceRenderer.GetBlendShapeWeight(0)==25,"Changing UI cannot bypass pack false");
+    Check(faceRenderer.GetBlendShapeWeight(425)==25,"Changing UI cannot bypass pack false");
 }
 faceAction.WriteFaceMorphs=false;
 using(var pose=new RuntimeVmdPose(faceFixture.avatar,faceAction,faceMotion))
 {
     ActionFaceSettings.KeepGameExpressions=false;pose.Apply(0);
-    Check(faceRenderer.GetBlendShapeWeight(0)==12&&faceRenderer.GetBlendShapeWeight(6)==65,"writeFaceMorphs=false opts out of all face writes");
+    Check(faceRenderer.GetBlendShapeWeight(425)==12&&faceRenderer.GetBlendShapeWeight(25)==65,"writeFaceMorphs=false opts out of all face writes");
 }
 // Full-size native mesh boundary: expression shape hashes + native script
 // channels are suppressed, while original customization indices are retained.
-var full=Avatar();full.renderer.sharedMesh.ShapeNames=Enumerable.Range(0,420).Select(i=>"shape"+i).ToArray();
-full.renderer.sharedMesh.ShapeNames[15]="eye_close";full.renderer.sharedMesh.ShapeNames[55]="mouth_a";full.renderer.sharedMesh.ShapeNames[60]="mouth_a";
-full.renderer.SetBlendShapeWeight(55,73);full.renderer.SetBlendShapeWeight(60,37);full.renderer.SetBlendShapeWeight(290,88);
+var full=Avatar();
+full.renderer.SetBlendShapeWeight(55,73);full.renderer.SetBlendShapeWeight(25,37);full.renderer.SetBlendShapeWeight(290,88);
 var layer=new ActionFaceMorphLayer(full.avatar,new ActionDefinition{KeepGameExpressions=false});layer.Begin();
-Check(full.renderer.GetBlendShapeWeight(55)==73,"Native OnChangeBody customization channel is protected even when also bound by face clips");
-Check(full.renderer.GetBlendShapeWeight(60)==0&&full.renderer.GetBlendShapeWeight(290)==0,"Native clip and script-only dynamic expressions are cleared");
-layer.RestoreNativeFace();Check(full.renderer.GetBlendShapeWeight(60)==37&&full.renderer.GetBlendShapeWeight(290)==88,"Native-only suppression is reversible");
+Check(full.renderer.GetBlendShapeWeight(55)==73,"Native OnChangeBody customization channel remains protected");
+Check(full.renderer.GetBlendShapeWeight(25)==0&&full.renderer.GetBlendShapeWeight(290)==0,"Fixed native clip and script-only expression slots are cleared");
+layer.RestoreNativeFace();Check(full.renderer.GetBlendShapeWeight(25)==37&&full.renderer.GetBlendShapeWeight(290)==88,"Native-only suppression is reversible");
 ActionFaceSettings.KeepGameExpressions=true;MmdRigCache.Clear();
 
 
@@ -552,6 +561,72 @@ var referenceReload=Avatar();MmdRigCache.DetachTarget(referenceActor.avatar.GetI
 MmdRigCache.Prepare(referenceReload.avatar,MmdReferencePose.A);MmdRigCache.Prepare(referenceReload.avatar,MmdReferencePose.T);
 Check(MmdRigCache.BuildCount==referenceBuilds+2,"A/T caches both rebind across same-shape reloads");
 MmdRigCache.Clear();
+
+// Fixed base-model binding: no hierarchy/morph discovery; independent
+// native overlay, immutable channel table and bind-layout reuse on reload.
+MmdRigCache.Clear();ActionFaceSettings.KeepGameExpressions=true;
+var namedFace=Avatar();var namedRenderer=namedFace.renderer;
+var extraObject=new GameObject("ExtraFace");extraObject.transform.SetParent(namedFace.avatar.transform,false);
+var extra=extraObject.AddComponent<SkinnedMeshRenderer>();extra.sharedMesh=new Mesh{ThrowOnNameRead=true};
+for(int i=0;i<1000;i++){var child=new GameObject("Unused"+i);child.transform.SetParent(extraObject.transform,false);}
+int rendererQueries=GameObject.RendererQueries;
+var expressive=Motion();expressive.morphs["笑い"]=[new(0,20),new(1,70)];expressive.morphs["まばたき"]=[new(0,25)];expressive.morphs["にこり"]=[new(0,30)];expressive.morphs["ウィンク右"]=[new(0,40)];
+namedRenderer.SetBlendShapeWeight(426,10);namedRenderer.SetBlendShapeWeight(425,5);namedRenderer.SetBlendShapeWeight(19,40);namedRenderer.SetBlendShapeWeight(55,81);
+using(var pose=new RuntimeVmdPose(namedFace.avatar,new ActionDefinition(),expressive))
+{
+    int validatedReads=namedRenderer.sharedMesh.NameReads;
+    pose.Apply(.5f);
+    Check(namedRenderer.GetBlendShapeWeight(426)==55&&namedRenderer.GetBlendShapeWeight(465)==30&&namedRenderer.GetBlendShapeWeight(428)==40,"Fixed smile/brow/wink slots sample interpolated VMD morph tracks");
+    Check(namedRenderer.GetBlendShapeWeight(19)==40&&namedRenderer.GetBlendShapeWeight(425)==30,"MMD blink does not also write the native English blink shape");
+    for(int i=0;i<5;i++)pose.Apply(.5f);
+    Check(namedRenderer.GetBlendShapeWeight(426)==55,"Fixed morph overlay does not accumulate");
+    pose.RestoreNativeFace();Check(namedRenderer.GetBlendShapeWeight(426)==10,"Pre-native restore removes the current action contribution");
+    namedRenderer.SetBlendShapeWeight(426,13);pose.Apply(.5f);
+    Check(namedRenderer.GetBlendShapeWeight(426)==58,"Fixed morph uses the newest native baseline");
+    Check(namedRenderer.sharedMesh.NameReads==validatedReads&&extra.sharedMesh.NameReads==0,"Sampling never reads morph names or inspects extra renderers");
+}
+Check(namedRenderer.GetBlendShapeWeight(426)==13&&namedRenderer.GetBlendShapeWeight(425)==5&&namedRenderer.GetBlendShapeWeight(55)==81,"Disposal restores expression weights without changing customization");
+using(var pose=new RuntimeVmdPose(namedFace.avatar,new ActionDefinition{KeepGameExpressions=false},expressive))
+{
+    pose.Apply(.5f);Check(namedRenderer.GetBlendShapeWeight(426)==45&&namedRenderer.GetBlendShapeWeight(425)==25&&namedRenderer.GetBlendShapeWeight(19)==0,"Pack veto suppresses native expressions while playing fixed MMD channels");
+}
+var onlySmile=Motion();onlySmile.morphs["笑い"]=[new(0,12)];
+int beforeNames=namedRenderer.sharedMesh.NameReads,beforeBind=namedRenderer.sharedMesh.BindReads;
+using(var pose=new RuntimeVmdPose(namedFace.avatar,new ActionDefinition(),onlySmile))
+{
+    pose.Apply(.5f);Check(namedRenderer.GetBlendShapeWeight(426)==25&&namedRenderer.GetBlendShapeWeight(425)==5,"A reused rig binds only this motion's declared fixed channels");
+}
+using(var pose=new RuntimeVmdPose(namedFace.avatar,new ActionDefinition{WriteFaceMorphs=false},expressive))
+{
+    pose.Apply(.5f);Check(namedRenderer.GetBlendShapeWeight(426)==13,"Face opt-out skips all fixed morph writes");
+}
+Check(namedRenderer.sharedMesh.NameReads==beforeNames&&namedRenderer.sharedMesh.BindReads==beforeBind,"Switching actions does not rediscover morphs or reread bind poses");
+var reloadFixed=Avatar();reloadFixed.renderer.sharedMesh=namedRenderer.sharedMesh;
+int beforeReloadNames=namedRenderer.sharedMesh.NameReads,beforeReloadBind=namedRenderer.sharedMesh.BindReads,buildsBeforeReload=MmdRigCache.BuildCount;
+MmdRigCache.DetachTarget(namedFace.avatar.GetInstanceID());MmdRigCache.Prepare(reloadFixed.avatar);
+Check(MmdRigCache.BuildCount==buildsBeforeReload,"Same model and body reload rebinds the existing solver");
+Check(namedRenderer.sharedMesh.NameReads==beforeReloadNames&&namedRenderer.sharedMesh.BindReads==beforeReloadBind,"Reload only rebinds references: no morph-name reads or bind-pose reconstruction");
+using(var pose=new RuntimeVmdPose(reloadFixed.avatar,new ActionDefinition(),expressive))
+{
+    pose.Apply(.5f);Check(reloadFixed.renderer.GetBlendShapeWeight(426)==45&&namedRenderer.GetBlendShapeWeight(426)==13,"Reloaded action writes the replacement renderer, not the detached actor");
+}
+Check(GameObject.RendererQueries==rendererQueries,"Preparation/playback never calls generic renderer hierarchy enumeration");
+var normalizationMotion=Motion();normalizationMotion.morphs["ｳｨﾝｸ２"]=[new(0,20)];normalizationMotion.morphs["かわいいあ"]=[new(0,50)];
+var normalLayer=new ActionFaceMorphLayer(reloadFixed.avatar,new ActionDefinition());
+var normalized=MmdMorphBindings.Create(reloadFixed.renderer,normalizationMotion,normalLayer,out int ambiguous);
+Check(normalized.Count==1&&normalized[0].Index==429&&ambiguous==0,"Fixed target slots normalize VMD spelling without arbitrary substring matching");
+var bad=Avatar();bad.renderer.sharedMesh.ShapeNames[425]="wrong-layout";
+using(var pose=new RuntimeVmdPose(bad.avatar,new ActionDefinition(),expressive))
+{
+    Check(pose.Apply(.5f)&&bad.renderer.GetBlendShapeWeight(425)==0,"Unexpected model layout disables morph writes while keeping body animation available");
+}
+Check(Seleka2.Actions.Plugin.LogSource.Messages.Any(m=>m.Contains("FIXED_FACE_LAYOUT_MISMATCH")),"Unsupported layout produces a clear one-time diagnostic");
+var protectedFace=Avatar();protectedFace.renderer.SetBlendShapeWeight(55,71);protectedFace.renderer.SetBlendShapeWeight(145,72);protectedFace.renderer.SetBlendShapeWeight(373,73);
+var protectedLayer=new ActionFaceMorphLayer(protectedFace.avatar,new ActionDefinition{KeepGameExpressions=false});
+Check(!protectedLayer.BindMorph(protectedFace.renderer,55)&&!protectedLayer.BindMorph(protectedFace.renderer,145)&&!protectedLayer.BindMorph(protectedFace.renderer,373),"Appearance slots cannot be registered by the fixed morph layer");
+protectedLayer.Begin();protectedLayer.Write(protectedFace.renderer,55,100);protectedLayer.Write(protectedFace.renderer,145,100);protectedLayer.Write(protectedFace.renderer,373,100);
+Check(protectedFace.renderer.GetBlendShapeWeight(55)==71&&protectedFace.renderer.GetBlendShapeWeight(145)==72&&protectedFace.renderer.GetBlendShapeWeight(373)==73,"Eye/lash customization remains intact");
+protectedLayer.RestoreNativeFace();ActionFaceSettings.KeepGameExpressions=true;MmdRigCache.Clear();
 
 Console.WriteLine($"PASS {checks} assertions: production topology/parser/retargeter/cache/async pump; synthetic scene math boundary, not rendered game verification");
 

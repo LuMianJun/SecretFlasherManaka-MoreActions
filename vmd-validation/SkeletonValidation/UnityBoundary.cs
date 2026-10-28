@@ -19,7 +19,7 @@ public enum HideFlags { HideAndDontSave }
 public class MonoBehaviour : Object {public MonoBehaviour(IntPtr pointer) {}}
 public sealed class GameObject : Object
 {
-    public static int CreatedCount;
+    public static int CreatedCount, RendererQueries;
     public string name; public HideFlags hideFlags; public readonly Transform transform; readonly List<object> components=[];
     public GameObject(string name) { CreatedCount++; this.name=name; transform=new Transform(this); }
     public void SetActive(bool active) {}
@@ -27,6 +27,7 @@ public sealed class GameObject : Object
     public T GetComponent<T>() where T:class => components.OfType<T>().FirstOrDefault();
     public T[] GetComponentsInChildren<T>(bool includeInactive)
     {
+        if(typeof(T)==typeof(SkinnedMeshRenderer))RendererQueries++;
         var result=new List<T>(); if(transform is T t) result.Add(t); result.AddRange(components.OfType<T>());
         foreach(var child in transform.Children) result.AddRange(child.gameObject.GetComponentsInChildren<T>(includeInactive)); return result.ToArray();
     }
@@ -62,10 +63,11 @@ public sealed class Animator : Object
 }
 public sealed class Mesh : Object
 {
-    public Matrix4x4[] bindposes=[];
+    Matrix4x4[] binds=[]; public int BindReads,NameReads; public bool ThrowOnNameRead;
+    public Matrix4x4[] bindposes {get{BindReads++;return binds;}set{binds=value;}}
     public string[] ShapeNames={"eye_close","vrc.v_aa","vrc.v_ih","vrc.v_ou","vrc.v_e","vrc.v_oh","mouth_a","custom_eye"};
     public int blendShapeCount=>ShapeNames.Length;
-    public string GetBlendShapeName(int i)=>ShapeNames[i];
+    public string GetBlendShapeName(int i){NameReads++;if(ThrowOnNameRead)throw new Exception("Unexpected morph discovery");return ShapeNames[i];}
     public int GetBlendShapeIndex(string name)=>Array.IndexOf(ShapeNames,name);
 }
 public sealed class SkinnedMeshRenderer : Object
