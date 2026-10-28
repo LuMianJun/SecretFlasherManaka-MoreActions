@@ -72,10 +72,10 @@ var fixture=Avatar(); var definition=new ActionDefinition();
 foreach(var node in fixture.bones.Values) node.localRotation=Quaternion.AngleAxis(17,new(1,1,0));
 fixture.renderer.SetBlendShapeWeight(0,37);
 var saved=fixture.bones.ToDictionary(x=>x.Key,x=>x.Value.localRotation); var savedHip=fixture.bones[hips].localPosition;
-using(var pose=new RuntimeVmdPose(fixture.avatar,definition,Motion(),"missing.pmd",false))
+using(var pose=new RuntimeVmdPose(fixture.avatar,definition,Motion(),"missing.pmd",false,MmdReferencePose.T))
 {
-    Check(pose.BoneCount==49 && pose.Apply(0),"Default game-derived path drives the original 49 body bones without a PMD");
-    foreach(var path in MotionRig.BonePaths()) Check(Quaternion.Angle(fixture.bones[path].rotation,bind[path].rotation)<.1,"Identity source yields mesh bind rotation despite a different current idle pose");
+    Check(pose.BoneCount==49 && pose.Apply(0),"Explicit T reference drives the original 49 body bones without a PMD");
+    foreach(var path in MotionRig.BonePaths()) Check(Quaternion.Angle(fixture.bones[path].rotation,bind[path].rotation)<.1,"Explicit T preserves the previous bind reference despite a different current idle pose");
 }
 foreach(var (path,q) in saved) Check(Quaternion.Angle(fixture.bones[path].localRotation,q)<.1,"Stopping restores this playback's original rotations");
 Check(Vector3.Distance(savedHip,fixture.bones[hips].localPosition)<1e-5 && fixture.renderer.GetBlendShapeWeight(0)==37,"Stopping restores hip and face state");
@@ -329,11 +329,13 @@ if(args.Length>0)
         if(paired)
         {
             var old=new LegacyRuntimeVmdSource(vmd,pmd,true);
+            var pairedT=new RuntimeVmdSource(vmd,pmd,true,MmdReferencePose.T);
             foreach(float t in new[]{0f,1f,5f,20f,45f,80f,source.Duration})
             {
                 Dictionary<string,Quaternion> golden;
                 using(var pose=old.CreatePose(fixture.avatar,definition)) { pose.Apply(t); golden=fixture.bones.ToDictionary(x=>x.Key,x=>x.Value.localRotation); }
                 using(var pose=source.CreatePose(fixture.avatar,definition)) { pose.Apply(t); foreach(var (path,q) in golden) Check(Quaternion.Angle(q,fixture.bones[path].localRotation)<.1,"Paired PMD output agrees with previous implementation"); }
+                using(var pose=pairedT.CreatePose(fixture.avatar,definition)) { pose.Apply(t); foreach(var (path,q) in golden) Check(Quaternion.Angle(q,fixture.bones[path].localRotation)<.1,"Paired PMD ignores generated A/T calibration and preserves its original reference"); }
             }
         }
         Console.WriteLine($"PASS {Path.GetFileName(folder)}: mode={(paired?"paired-PMD":"game-bind-pose")} duration={source.Duration} retained={source.RetainedTracks} ignored={source.IgnoredTracks}");
@@ -354,6 +356,7 @@ try
             w.Write(0u);
         }
         if(name=="c-camera-invalid")File.WriteAllText(Path.Combine(folder,"camera.vmd"),"invalid");
+        if(name=="c-camera-invalid")File.WriteAllText(Path.Combine(folder,"action.json"),"{\"referencePose\":\"T\"}");
     }
     var prep=new MmdPackPreparation(IntPtr.Zero); int queued=prep.Configure(asyncRoot);
     Check(queued==3 && ActionRegistry.Registered.Count==0,"Configure queues parsing without waiting or registering on workers");
@@ -368,24 +371,26 @@ try
     MmdRigCache.Clear();var pumpAvatar=Avatar();var pump=new MmdRigPreparation(IntPtr.Zero);
     ActionTargetApi.Target=pumpAvatar.avatar;ActionTargetApi.IsReady=true;
     var provider=(RuntimeVmdSource)ActionRegistry.Registered.Values.First().RuntimeSource;
+    var poseProviders=ActionRegistry.GetAll().Select(d=>(RuntimeVmdSource)d.RuntimeSource).ToArray();
+    Check(poseProviders.Select(p=>p.ReferencePose).Distinct().Count()==2,"Async pack parsing forwards both default A and JSON T to providers");
     int coldBuilds=MmdRigCache.BuildCount,frames=0,maxCreated=0;
     timeout.Restart();
-    while(!provider.IsPrepared(pumpAvatar.avatar))
+    while(!poseProviders.All(p=>p.IsPrepared(pumpAvatar.avatar)))
     {
         int before=GameObject.CreatedCount;pump.Update();maxCreated=Math.Max(maxCreated,GameObject.CreatedCount-before);frames++;
         if(timeout.Elapsed.TotalSeconds>10)throw new Exception("Rig preparation pump timed out");Thread.Sleep(1);
     }
-    Check(frames>10&&maxCreated<=16&&MmdRigCache.BuildCount==coldBuilds+1,"Actual production pump spreads a cold build over bounded frames");
+    Check(frames>10&&maxCreated<=16&&MmdRigCache.BuildCount==coldBuilds+2,"Actual production pump spreads both A/T cold builds over bounded frames");
     var replacement=Avatar();UnityEngine.Object.Destroy(pumpAvatar.avatar);ActionTargetApi.Target=replacement.avatar;
     timeout.Restart();
-    while(!provider.IsPrepared(replacement.avatar))
+    while(!poseProviders.All(p=>p.IsPrepared(replacement.avatar)))
     {
         pump.Update();if(timeout.Elapsed.TotalSeconds>10)throw new Exception("Rebind pump timed out");Thread.Sleep(1);
     }
-    Check(MmdRigCache.BuildCount==coldBuilds+1&&global::Plugin.LogSource.Messages.Last().Contains("mode=rebind"),"Production actor replacement rebinds persistent helpers without a new build");
+    Check(MmdRigCache.BuildCount==coldBuilds+2&&global::Plugin.LogSource.Messages.Last().Contains("mode=rebind"),"Production actor replacement rebinds both A/T helpers without a new build");
     MmdRigCache.Invalidate();timeout.Restart();
-    while(!provider.IsPrepared(replacement.avatar)) {pump.Update();if(timeout.Elapsed.TotalSeconds>10)throw new Exception("Shape validation timed out");Thread.Sleep(1);}
-    Check(MmdRigCache.BuildCount==coldBuilds+1,"ReAdjust marker alone does not force a rebuild in the production pump");
+    while(!poseProviders.All(p=>p.IsPrepared(replacement.avatar))) {pump.Update();if(timeout.Elapsed.TotalSeconds>10)throw new Exception("Shape validation timed out");Thread.Sleep(1);}
+    Check(MmdRigCache.BuildCount==coldBuilds+2,"ReAdjust marker alone does not force A/T rebuilds in the production pump");
     pump.OnDestroy();
 }
 finally {Directory.Delete(asyncRoot,true);MmdRigCache.Clear();}
@@ -511,6 +516,56 @@ using(var pose=new RuntimeVmdPose(subset.avatar,new ActionDefinition(),Motion(),
 }
 MmdRigCache.Clear();
 
+
+// Reference-pose change is confined to the source arms, then calibrated back
+// to the game's original axes. Identity VMD keys must yield the chosen pose.
+MmdRigCache.Clear();var referenceActor=Avatar();
+var originalReference=referenceActor.bones.ToDictionary(p=>p.Key,p=>(p.Value.localRotation,p.Value.localPosition,p.Value.localScale));
+using(var aPose=new RuntimeVmdPose(referenceActor.avatar,new ActionDefinition(),Motion(),null,false))
+{
+    aPose.Apply(0);
+    foreach(var (path,bone) in referenceActor.bones)
+    {
+        Quaternion expected=bind[path].rotation;
+        if(path.Contains("/UpperArm_L"))expected=Quaternion.AngleAxis(30,new(0,0,1))*expected;
+        if(path.Contains("/UpperArm_R"))expected=Quaternion.AngleAxis(-30,new(0,0,1))*expected;
+        Check(Quaternion.Angle(bone.rotation,expected)<.1,"Default A follows the mirrored UnityVMDPlayer 30-degree upper-arm calibration through the fingers");
+        Check(Vector3.Distance(bone.localPosition,originalReference[path].localPosition)<1e-5,"A reference does not change live local bone offsets");
+    }
+}
+foreach(var (path,bone) in referenceActor.bones)
+    Check(Quaternion.Angle(bone.localRotation,originalReference[path].localRotation)<.1,"Stopping A returns the player's original body rotations");
+using(var aData=GameMmdSkeleton.Create(bind,false))
+using(var tData=GameMmdSkeleton.Create(bind,false,MmdReferencePose.T))
+{
+    foreach(var suffix in new[]{("左","_L"),("右","_R")})
+    {
+        var upper=chest+"/Shoulder"+suffix.Item2+"/UpperArm"+suffix.Item2;
+        var lower=upper+"/LowerArm"+suffix.Item2;var hand=lower+"/Hand"+suffix.Item2;
+        Check(Math.Abs(Vector3.Distance(aData.byName[suffix.Item1+"腕"].rest,aData.byName[suffix.Item1+"ひじ"].rest)*.08f-Vector3.Distance(positions[upper],positions[lower]))<1e-5,"A source preserves actual upper-arm length");
+        Check(Math.Abs(Vector3.Distance(aData.byName[suffix.Item1+"ひじ"].rest,aData.byName[suffix.Item1+"手首"].rest)*.08f-Vector3.Distance(positions[lower],positions[hand]))<1e-5,"A source preserves actual forearm length");
+    }
+    foreach(var name in new[]{"下半身","上半身","左足","左ひざ","左足首","右足","右ひざ","右足首"})
+        Check(Vector3.Distance(aData.byName[name].rest,tData.byName[name].rest)<1e-6,"Reference pose does not change torso or leg reference geometry");
+    Check(Vector3.Distance(tData.byName["左手首"].rest*.08f,positions[chest+"/Shoulder_L/UpperArm_L/LowerArm_L/Hand_L"])<1e-5,"T source exactly retains the previous hand reference positions");
+}
+Reject(()=>GameMmdSkeleton.Create(bind,false,(MmdReferencePose)99),"Invalid programmatic reference pose is rejected");
+MmdRigCache.Clear();int referenceBuilds=MmdRigCache.BuildCount;
+MmdRigCache.Prepare(referenceActor.avatar,null,false,MmdReferencePose.A);
+MmdRigCache.Prepare(referenceActor.avatar,null,false,MmdReferencePose.T);
+Check(MmdRigCache.BuildCount==referenceBuilds+2,"A and T warm independent rigs on one actor");
+var aLease=MmdRigCache.Rent(referenceActor.avatar,null,false,MmdReferencePose.A);
+var tLease=MmdRigCache.Rent(referenceActor.avatar,null,false,MmdReferencePose.T);
+Check(!ReferenceEquals(aLease,tLease)&&aLease.ReferencePose==MmdReferencePose.A&&tLease.ReferencePose==MmdReferencePose.T,"A/T playback cannot borrow the other mode's cached solver");
+Check(aLease.ModelKey!=tLease.ModelKey,"Reference pose participates in cache identity");
+MmdRigCache.Return(aLease);MmdRigCache.Return(tLease);
+MmdRigCache.Invalidate();MmdRigCache.Prepare(referenceActor.avatar,null,false,MmdReferencePose.T);MmdRigCache.Prepare(referenceActor.avatar,null,false,MmdReferencePose.A);
+Check(MmdRigCache.BuildCount==referenceBuilds+2,"Revalidation reuses both reference modes without rebuilding");
+var referenceReload=Avatar();MmdRigCache.DetachTarget(referenceActor.avatar.GetInstanceID());
+MmdRigCache.Prepare(referenceReload.avatar,null,false,MmdReferencePose.A);MmdRigCache.Prepare(referenceReload.avatar,null,false,MmdReferencePose.T);
+Check(MmdRigCache.BuildCount==referenceBuilds+2,"A/T caches both rebind across same-shape reloads");
+Check(MmdRigCache.ModelKey("reference.pmd",true,MmdReferencePose.A)==MmdRigCache.ModelKey("reference.pmd",true,MmdReferencePose.T),"Paired model cache ignores the generated-rig pose option");
+MmdRigCache.Clear();
 
 Console.WriteLine($"PASS {checks} assertions: production topology/parser/retargeter/cache/async pump; synthetic scene math boundary, not rendered game verification");
 

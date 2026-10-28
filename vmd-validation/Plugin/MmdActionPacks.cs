@@ -9,7 +9,7 @@ using Seleka2.Actions;
 namespace Seleka2.Mmd;
 
 internal sealed record MmdActionPack(ActionDefinition Action, string Directory, string Json,
-    string MotionPath, string ModelPath, bool MatchedModel);
+    string MotionPath, string ModelPath, bool MatchedModel, MmdReferencePose ReferencePose);
 
 // Discovery and defaults are shared by manifest and folder-only imports.
 internal static class MmdActionPacks
@@ -38,7 +38,7 @@ internal static class MmdActionPacks
         string json = File.Exists(manifest) ? File.ReadAllText(manifest) : "{}";
         using var document = JsonDocument.Parse(json);
         var root = document.RootElement;
-        CheckFields(root, "id", "displayName", "description", "vmdFile", "audioFile", "modelFile",
+        CheckFields(root, "id", "displayName", "description", "vmdFile", "audioFile", "modelFile", "referencePose",
             "audioDelaySeconds", "volume", "loop", "requiresHands", "requiresStanding", "bodyMask",
             "writeHipTranslation", "writeFaceMorphs", "keepGameExpressions", "followFaceCamera", "showInRing", "bonePaths", "camera",
             "events", "onStart", "onFinish", "onCancel", "useClipEvents");
@@ -56,7 +56,18 @@ internal static class MmdActionPacks
         // Unpaired motions derive their reference skeleton from the player's
         // bind poses at playback. They no longer require an external PMD.
         string modelPath = matched ? PackFile(directory, specifiedModel ? model.GetString() : "source.pmd") : "";
-        return new MmdActionPack(action, directory, json, PackFile(directory, motion), modelPath, matched);
+        var referencePose = MmdReferencePose.A;
+        if (TryField(root, "referencePose", out var pose))
+        {
+            if (pose.ValueKind != JsonValueKind.String) throw new ArgumentException("referencePose must be A or T");
+            referencePose = pose.GetString().ToUpperInvariant() switch
+            {
+                "A" => MmdReferencePose.A,
+                "T" => MmdReferencePose.T,
+                _ => throw new ArgumentException("referencePose must be A or T")
+            };
+        }
+        return new MmdActionPack(action, directory, json, PackFile(directory, motion), modelPath, matched, referencePose);
     }
 
     internal static bool TryField(JsonElement root, string name, out JsonElement value)

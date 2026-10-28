@@ -16,14 +16,17 @@ public sealed class RuntimeVmdSource : IActionSource, IPreparedActionSource
     public float Duration => motion.lastFrame / 30f;
     public int RetainedTracks => motion.tracks.Count;
     public int IgnoredTracks { get; }
-    internal string SkeletonKey => paired ? "pmd:" + Path.GetFullPath(modelPath) : "game-bind-pose";
+    internal string SkeletonKey => paired ? "pmd:" + Path.GetFullPath(modelPath) : MmdRigCache.ModelKey(modelPath, false, ReferencePose);
+    internal MmdReferencePose ReferencePose { get; }
     internal string ModelPath => modelPath;
     internal bool Paired => paired;
-    internal void Prepare(GameObject target) => MmdRigCache.Prepare(target, modelPath, paired);
-    public bool IsPrepared(GameObject target) => MmdRigCache.IsPrepared(target, modelPath, paired);
-    public RuntimeVmdSource(string vmdPath, string pmdPath, bool matchedModel)
+    internal void Prepare(GameObject target) => MmdRigCache.Prepare(target, modelPath, paired, ReferencePose);
+    public bool IsPrepared(GameObject target) => MmdRigCache.IsPrepared(target, modelPath, paired, ReferencePose);
+    public RuntimeVmdSource(string vmdPath, string pmdPath, bool matchedModel, MmdReferencePose referencePose = MmdReferencePose.A)
     {
         if (matchedModel && !File.Exists(pmdPath)) throw new FileNotFoundException("MMD paired skeleton missing", pmdPath);
+        if (!Enum.IsDefined(typeof(MmdReferencePose), referencePose)) throw new ArgumentOutOfRangeException(nameof(referencePose));
+        ReferencePose = referencePose;
         motion = MmdMotion.Read(vmdPath); modelPath = pmdPath; paired = matchedModel;
         if (motion.tracks.Count == 0 || Duration <= 0) throw new InvalidDataException("VMD contains no playable bone motion");
         var profile = paired ? MmdRigCache.Profile(modelPath) : null;
@@ -35,7 +38,7 @@ public sealed class RuntimeVmdSource : IActionSource, IPreparedActionSource
             if (!motion.tracks.Keys.Any(n => n == "上半身" || n == "下半身" || n == "左腕" || n == "右腕")) throw new InvalidDataException("VMD has no supported standard body tracks");
         }
     }
-    public IActionPose CreatePose(GameObject target, ActionDefinition definition) => new RuntimeVmdPose(target, definition, motion, modelPath, paired);
+    public IActionPose CreatePose(GameObject target, ActionDefinition definition) => new RuntimeVmdPose(target, definition, motion, modelPath, paired, ReferencePose);
 }
 
 internal sealed class RuntimeVmdRig
@@ -58,6 +61,7 @@ internal sealed class RuntimeVmdRig
     internal Transform liveRoot, hip;
     internal float scale;
     internal bool Leased, Retired, WorldMetric;
+    internal MmdReferencePose ReferencePose;
     readonly List<(SkinnedMeshRenderer renderer, Mesh mesh)> meshes = new();
 
     internal bool IsUsable => target != null && liveRoot != null && hip != null && proxy != null
@@ -78,9 +82,9 @@ internal sealed class RuntimeVmdRig
         target = null; liveRoot = null; hip = null; meshes.Clear(); morphs.Clear();
         foreach (var b in bindings) b.live = null; toes.Clear();
     }
-    internal IEnumerable<int> BuildSteps(MmdTargetSnapshot snapshot, MmdSkeleton template, bool worldMetric = true)
+    internal IEnumerable<int> BuildSteps(MmdTargetSnapshot snapshot, MmdSkeleton template, bool worldMetric = true, MmdReferencePose referencePose = MmdReferencePose.A)
     {
-            WorldMetric=worldMetric;
+            WorldMetric=worldMetric; ReferencePose=referencePose;
             var rest = snapshot.Rest; var liveBones = snapshot.Bones;
             Rebind(snapshot);
             proxy = new GameObject("MmdTargetSamplingRig"); proxy.hideFlags = HideFlags.HideAndDontSave; proxy.SetActive(false);
@@ -200,9 +204,9 @@ public sealed class RuntimeVmdPose : IActionPose, IActionRootMotionPose, IAction
         return result;
     }
 
-    public RuntimeVmdPose(GameObject target, ActionDefinition action, MmdMotion keys, string modelPath, bool paired)
+    public RuntimeVmdPose(GameObject target, ActionDefinition action, MmdMotion keys, string modelPath, bool paired, MmdReferencePose referencePose = MmdReferencePose.A)
     {
-        rig = MmdRigCache.Rent(target, modelPath, paired);
+        rig = MmdRigCache.Rent(target, modelPath, paired, referencePose);
         definition = action; motion = keys;
         try
         {

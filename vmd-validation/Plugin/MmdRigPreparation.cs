@@ -71,24 +71,24 @@ public sealed class MmdRigPreparation : MonoBehaviour
             }
             if (data == null && build == null)
             {
-                if (MmdRigCache.TryRebind(snapshot, source.ModelPath, source.Paired))
+                if (MmdRigCache.TryRebind(snapshot, source.ModelPath, source.Paired, source.ReferencePose))
                 {
                     global::Plugin.LogSource.LogInfo("MMD_RIG_READY skeleton=" + source.SkeletonKey + " mode=rebind totalMs=" + total.ElapsedMilliseconds + " maxOperationMs=" + (maxStepTicks * 1000d / System.Diagnostics.Stopwatch.Frequency).ToString("F3"));
                     index++; return;
                 }
-                var positions = snapshot.Positions; string path = source.ModelPath; bool paired = source.Paired;
-                data = Task.Run(() => paired ? MmdRigCache.Profile(path).CopyData() : GameMmdSkeleton.CreateData(positions));
+                var positions = snapshot.Positions; string path = source.ModelPath; bool paired = source.Paired; var referencePose = source.ReferencePose;
+                data = Task.Run(() => paired ? MmdRigCache.Profile(path).CopyData() : GameMmdSkeleton.CreateData(positions, referencePose));
                 return;
             }
             if (data != null)
             {
                 if (!data.IsCompleted) return;
                 var template = data.GetAwaiter().GetResult(); data = null;
-                building = new RuntimeVmdRig(); build = building.BuildSteps(snapshot, template, !source.Paired).GetEnumerator();
+                building = new RuntimeVmdRig(); build = building.BuildSteps(snapshot, template, !source.Paired, source.ReferencePose).GetEnumerator();
             }
             if (!Advance(build)) return;
             build.Dispose(); build = null;
-            MmdRigCache.Publish(snapshot, source.ModelPath, source.Paired, building); building = null;
+            MmdRigCache.Publish(snapshot, source.ModelPath, source.Paired, building, source.ReferencePose); building = null;
             global::Plugin.LogSource.LogInfo("MMD_RIG_READY skeleton=" + source.SkeletonKey + " mode=build totalMs=" + total.ElapsedMilliseconds + " maxOperationMs=" + (maxStepTicks * 1000d / System.Diagnostics.Stopwatch.Frequency).ToString("F3"));
             index++;
         }
@@ -97,13 +97,13 @@ public sealed class MmdRigPreparation : MonoBehaviour
             global::Plugin.LogSource.LogWarning("MMD_RIG_PREPARE_FAILED skeleton=" + source.SkeletonKey + " " + e);
             if (capture != null || snapshot?.Shape == null)
             {
-                foreach (var item in sources) MmdRigCache.Fail(target, item.ModelPath, item.Paired, e);
+                foreach (var item in sources) MmdRigCache.Fail(target, item.ModelPath, item.Paired, e, item.ReferencePose);
                 CancelWork(); index = sources.Length;
             }
             else
             {
                 build?.Dispose(); build = null; building?.Destroy(); building = null; data = null;
-                MmdRigCache.Fail(target, source.ModelPath, source.Paired, e); index++;
+                MmdRigCache.Fail(target, source.ModelPath, source.Paired, e, source.ReferencePose); index++;
             }
         }
     }

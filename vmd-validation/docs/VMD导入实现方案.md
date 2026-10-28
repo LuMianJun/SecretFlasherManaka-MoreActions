@@ -11,6 +11,7 @@
 | vmdFile | 使用 `motion.vmd`，缺失则不能导入动作 |
 | audioFile | 有 `BGM.wav` 就加载，没有则静音 |
 | modelFile | 优先查找当前动作目录的 source.pmd，存在则使用配套骨架；不存在则从游戏角色网格绑定姿势生成虚拟 MMD 骨架。显式填写时覆盖自动选择 |
+| referencePose | 无配套模型时默认 A：参考 UnityVMDPlayer 以约 30° 上臂下垂建立虚拟参考姿势；T 保留原游戏绑定参考。每动作 JSON 可选择 A/T，缓存与预热按模式区分；配套 PMD 始终使用自身参考姿势。 |
 | audioDelaySeconds | 0，即音乐无额外延迟 |
 | volume | 1，动作原始倍率；最终仍受设置页音量控制 |
 | camera.vmdFile | 有 `camera.vmd` 就加载，没有则使用原版镜头 |

@@ -12,6 +12,9 @@ internal static class GameMmdSkeleton
     // Share the 0.08 MMD displacement unit with the default camera. Rest positions
     // are converted to MMD units before IK, so keys and link lengths agree.
     internal const float MetersPerMmdUnit = 0.08f;
+    // UnityVMDPlayer.EnforceInitialPose: mirror a 30-degree upper-arm tilt.
+    // Rotate all descendants around the shoulder joint, preserving bone lengths.
+    internal const float APoseUpperArmDegrees = 30f;
     internal static IEnumerable<string> SupportedNames()
     {
         foreach (var name in new[] { "全ての親", "センター", "グルーブ", "腰", "下半身", "上半身", "上半身2", "上半身3", "首", "頭" }) yield return name;
@@ -23,23 +26,40 @@ internal static class GameMmdSkeleton
         }
     }
 
-    internal static MmdSkeleton Create(IReadOnlyDictionary<string, Matrix4x4> bindPoses, bool createTransforms = true)
+    internal static MmdSkeleton Create(IReadOnlyDictionary<string, Matrix4x4> bindPoses, bool createTransforms = true, MmdReferencePose referencePose = MmdReferencePose.A)
     {
         var positions = new Dictionary<string, NVector>();
         foreach (var pair in bindPoses) { Vector3 p = pair.Value.GetColumn(3); positions.Add(pair.Key, new NVector(p.x, p.y, p.z)); }
-        var rig = CreateData(positions);
+        var rig = CreateData(positions, referencePose);
         try { if (createTransforms) rig.CreateTransforms(); return rig; }
         catch { rig.Dispose(); throw; }
     }
     // Only managed numerics and data: suitable for a worker after snapshotting.
-    internal static MmdSkeleton CreateData(IReadOnlyDictionary<string, NVector> positions)
+    internal static MmdSkeleton CreateData(IReadOnlyDictionary<string, NVector> positions, MmdReferencePose referencePose = MmdReferencePose.A)
     {
+        if (!Enum.IsDefined(typeof(MmdReferencePose), referencePose)) throw new ArgumentOutOfRangeException(nameof(referencePose));
         var rig = new MmdSkeleton();
+        const string hipsPath = "Armature/Hips";
+        const string chestPath = hipsPath + "/Spine/Chest";
         NVector Position(string path)
         {
             if (!positions.TryGetValue(path, out var p)) throw new ArgumentException("Game reference bind pose missing: " + path);
             if (!float.IsFinite(p.X) || !float.IsFinite(p.Y) || !float.IsFinite(p.Z)) throw new ArgumentException("Nonfinite game reference bind pose: " + path);
-            return p / MetersPerMmdUnit;
+            p /= MetersPerMmdUnit;
+            if (referencePose == MmdReferencePose.A)
+            {
+                foreach (var suffix in new[] { "_L", "_R" })
+                {
+                    string armPath = chestPath + "/Shoulder" + suffix + "/UpperArm" + suffix;
+                    if (!path.StartsWith(armPath + "/", StringComparison.Ordinal)) continue;
+                    var pivot = Position(armPath);
+                    float radians = (suffix == "_L" ? 1 : -1) * APoseUpperArmDegrees * (float)(Math.PI / 180);
+                    var rotation = System.Numerics.Quaternion.CreateFromAxisAngle(NVector.UnitZ, radians);
+                    p = pivot + NVector.Transform(p - pivot, rotation);
+                    break;
+                }
+            }
+            return p;
         }
         int Index(string name) => rig.bones.IndexOf(rig.byName[name]);
         void Add(string name, string parent, NVector position, int type = 0)
@@ -48,8 +68,6 @@ internal static class GameMmdSkeleton
             rig.bones.Add(bone); rig.byName.Add(name, bone);
         }
         void Tail(string name, string tail) => rig.byName[name].tail = Index(tail);
-        const string hipsPath = "Armature/Hips";
-        const string chestPath = hipsPath + "/Spine/Chest";
         var hips = Position(hipsPath); var spine = Position(hipsPath + "/Spine"); var chest = Position(chestPath);
         Add("全ての親", null, NVector.Zero);
         Add("センター", "全ての親", hips);

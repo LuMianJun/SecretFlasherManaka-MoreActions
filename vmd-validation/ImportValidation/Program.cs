@@ -15,6 +15,12 @@ void Register(MmdActionPack pack) => ActionRegistry.RegisterRuntime(pack.Action,
 try
 {
     File.WriteAllText(Path.Combine(folder, "motion.vmd"), "motion");
+    Check(Read().ReferencePose==MmdReferencePose.A,"Omitted reference pose defaults to A");
+    Json("{\"referencePose\":\"T\"}"); Check(Read().ReferencePose==MmdReferencePose.T,"Action JSON can explicitly select T");
+    Json("{\"REFERENCEPOSE\":\"a\"}"); Check(Read().ReferencePose==MmdReferencePose.A,"Reference pose field and value are case insensitive");
+    foreach(var json in new[]{"{\"referencePose\":null}","{\"referencePose\":0}","{\"referencePose\":true}","{\"referencePose\":\"\"}","{\"referencePose\":\"B\"}","{\"referencePose\":\"1\"}","{\"referencePose\":\"A\",\"ReferencePose\":\"T\"}"})
+    {Json(json);Reject(()=>Read(),"Invalid reference pose is rejected rather than silently falling back: "+json);}
+    File.Delete(manifest);
     Check(Read().Action.KeepGameExpressions,"Omitted face policy defaults to overlay");
     Json("{\"keepGameExpressions\":false}"); var faceOff=Read();
     Check(!faceOff.Action.KeepGameExpressions,"JSON false disables overlay");
@@ -43,6 +49,7 @@ try
         writer.Write(Enumerable.Range(0, 6).SelectMany(_ => new byte[] { 20, 107, 20, 107 }).ToArray()); writer.Write(30u); writer.Write((byte)0);
     }
     var discovered = Read();
+    Json("{\"referencePose\":\"T\"}");Check(Read().MatchedModel&&Read().ReferencePose==MmdReferencePose.T,"Paired model discovery remains independent of the generated-rig pose option");File.Delete(manifest);
     Check(discovered.Action.AudioFile == "BGM.wav" && discovered.MatchedModel && discovered.ModelPath == Path.Combine(folder, "source.pmd"), "Default WAV and paired PMD are discovered");
     Json("{}"); var empty = Read();
     Check(empty.Action.Id == discovered.Action.Id && empty.Action.AudioFile == discovered.Action.AudioFile && empty.ModelPath == discovered.ModelPath && empty.MatchedModel == discovered.MatchedModel, "Empty manifest and no manifest have identical defaults");
