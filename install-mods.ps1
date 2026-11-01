@@ -55,4 +55,4 @@ try {
     }
     throw $failure
 }
-Write-Output "Installed More Actions 0.7.2, MMD 0.11.4, NPC Spectators 0.3.1. Backup: $backupRoot"
+Write-Output "Installed More Actions 1.0.0, MMD 1.0.0, NPC Spectators 1.0.0. Backup: $backupRoot"

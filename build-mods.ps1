@@ -1,6 +1,6 @@
 param(
     [Parameter(Mandatory=$true)][string]$GameDir,
-    [string]$OutputDir = (Join-Path $PSScriptRoot 'releases/cancel-policy-0.7.2')
+    [string]$OutputDir = (Join-Path $PSScriptRoot 'releases/SecretFlasherManaka-MoreActions-v1.0.0')
 )
 $ErrorActionPreference = 'Stop'
 $gameRoot = (Resolve-Path -LiteralPath $GameDir).Path

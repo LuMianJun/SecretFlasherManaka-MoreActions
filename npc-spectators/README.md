@@ -1,4 +1,4 @@
-# Seleka2 NPC Spectators 0.3.1
+# Seleka2 NPC Spectators 1.0.0
 
 独立的 BepInEx 6 IL2CPP 插件，输出 `Seleka2.NpcSpectators.dll`。
 不修改游戏源码，不依赖 MMD 插件，不加载动画包，不写原版存档。
