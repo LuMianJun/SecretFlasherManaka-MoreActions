@@ -71,7 +71,7 @@ namespace UnityEngine
         public bool SetData(float[] data,int frameOffset){Boundary.UnityCall();MaxTransfer=Math.Max(MaxTransfer,data.Length);Array.Copy(data,0,Data,frameOffset*Channels,data.Length);return true;}
         public bool LoadAudioData()=>true;
     }
-    public sealed class AnimationClip : Object { public float length=1; public HideFlags hideFlags; }
+    public sealed class AnimationClip : Object { public float length=1; public HideFlags hideFlags;public bool isHumanMotion; }
     public sealed class AssetBundle
     {
         public static AssetBundle LoadFromFile(string path){Boundary.UnityCall();return new();}
@@ -88,7 +88,7 @@ namespace Seleka2.Actions
         public static ActionDefinition[] GetAll()=>items;public static ActionDefinition Get(string id)=>items.FirstOrDefault(x=>x.Id==id);
     }
     public sealed class Source : IActionSource {public float Duration=>1;public IActionPose CreatePose(GameObject target,ActionDefinition definition)=>throw new NotSupportedException();}
-    internal sealed class ActionPose : IActionPose { public ActionPose(GameObject target, LoadedAction loaded) {} public int BoneCount=>0;public bool Apply(float t)=>true;public void Dispose(){} }
+    internal sealed class ActionPose : IActionPose { public ActionPose(GameObject target, LoadedAction loaded,bool native=false) {} public int BoneCount=>0;public bool Apply(float t)=>true;public void Dispose(){} }
     public sealed class Logger {public void LogInfo(string text){}public void LogWarning(string text){} }
     public static class Plugin {public static Logger LogSource=new();}
 }

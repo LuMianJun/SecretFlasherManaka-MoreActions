@@ -30,7 +30,7 @@ public sealed class Plugin : BasePlugin
     public override void Load()
     {
         LogSource = Log;
-        var packs = Config.Bind("Actions", "Directory", "actions", "Action pack directory relative to this plugin.");
+        var packs = Config.Bind("Actions", "Directory", "Actions", "Action pack directory relative to this plugin.");
         Volume = Config.Bind("Audio", "Volume", 1f, "Master custom-action music volume, 0-1, multiplied by pack volume and native sound settings.");
         FollowCamera = Config.Bind("Camera", "FollowFaceCamera", true, "Track the original face camera after the custom pose; preserves native visibility.");
         KeepGameExpressions = Config.Bind("Face", "KeepGameExpressions", true, "Overlay action expressions on the native game expressions. An action's keepGameExpressions=false always disables this.");
@@ -44,7 +44,9 @@ public sealed class Plugin : BasePlugin
         NativeActionEvents.Register();
         ActionDriver.Current = AddComponent<ActionDriver>();
         new Harmony(Guid).PatchAll(typeof(Plugin).Assembly);
-        int count = ActionRegistry.LoadPacks(Path.GetFullPath(Path.Combine(Path.GetDirectoryName(typeof(Plugin).Assembly.Location), packs.Value)), Guid);
+        var pluginDirectory = Path.GetDirectoryName(typeof(Plugin).Assembly.Location);
+        int count = ActionRegistry.LoadPacks(Path.GetFullPath(Path.Combine(pluginDirectory, packs.Value)), Guid);
+        ActionBundleImport.Begin(Path.GetFullPath(Path.Combine(pluginDirectory, packs.Value)), Guid + ".bundles");
         Log.LogInfo("MORE_ACTIONS_READY version=1.0.0 packs=" + count + " ring=true nativeRestrictions=true runtimeSources=true settings=true");
     }
 }
@@ -89,6 +91,7 @@ public sealed class ActionDriver : MonoBehaviour
     public void Update()
     {
         ActionAssets.Tick();
+        ActionBundleImport.Tick();
         var animator = PlayerController.Instance?.Pca?.Animator;
         ActionTargetApi.Target = animator == null ? null : animator.gameObject;
         ActionTargetApi.IsReady = animator != null && animator.enabled && animator.isInitialized;
@@ -337,7 +340,8 @@ public sealed class ActionDriver : MonoBehaviour
             if (request != requestRevision || !PrepareNativeIdle(id, request)) return;
             if (request != requestRevision || ActionRegistry.Get(id) != definition) return;
             int revision = ++eventRevision;
-            var embedded = definition.UseClipEvents && loaded.Clip != null ? ClipActionEvents.Read(loaded.Clip) : Array.Empty<ActionEventDefinition>();
+            var eventClip = loaded.Clip ?? (definition.RuntimeSource as IActionClipSource)?.Clip;
+            var embedded = definition.UseClipEvents && eventClip != null ? ClipActionEvents.Read(eventClip) : Array.Empty<ActionEventDefinition>();
             events = new ActionEventRunner(definition, embedded, loaded.Duration,
                 () => IsCurrentEventPlayback(revision, loaded),
                 message => Plugin.LogSource.LogWarning("id=" + id + " " + message));
@@ -477,7 +481,7 @@ public sealed class ActionDriver : MonoBehaviour
         finally { stopping = false; }
     }
     public void OnDisable() { requests.Clear(); Stop("disabled"); }
-    public void OnDestroy() { requests.Clear(); Stop("destroyed"); if (audio != null) UnityEngine.Object.Destroy(audio); ActionAssets.Clear(); ActionTargetApi.Target = null; ActionTargetApi.IsReady = false; if (Current == this) Current = null; }
+    public void OnDestroy() { requests.Clear(); Stop("destroyed"); if (audio != null) UnityEngine.Object.Destroy(audio); ActionAssets.Clear(); ActionBundleImport.Clear(); ActionTargetApi.Target = null; ActionTargetApi.IsReady = false; if (Current == this) Current = null; }
 }
 
 [HarmonyPatch(typeof(PlayerController), "OnUpdate")]

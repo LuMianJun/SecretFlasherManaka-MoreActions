@@ -8,5 +8,6 @@ internal sealed class LoadedAction
     internal AudioClip Audio;
     internal bool IsValid => Definition.RuntimeSource != null || Clip != null;
     internal float Duration => Definition.RuntimeSource?.Duration ?? Clip.length;
-    internal IActionPose CreatePose(GameObject target) => Definition.RuntimeSource?.CreatePose(target, Definition) ?? new ActionPose(target, this);
+    internal IActionPose CreatePose(GameObject target) => Definition.RuntimeSource?.CreatePose(target, Definition)
+        ?? new ActionPose(target, this, Clip != null && Clip.isHumanMotion);
 }

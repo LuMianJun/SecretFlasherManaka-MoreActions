@@ -227,6 +227,7 @@ namespace Seleka2.Actions
 {
     public static class ActionFaceSettings { public static bool KeepGameExpressions {get;set;}=true; }
     public static class RingActionMenu { public static BepInEx.Configuration.ConfigEntry<string> LastActions; }
+    internal static class ActionBundleImport { internal static void Begin(string directory,string provider){} internal static void Tick(){} internal static void Clear(){} }
     internal sealed class MotionFaceCamera { public void Begin(ExposureUnnoticed2.Object3D.Player.Scripts.PlayerController owner) {} public void RefreshAfterPose() {} public void End() {} public bool ShouldDefer(ExposureUnnoticed2.Object3D.Camera.FaceCameraController camera) => true; }
     internal sealed class LoadedAction
     {

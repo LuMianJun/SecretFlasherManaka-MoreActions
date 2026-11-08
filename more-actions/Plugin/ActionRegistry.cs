@@ -50,6 +50,11 @@ public static class ActionRegistry
     public static IReadOnlyList<ActionDefinition> GetAll() => entries.Values.ToArray();
     public static ActionDefinition Get(string id) => id != null && entries.TryGetValue(id, out var value) ? value : null;
     public static event Action Changed;
+    internal static void SetRingVisibility(string id,bool visible)
+    {
+        if(!entries.TryGetValue(id,out var definition)||definition.ShowInRing==visible)return;
+        definition.ShowInRing=visible;Revision++;Notify();
+    }
 
     public static void Register(ActionDefinition definition, string packDirectory, string providerId)
         => RegisterCore(definition, packDirectory, providerId, null);

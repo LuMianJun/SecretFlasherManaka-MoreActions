@@ -29,11 +29,11 @@ LoadedAction Motion(ActionDefinition definition)=>new(){Definition=definition,Cl
     proxy.transform.Find(hipPath).localPosition+=new Vector3(0,time*.1f,0);
 }}};
 
-foreach(bool native in new[]{false})
+foreach(bool native in new[]{false,true})
 {
     var root=Avatar();var head=root.transform.Find(headPath);var neck=root.transform.Find(neckPath);var hip=root.transform.Find(hipPath);
     var animator=root.GetComponent<Animator>();
-    var pose=new ActionPose(root,Motion(new(){WriteFaceMorphs=false}));
+    var pose=new ActionPose(root,Motion(new(){WriteFaceMorphs=false}),native);
     pose.BeginNativeBody();
     head.localRotation=Quaternion.AngleAxis(25,Vector3.up);neck.localRotation=Quaternion.AngleAxis(18,Vector3.up);
     hip.localPosition=new(0,1.2f,0);head.localPosition=new(0,.16f,.02f);head.localScale=new(1.1f,1.05f,1);
@@ -47,10 +47,10 @@ foreach(bool native in new[]{false})
     Check(animator.cullingMode==AnimatorCullingMode.CullUpdateTransforms,"Dispose returns the original Animator culling policy");
 }
 
-foreach(bool native in new[]{false})
+foreach(bool native in new[]{false,true})
 {
     var waiting=Avatar();var head=waiting.transform.Find(headPath);
-    var pose=new ActionPose(waiting,Motion(new(){WriteFaceMorphs=false}));
+    var pose=new ActionPose(waiting,Motion(new(){WriteFaceMorphs=false}),native);
     head.localRotation=Quaternion.AngleAxis(32,Vector3.up);pose.Dispose();
     Check(Rotation(head,32),"Cancel before the first applied frame must not overwrite a newer native head pose");
 }

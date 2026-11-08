@@ -59,6 +59,7 @@ internal static class RingActionMenu
     }
     static void Select(RingMenuParentView parent, int slot, RingMenuItemModel model, string id)
     {
+        if(ActionRegistry.Get(id)?.ShowInRing!=true)return;
         Save(slot, id); SetLast(parent, slot, model); ActionDriver.Current?.Request(id);
     }
 
@@ -69,6 +70,10 @@ internal static class RingActionMenu
         for (int slot = 0; slot < 8; slot++)
         {
             if (slot == 0 && parent.currentOverrideType != RingMenuParentView.RingMenuOverrideType.None) continue;
+            var definition=ActionRegistry.Get(saved[slot]);
+            if(definition!=null&&!definition.ShowInRing){Save(slot,"");saved[slot]="";}
+            var lastId=FromKey(Last(parent,slot)?.NameKey);
+            if(lastId!=null&&ActionRegistry.Get(lastId)?.ShowInRing==false)SetLast(parent,slot,null);
             var selected = models[slot].FirstOrDefault(m => FromKey(m.NameKey) == saved[slot]);
             if (selected != null) SetLast(parent, slot, selected);
         }
@@ -150,4 +155,4 @@ static class RingShortcutPatch { static bool Prefix(RingMenuParentView __instanc
 [HarmonyPatch(typeof(RingMenuParentView), "LateUpdate")]
 static class RingShortPressPatch { static void Postfix(RingMenuParentView __instance) { try { RingActionMenu.TickShortcuts(__instance); } catch (Exception e) { Plugin.LogSource.LogWarning("ACTION_SHORTCUT_FAILED " + e.Message); } } }
 [HarmonyPatch(typeof(Localizer), "Trans", new Type[] { typeof(string) })]
-static class ActionLabelPatch { static bool Prefix(string __0, ref string __result) { var id = RingActionMenu.FromKey(__0); if (id == null) return true; __result = ActionRegistry.Get(id).DisplayName; return false; } }
+static class ActionLabelPatch { static bool Prefix(string __0, ref string __result) { var id = RingActionMenu.FromKey(__0); if (id == null) return true; __result = ActionNames.Display(ActionRegistry.Get(id)); return false; } }

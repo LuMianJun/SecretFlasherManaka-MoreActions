@@ -58,6 +58,10 @@ Check(delayed.lastInvokeModelCommon==null,"An unparsed saved action is not invok
 ActionRegistry.Set(1);ExposureUnnoticed2.Object3D.IngameManager.InGameUiManager.Instance=new();
 RingActionMenu.TickShortcuts(delayed);
 Check(delayed.lastInvokeModelCommon?.NameKey==RingActionMenu.Key("custom0") && delayed.lastInvokeModelSkill?.NameKey==RingActionMenu.Key("custom0"),"Async provider arrival restores remembered shortcuts without reopening the ring");
+ActionRegistry.Hide("custom0");RingActionMenu.TickShortcuts(delayed);
+Check(delayed.lastInvokeModelCommon==null&&delayed.lastInvokeModelSkill==null,"Hidden replacement resources cannot survive in Common/Skill shortcut models");
+Check(RingActionMenu.LastActions.Value.Split(',').Take(2).All(string.IsNullOrEmpty),"Previously remembered replacement-only shortcuts are cleared without touching native saves");
+Check(Open(delayed,0).pages==2,"Hiding every replacement resource removes its extra pages");
 Console.WriteLine($"PASS {checks} assertions: actual ring adapter, slots 1-8, native/custom selection, reopen, multi-page packs, provider removal, override and cleanup");
 
 namespace BepInEx.Configuration { public sealed class ConfigEntry<T>(T value) { public T Value = value; } }
@@ -123,9 +127,11 @@ namespace ExposureUnnoticed2.Object3D.IngameManager
 }
 namespace Seleka2.Actions
 {
+    internal static class ActionNames { internal static string Display(ActionDefinition definition)=>definition.DisplayName; }
     public sealed class ActionDefinition { public string Id, DisplayName; public bool ShowInRing = true; }
     public static class ActionRegistry
     {
+        public static void Hide(string id){Get(id).ShowInRing=false;Revision++;}
         static ActionDefinition[] items = []; public static int Revision;
         public static void Set(int count) { items = Enumerable.Range(0,count).Select(i => new ActionDefinition { Id="custom"+i, DisplayName="Custom "+i }).ToArray(); Revision++; }
         public static ActionDefinition[] GetAll() => items; public static ActionDefinition Get(string id) => items.FirstOrDefault(x => x.Id==id);

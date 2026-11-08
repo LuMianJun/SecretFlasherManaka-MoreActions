@@ -44,6 +44,12 @@ public interface IActionSource
     IActionPose CreatePose(GameObject target, ActionDefinition definition);
 }
 
+// Optional embedded events for a runtime provider backed by an AnimationClip.
+public interface IActionClipSource : IActionSource
+{
+    AnimationClip Clip { get; }
+}
+
 public interface IPreparedActionSource
 {
     bool IsPrepared(GameObject target);
