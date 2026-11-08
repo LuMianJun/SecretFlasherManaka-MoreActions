@@ -21,6 +21,8 @@ dotnet build npc-spectators/Plugin/Seleka2.NpcSpectators.csproj -c Release "-p:G
 ```powershell
 dotnet run --project more-actions/AssetValidation -c Release
 dotnet run --project more-actions/AnimatorValidation -c Release
+dotnet run --project more-actions/CameraTrackValidation -c Release
+dotnet run --project more-actions/ReplacementBrowserValidation -c Release
 dotnet run --project more-actions/FaceRestoreValidation -c Release
 dotnet run --project more-actions/EventValidation -c Release
 dotnet run --project more-actions/RingValidation -c Release
