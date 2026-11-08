@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Linq;
 using BepInEx;
 using BepInEx.Unity.IL2CPP;
 using BepInEx.Configuration;
@@ -19,7 +20,7 @@ using ExposureUnnoticed2.Master.Action;
 
 namespace Seleka2.Actions;
 
-[BepInPlugin(Guid, "Seleka2 More Actions", "1.0.0")]
+[BepInPlugin(Guid, "Seleka2 More Actions", "1.4.0")]
 public sealed class Plugin : BasePlugin
 {
     public const string Guid = "local.seleka2.moreactions";
@@ -37,9 +38,11 @@ public sealed class Plugin : BasePlugin
         ActionFaceSettings.KeepGameExpressions = KeepGameExpressions.Value;
         KeepGameExpressions.SettingChanged += (_, _) => ActionFaceSettings.KeepGameExpressions = KeepGameExpressions.Value;
         ModOptions.Log = text => Log.LogWarning(text);
-        ModOptions.Toggle("actions.gameexpressions", "[更多动作] 叠加原游戏表情", "[Actions] Keep game expressions", KeepGameExpressions, "默认在原游戏表情上叠加动作表情。关闭后只显示动作表情。动作 JSON 的 keepGameExpressions=false 优先，开启此项也不能覆盖。", "Overlay action expressions on the game's expressions. When off, show only action expressions. An action's keepGameExpressions=false takes priority over this setting.");
-        ModOptions.Toggle("actions.facecamera", "[更多动作] 面部镜头跟随", "[Actions] Face camera tracking", FollowCamera, "自定义动作播放时，让原版面部摄像机跟随角色头部。面部摄像机显示仍由原版设置控制。", "Track the character's head during custom actions. Camera visibility follows the original settings.");
-        ModOptions.Number("actions.volume", "[更多动作] 动作音乐音量", "[Actions] Music volume", Volume, 0, 100, 0.01f, "", "0 为静音，1 为完整音量；同时受动作配置与游戏主音量、背景音乐音量影响。", "0 is silent; 1 is full volume. Pack volume and native master/BGM volume also apply.");
+        ActionSettingsApi.Initialize();
+        NativeAnimationReplacements.Configure(Config);
+        ActionSettingsApi.Toggle("actions.gameexpressions", "[更多动作] 叠加原游戏表情", "[Actions] Keep game expressions", KeepGameExpressions, "默认在原游戏表情上叠加动作表情。关闭后只显示动作表情。动作 JSON 的 keepGameExpressions=false 优先，开启此项也不能覆盖。", "Overlay action expressions on the game's expressions. When off, show only action expressions. An action's keepGameExpressions=false takes priority over this setting.");
+        ActionSettingsApi.Toggle("actions.facecamera", "[更多动作] 面部镜头跟随", "[Actions] Face camera tracking", FollowCamera, "自定义动作播放时，让原版面部摄像机跟随角色头部。面部摄像机显示仍由原版设置控制。", "Track the character's head during custom actions. Camera visibility follows the original settings.");
+        ActionSettingsApi.Number("actions.volume", "[更多动作] 动作音乐音量", "[Actions] Music volume", Volume, 0, 100, 0.01f, "", "0 为静音，1 为完整音量；同时受动作配置与游戏主音量、背景音乐音量影响。", "0 is silent; 1 is full volume. Pack volume and native master/BGM volume also apply.");
         RingActionMenu.LastActions = Config.Bind("Shortcuts", "LastActions", "", "Custom action IDs for the eight ring shortcuts, separated by commas; stored outside the game save.");
         NativeActionEvents.Register();
         ActionDriver.Current = AddComponent<ActionDriver>();
@@ -47,7 +50,8 @@ public sealed class Plugin : BasePlugin
         var pluginDirectory = Path.GetDirectoryName(typeof(Plugin).Assembly.Location);
         int count = ActionRegistry.LoadPacks(Path.GetFullPath(Path.Combine(pluginDirectory, packs.Value)), Guid);
         ActionBundleImport.Begin(Path.GetFullPath(Path.Combine(pluginDirectory, packs.Value)), Guid + ".bundles");
-        Log.LogInfo("MORE_ACTIONS_READY version=1.0.0 packs=" + count + " ring=true nativeRestrictions=true runtimeSources=true settings=true");
+
+        Log.LogInfo("MORE_ACTIONS_READY version=1.4.0 packs=" + count + " ring=true nativeRestrictions=true runtimeSources=true settings=true");
     }
 }
 
@@ -90,9 +94,11 @@ public sealed class ActionDriver : MonoBehaviour
 
     public void Update()
     {
+
         ActionAssets.Tick();
         ActionBundleImport.Tick();
         var animator = PlayerController.Instance?.Pca?.Animator;
+        NativeAnimationReplacements.Tick(animator);
         ActionTargetApi.Target = animator == null ? null : animator.gameObject;
         ActionTargetApi.IsReady = animator != null && animator.enabled && animator.isInitialized;
         if (Owner != null && Owner != PlayerController.Instance) { StopWithDiagnostics("driver update", "scene/player changed"); Owner = null; }
@@ -480,8 +486,8 @@ public sealed class ActionDriver : MonoBehaviour
         }
         finally { stopping = false; }
     }
-    public void OnDisable() { requests.Clear(); Stop("disabled"); }
-    public void OnDestroy() { requests.Clear(); Stop("destroyed"); if (audio != null) UnityEngine.Object.Destroy(audio); ActionAssets.Clear(); ActionBundleImport.Clear(); ActionTargetApi.Target = null; ActionTargetApi.IsReady = false; if (Current == this) Current = null; }
+    public void OnDisable() { requests.Clear(); Stop("disabled"); NativeAnimationReplacements.Release(); }
+    public void OnDestroy() { requests.Clear(); Stop("destroyed"); if (audio != null) UnityEngine.Object.Destroy(audio); ActionAssets.Clear(); ActionBundleImport.Clear(); NativeAnimationReplacements.Release(); ActionTargetApi.Target = null; ActionTargetApi.IsReady = false; if (Current == this) Current = null; }
 }
 
 [HarmonyPatch(typeof(PlayerController), "OnUpdate")]

@@ -30,6 +30,7 @@ internal static class ActionAssets
     static readonly Dictionary<string, Entry> entries = new(StringComparer.Ordinal);
     static readonly SemaphoreSlim decodeGate = new(1);
     static int revision = -1;
+    internal static int ReadyRevision { get; private set; }
     static string requested;
 
     static void Refresh()
@@ -92,7 +93,7 @@ internal static class ActionAssets
             }
             if (entry.Assets.Audio != null && entry.Assets.Audio.loadState == AudioDataLoadState.Failed) throw new Exception("Audio data failed to load");
             if (entry.Assets.Audio != null && entry.Assets.Audio.loadState != AudioDataLoadState.Loaded) return;
-            entry.Ready = true;
+            entry.Ready = true; ReadyRevision++;
             if (requested == definition.Id) requested = null;
             Plugin.LogSource.LogInfo("ACTION_ASSETS_READY id=" + definition.Id + " motion=" + entry.Assets.Duration + " audio=" + (entry.Assets.Audio == null ? 0 : entry.Assets.Audio.length) + " prepareMs=" + entry.Timer.ElapsedMilliseconds + " uploadStepMaxMs=" + entry.MaxUploadMs);
         }

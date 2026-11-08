@@ -63,7 +63,7 @@ public sealed class MmdPackPreparation : MonoBehaviour
         if (!announced && completed == jobs.Count)
         {
             announced = true;
-            global::Plugin.LogSource.LogInfo("MMD_ACTIONS_READY version=1.0.0 packs=" + registered + " directVmd=true asyncPreparation=true");
+            global::Plugin.LogSource.LogInfo("MMD_ACTIONS_READY version=1.1.0 packs=" + registered + " directVmd=true asyncPreparation=true");
         }
     }
 }

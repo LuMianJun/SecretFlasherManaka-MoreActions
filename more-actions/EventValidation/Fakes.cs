@@ -1,4 +1,4 @@
-#pragma warning disable CS9113 // Adapter constructor parameters mirror production signatures.
+﻿#pragma warning disable CS9113 // Adapter constructor parameters mirror production signatures.
 // Offline boundaries only: production driver, scheduler, native adapters and
 // optional NPC registration are linked unchanged by EventValidation.csproj.
 using Seleka2.Actions;
@@ -225,6 +225,13 @@ namespace Seleka2.ModSettings
 }
 namespace Seleka2.Actions
 {
+    internal static class NativeAnimationReplacements { internal static void Configure(BepInEx.Configuration.ConfigFile config){}internal static void Tick(UnityEngine.Animator animator){}internal static void Release(){} }
+    internal static class ActionSettingsApi
+    {
+        internal static void Initialize(){}
+        internal static void Toggle(string id,string zh,string en,BepInEx.Configuration.ConfigEntry<bool> value,string a,string b){}
+        internal static void Number(string id,string zh,string en,BepInEx.Configuration.ConfigEntry<float> value,int min,int max,float unit,string suffix,string a,string b){}
+    }
     public static class ActionFaceSettings { public static bool KeepGameExpressions {get;set;}=true; }
     public static class RingActionMenu { public static BepInEx.Configuration.ConfigEntry<string> LastActions; }
     internal static class ActionBundleImport { internal static void Begin(string directory,string provider){} internal static void Tick(){} internal static void Clear(){} }

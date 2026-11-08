@@ -1,6 +1,6 @@
 ﻿param(
     [Parameter(Mandatory=$true)][string]$GameDir,
-    [string]$OutputDir = (Join-Path $PSScriptRoot 'releases/SecretFlasherManaka-MoreActions-v1.0.0')
+    [string]$OutputDir = (Join-Path $PSScriptRoot 'releases/replacements-preview-1.4.0')
 )
 $ErrorActionPreference = 'Stop'
 $gameRoot = (Resolve-Path -LiteralPath $GameDir).Path

@@ -5,7 +5,12 @@
     <Compile Include="../Plugin/RuntimeActionSource.cs" Link="RuntimeActionSource.cs" />
     <Compile Include="../Plugin/LoadedAction.cs" Link="LoadedAction.cs" />
     <Compile Include="../Plugin/ActionBundleImport.cs" Link="ActionBundleImport.cs" />
+    <Compile Include="../Plugin/NativeAnimationReplacements.cs" Link="NativeAnimationReplacements.cs" />
+    <Compile Include="../Plugin/NativeAnimatorRefresh.cs" Link="NativeAnimatorRefresh.cs" />
+    <Compile Include="../Plugin/ReplacementCatalog.cs" Link="ReplacementCatalog.cs" />
+    <Compile Include="../Plugin/ReplacementSelection.cs" Link="ReplacementSelection.cs" />
     <Compile Include="../Plugin/ActionNames.cs" Link="ActionNames.cs" />
     <Compile Include="../Plugin/GameAnimationNames.cs" Link="GameAnimationNames.cs" />
+    <Compile Include="../Plugin/ActionSettingsApi.cs" Link="ActionSettingsApi.cs" />
   </ItemGroup>
 </Project>
