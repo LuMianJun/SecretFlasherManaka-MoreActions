@@ -39,6 +39,7 @@ public sealed class Plugin : BasePlugin
         KeepGameExpressions.SettingChanged += (_, _) => ActionFaceSettings.KeepGameExpressions = KeepGameExpressions.Value;
         ModOptions.Log = text => Log.LogWarning(text);
         ActionSettingsApi.Initialize();
+        CameraTransitionDiagnostics.Configure(Config);
         NativeAnimationReplacements.Configure(Config);
         ActionSettingsApi.Toggle("actions.gameexpressions", "[更多动作] 叠加原游戏表情", "[Actions] Keep game expressions", KeepGameExpressions, "默认在原游戏表情上叠加动作表情。关闭后只显示动作表情。动作 JSON 的 keepGameExpressions=false 优先，开启此项也不能覆盖。", "Overlay action expressions on the game's expressions. When off, show only action expressions. An action's keepGameExpressions=false takes priority over this setting.");
         ActionSettingsApi.Toggle("actions.facecamera", "[更多动作] 面部镜头跟随", "[Actions] Face camera tracking", FollowCamera, "自定义动作播放时，让原版面部摄像机跟随角色头部。面部摄像机显示仍由原版设置控制。", "Track the character's head during custom actions. Camera visibility follows the original settings.");
@@ -282,6 +283,7 @@ public sealed class ActionDriver : MonoBehaviour
     [HideFromIl2Cpp]
     internal void BeforeNativeUpdate(PlayerController player)
     {
+        CameraTransitionDiagnostics.BeginFrame(player);
         if (!Playing || Owner != player) return;
         SyncPause();
         (pose as IActionBodyPose)?.RestoreNativeBody();
@@ -504,6 +506,7 @@ static class ActionOutputPatch
         string id = ActionDriver.Current?.Definition?.Id;
         try { ActionDriver.Current?.Apply(); }
         catch (Exception e) { Plugin.LogSource.LogError("ACTION_OUTPUT_FAILED id=" + id + " " + e); ActionDriver.Current?.Stop("pose/event error"); }
+        finally { CameraTransitionDiagnostics.EndFrame(); }
     }
 }
 [HarmonyPatch(typeof(FaceCameraController), "OnLateUpdate")]

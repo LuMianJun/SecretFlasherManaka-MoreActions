@@ -26,6 +26,8 @@ internal static class NativeAnimationReplacements
     internal static void ApplyPack(string pack)=>Persist(Catalog.ApplyPack(pack)>0);
     internal static void ClearPack(string pack)=>Persist(Catalog.ClearPack(pack)>0);
     static readonly Dictionary<string,AnimationClip> slots=new(StringComparer.Ordinal);
+    static readonly Dictionary<IntPtr,AnimationClip> cameraSource=new();
+    static readonly Dictionary<string,AnimationClip> cameraSourceNames=new(StringComparer.Ordinal);
     static readonly HashSet<string> originalNames=new(StringComparer.Ordinal);
     static readonly HashSet<string> controlledSlots=new(StringComparer.Ordinal);
     static Animator animator;
@@ -95,6 +97,8 @@ internal static class NativeAnimationReplacements
             if(actionLayer<0||!current.GetCurrentAnimatorStateInfo(actionLayer).IsName("Action.NoMotion"))return;
             for(int i=0;i<current.layerCount;i++)if(current.IsInTransition(i))return;
             int count=0;
+            bool diagnose=enabled.Value||appliedEnabled||Same(actual,owned);
+            if(diagnose)CameraTransitionDiagnostics.ReplacementChange(current,"before-replacements");
             using(var refresh=enabled.Value||Same(actual,owned)?new NativeAnimatorRefresh(current):null)
             {
                 foreach(var pair in slots)
@@ -108,7 +112,8 @@ internal static class NativeAnimationReplacements
                     if(replacement!=null)controlledSlots.Add(pair.Key);
                     var effective=replacement??(controlledSlots.Contains(pair.Key)?BaselineClip(pair.Value):null);
                     owned.SetClip(pair.Value,effective,false);
-                    if(replacement!=null)count++;
+                    if(replacement!=null){count++;RegisterCamera(pair.Value,replacement);}
+                    else UnregisterCamera(pair.Value);
                 }
                 owned.SendNotification();
                 // Once attached, retain this binding owner even when every
@@ -117,6 +122,7 @@ internal static class NativeAnimationReplacements
                 var target=count>0||Same(actual,owned)?owned:baseline;
                 if(refresh!=null&&(Same(actual,owned)||!Same(current.runtimeAnimatorController,target)))refresh.Evaluate(target);
             }
+            if(diagnose)CameraTransitionDiagnostics.ReplacementChange(current,"after-replacements");
             applied=selection.Revision;appliedEnabled=enabled.Value;
             Plugin.LogSource.LogInfo("ACTION_REPLACEMENTS_APPLIED enabled="+enabled.Value+" clips="+count);
         }
@@ -126,6 +132,42 @@ internal static class NativeAnimationReplacements
             try{Release();}catch(Exception cleanup){Plugin.LogSource.LogWarning("ACTION_REPLACEMENTS_RELEASE_FAILED "+cleanup.Message);}
             faultUntil=Time.unscaledTime+5;
         }
+    }
+    // Il2CppInterop hands out a fresh wrapper per native object, so identity
+    // through Dictionary<AnimationClip,...> is not reliable; key by pointer and
+    // fall back to the authored clip name.
+    static void RegisterCamera(AnimationClip original,AnimationClip replacement)
+    {
+        UnregisterCamera(original);
+        cameraSource[replacement.Pointer]=original;
+        cameraSourceNames[replacement.name]=original;
+    }
+    static void UnregisterCamera(AnimationClip original)
+    {
+        IntPtr stale=IntPtr.Zero;string staleName=null;
+        foreach(var pair in cameraSource)
+            if(Same(pair.Value,original)){stale=pair.Key;break;}
+        if(stale!=IntPtr.Zero)cameraSource.Remove(stale);
+        foreach(var pair in cameraSourceNames)
+            if(Same(pair.Value,original)){staleName=pair.Key;break;}
+        if(staleName!=null)cameraSourceNames.Remove(staleName);
+    }
+    // The replacement clip carries skeleton bones only. NativeCameraTrack asks
+    // which original clip a playing replacement came from so the authored camera
+    // markers can keep running while the slot is replaced.
+    internal static bool IsBoundTo(Animator animator)
+    {
+        if(animator==null||owned==null)return false;
+        var controller=animator.runtimeAnimatorController;
+        return controller!=null&&(Same(controller,owned)||Contains(controller,owned));
+    }
+    internal static int CameraSourceCount=>cameraSource.Count;
+    internal static bool TryGetCameraSource(AnimationClip replacement,out AnimationClip original)
+    {
+        original=null;
+        if(replacement==null)return false;
+        if(cameraSource.TryGetValue(replacement.Pointer,out original))return true;
+        return replacement.name!=null&&cameraSourceNames.TryGetValue(replacement.name,out original);
     }
     // IL2CPP interop exposes only the pointer constructor; the managed
     // (RuntimeAnimatorController) constructor is a native Internal_Create call.
@@ -160,7 +202,7 @@ internal static class NativeAnimationReplacements
         if(owned==null){baseline=null;return;}
         owned.hideFlags=HideFlags.HideAndDontSave;owned.runtimeAnimatorController=baseline;
         slots.Clear();originalNames.Clear();controlledSlots.Clear();var ambiguous=new HashSet<string>();
-
+        cameraSource.Clear();cameraSourceNames.Clear();NativeCameraTrack.Release();
         var nativeClips=SlotsSource(controller).animationClips;
         for(int i=0;i<nativeClips.Length;i++)
         {
@@ -252,6 +294,6 @@ internal static class NativeAnimationReplacements
             if(detached)UnityEngine.Object.Destroy(owned);
             else owned.hideFlags&=~HideFlags.DontUnloadUnusedAsset;
         }
-        owned=null;baseline=null;animator=null;slots.Clear();originalNames.Clear();controlledSlots.Clear();applied=-1;catalog=-1;ready=-1;
+        owned=null;baseline=null;animator=null;slots.Clear();originalNames.Clear();controlledSlots.Clear();cameraSource.Clear();cameraSourceNames.Clear();NativeCameraTrack.Release();applied=-1;catalog=-1;ready=-1;
     }
 }
