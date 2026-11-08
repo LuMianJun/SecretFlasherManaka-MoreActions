@@ -4,7 +4,7 @@ using ExposureUnnoticed2.Object3D.Player.Scripts;
 using ExposureUnnoticed2.ObjectUI.InGame.MessagePanel;
 using ExposureUnnoticed2.Scripts.Base;
 
-namespace Seleka2.Actions;
+namespace SFM.Actions;
 
 // Managed occupation augments existing queries without inventing an MAction
 // or changing the original Animator's ActionId/state-machine nodes.

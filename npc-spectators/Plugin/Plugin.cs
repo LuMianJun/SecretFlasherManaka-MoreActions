@@ -5,12 +5,12 @@ using BepInEx.Configuration;
 using BepInEx.Logging;
 using HarmonyLib;
 using UnityEngine;
-using Seleka2.ModSettings;
+using SFM.ModSettings;
 
-namespace Seleka2.NpcSpectators;
+namespace SFM.NpcSpectators;
 
-[BepInPlugin("local.seleka2.npcspectators", "Seleka2 NPC Spectators", "1.0.0")]
-[BepInDependency("local.seleka2.moreactions", BepInDependency.DependencyFlags.SoftDependency)]
+[BepInPlugin("local.sfm.npcspectators", "SFM NPC Spectators", "1.0.0")]
+[BepInDependency("local.sfm.moreactions", BepInDependency.DependencyFlags.SoftDependency)]
 public sealed class Plugin : BasePlugin
 {
     internal static ManualLogSource Logger;
@@ -38,7 +38,7 @@ public sealed class Plugin : BasePlugin
         ModOptions.Toggle("crowd.allmmd", "[NPC围观] 所有MMD动作", "[Spectators] All MMD actions", FollowAllMmd, "启用后所有MMD动作（包括Shake和新增动作）均可触发；关闭时只使用MmdActions配置名单。需要启用MMD动作触发。", "Gather for every MMD action, including Shake and new imports. Otherwise use the MmdActions list. Requires MMD action triggers.");
         ModOptions.Number("crowd.radius", "[NPC围观] 围观半径", "[Spectators] Radius", Radius, 18, 80, 0.1f, "m", "玩家与第一圈围观行人的距离。", "Distance from the player to the inner spectator ring.");
         ModOptions.Number("crowd.spacing", "[NPC围观] 行人间距", "[Spectators] Spacing", Spacing, 8, 30, 0.1f, "m", "围观目标位置之间的最小间距。", "Minimum separation between spectator destinations.");
-        new Harmony("local.seleka2.npcspectators").PatchAll(typeof(Plugin).Assembly);
+        new Harmony("local.sfm.npcspectators").PatchAll(typeof(Plugin).Assembly);
         Log.LogInfo("CROWD_READY version=1.0.0 standalone=settings native=HipShake optionalMmd=true");
     }
 }

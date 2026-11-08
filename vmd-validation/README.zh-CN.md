@@ -2,7 +2,7 @@
 
 ## 添加动作
 
-1. 打开 `BepInEx/plugins/Seleka2VmdProbe/Motions`。
+1. 打开 `BepInEx/plugins/SFMVmdProbe/Motions`。
 2. 新建一个文件夹，文件夹名字就是游戏里显示的动作名称。
 3. 把动作文件放进去，按照下表命名。
 4. 重启游戏，在环状列表中选择该动作。
@@ -256,6 +256,7 @@ Motions/
 
 ## 升级兼容
 
+- 从 Seleka2 前缀版本升级时，请运行安装脚本迁移动作与配置。安装器会备份移走旧 DLL，保留已有 SFM 配置；手动升级需先移走旧 DLL，避免重复加载。
 - 更新时请同时安装配套的更多动作与 MMD DLL。
 - 使用过配套 PMD 模型配置的动作，请删除 `action.json` 中的 `modelFile`。`source.pmd` 不参与导入；已有模型文件无需用于本插件。
 

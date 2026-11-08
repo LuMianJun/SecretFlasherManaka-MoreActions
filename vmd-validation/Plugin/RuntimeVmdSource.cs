@@ -3,9 +3,9 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using UnityEngine;
-using Seleka2.Actions;
+using SFM.Actions;
 
-namespace Seleka2.Mmd;
+namespace SFM.Mmd;
 
 // This source shares immutable sparse keys; each playback owns a solver.
 public sealed class RuntimeVmdSource : IActionSource, IPreparedActionSource

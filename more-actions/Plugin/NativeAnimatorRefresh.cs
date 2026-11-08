@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using UnityEngine;
 
-namespace Seleka2.Actions;
+namespace SFM.Actions;
 
 // A controller/clip-binding change needs one native pose evaluation before
 // native additive body/camera corrections run. Same-base override changes

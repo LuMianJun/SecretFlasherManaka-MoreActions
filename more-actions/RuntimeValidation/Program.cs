@@ -1,4 +1,4 @@
-using Seleka2.Actions;
+using SFM.Actions;
 using UnityEngine;
 
 int count = 0;
@@ -35,7 +35,7 @@ sealed class Source(float duration) : IActionSource
     public IActionPose CreatePose(GameObject target, ActionDefinition action) => throw new NotSupportedException();
 }
 namespace UnityEngine { public sealed class GameObject {} public struct Vector3 { public float x,y,z; } }
-namespace Seleka2.Actions
+namespace SFM.Actions
 {
     public sealed class Logger { public void LogWarning(string message) {} }
     public static class Plugin { public static Logger LogSource = new(); }

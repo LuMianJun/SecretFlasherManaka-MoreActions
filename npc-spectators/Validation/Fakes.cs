@@ -13,7 +13,7 @@ public sealed class TestLog
     public void LogWarning(object value) => Lines.Add(value.ToString());
     public void LogError(object value) => Lines.Add(value.ToString());
 }
-namespace Seleka2.NpcSpectators
+namespace SFM.NpcSpectators
 {
     internal sealed class Entry<T>(T value) { internal T Value = value; }
     internal static class Plugin

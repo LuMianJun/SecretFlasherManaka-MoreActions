@@ -1,7 +1,7 @@
 using System;
 using System.IO;
 using UnityEngine;
-namespace Seleka2.Actions;
+namespace SFM.Actions;
 internal static class WaveAudio
 {
     internal sealed record Decoded(string Name, int Channels, int Rate, float[] Samples);

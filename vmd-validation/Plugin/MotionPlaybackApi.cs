@@ -1,6 +1,6 @@
 using System;
 
-namespace Seleka2.Motion;
+namespace SFM.Motion;
 
 // Optional managed API. Consumers discover it without referencing this DLL.
 public static class MotionPlaybackApi

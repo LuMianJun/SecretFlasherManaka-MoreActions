@@ -3,17 +3,17 @@ using System.IO;
 using BepInEx;
 using BepInEx.Logging;
 using BepInEx.Unity.IL2CPP;
-using Seleka2.Actions;
-using Seleka2.Mmd;
+using SFM.Actions;
+using SFM.Mmd;
 using HarmonyLib;
 using BepInEx.Configuration;
-using Seleka2.ModSettings;
+using SFM.ModSettings;
 
-[BepInPlugin(Guid, "Seleka2 MMD Actions", "1.1.0")]
-[BepInDependency(Seleka2.Actions.Plugin.Guid)]
+[BepInPlugin(Guid, "SFM MMD Actions", "1.1.0")]
+[BepInDependency(SFM.Actions.Plugin.Guid)]
 public sealed class Plugin : BasePlugin
 {
-    public const string Guid = "local.seleka2.vmdprobe";
+    public const string Guid = "local.sfm.vmdprobe";
     internal static ManualLogSource LogSource;
     internal static ConfigEntry<bool> UseCamera;
     public override void Load()
@@ -30,11 +30,11 @@ public sealed class Plugin : BasePlugin
         ActionPlaybackApi.PlaybackChanged += ForwardCompatibilityEvent;
         var cameraDriver = AddComponent<MmdCameraDriver>(); cameraDriver.Bind();
         new Harmony(Guid).PatchAll(typeof(Plugin).Assembly);
-        Log.LogInfo("MMD_ACTIONS_LOADING version=1.1.0 queued=" + count + " directVmd=true cameraDistribution=true settings=true base=" + Seleka2.Actions.Plugin.Guid);
+        Log.LogInfo("MMD_ACTIONS_LOADING version=1.1.0 queued=" + count + " directVmd=true cameraDistribution=true settings=true base=" + SFM.Actions.Plugin.Guid);
     }
     static void ForwardCompatibilityEvent(string id, bool active)
     {
-        if (active && ActionPlaybackApi.CurrentProviderId == Guid) Seleka2.Motion.MotionPlaybackApi.Publish(id, true);
-        else if (!active && Seleka2.Motion.MotionPlaybackApi.IsPlaying && Seleka2.Motion.MotionPlaybackApi.CurrentMotionId == id) Seleka2.Motion.MotionPlaybackApi.Publish(id, false);
+        if (active && ActionPlaybackApi.CurrentProviderId == Guid) SFM.Motion.MotionPlaybackApi.Publish(id, true);
+        else if (!active && SFM.Motion.MotionPlaybackApi.IsPlaying && SFM.Motion.MotionPlaybackApi.CurrentMotionId == id) SFM.Motion.MotionPlaybackApi.Publish(id, false);
     }
 }

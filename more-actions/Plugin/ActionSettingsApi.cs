@@ -1,8 +1,8 @@
 using System;
 using BepInEx.Configuration;
-using Seleka2.ModSettings;
+using SFM.ModSettings;
 
-namespace Seleka2.Actions;
+namespace SFM.Actions;
 
 // Optional providers register into the same native page. Config ownership
 // stays with the provider; moving UI never renames existing configuration keys.

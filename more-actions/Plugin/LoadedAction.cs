@@ -1,5 +1,5 @@
 using UnityEngine;
-namespace Seleka2.Actions;
+namespace SFM.Actions;
 
 internal sealed class LoadedAction
 {

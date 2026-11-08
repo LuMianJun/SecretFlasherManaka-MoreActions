@@ -4,7 +4,7 @@
 
 ## 添加动画包
 
-默认目录是 `BepInEx/plugins/Seleka2MoreActions/Actions/`。不同资源包各放一个子文件夹，允许文件同名：
+默认目录是 `BepInEx/plugins/SFMMoreActions/Actions/`。不同资源包各放一个子文件夹，允许文件同名：
 
 ```text
 Actions/
@@ -24,7 +24,7 @@ Humanoid 动画使用游戏角色的 Avatar；Generic 动画需要匹配游戏�
 - 原动作匹配区分大小写，与 bundle 文件名或资产路径无关。
 - 不同包提供同名原动作时，可在设置中选择其中一个来源。
 
-目录由 `BepInEx/config/local.seleka2.moreactions.cfg` 的 `[Actions] Directory` 指定，路径相对于更多动作 DLL 所在目录。修改目录、资源或 JSON 后重启游戏。
+目录由 `BepInEx/config/local.sfm.moreactions.cfg` 的 `[Actions] Directory` 指定，路径相对于更多动作 DLL 所在目录。修改目录、资源或 JSON 后重启游戏。
 
 ## 从转盘播放
 
@@ -128,6 +128,7 @@ VMD 使用 MMD 插件的 `motion.vmd` 与可选 `action.json`，无需制作 bun
 
 ## 升级兼容
 
+- 从 Seleka2 前缀版本升级时，请运行安装脚本迁移动作与配置。安装器会备份移走旧 DLL，保留已有 SFM 配置；手动升级需先移走旧 DLL，避免重复加载。
 - 从使用 `BepInEx/plugins/AnimReplacer/` 的试用版升级时，将资源包移至 `Actions/` 并重新选择替换资源和转盘快捷槽。`[LegacyAnimations] Directory` 不生效。
 - 本插件不读取原 AnimReplacer 的勾选记录。不要同时让两个插件替换相同的原动画。
 

@@ -1,7 +1,7 @@
 using System;
 using UnityEngine;
 
-namespace Seleka2.Actions;
+namespace SFM.Actions;
 
 // Optional providers evaluate imported motion without baking an AnimationClip.
 // Every player/preview receives its own pose and restoration state.

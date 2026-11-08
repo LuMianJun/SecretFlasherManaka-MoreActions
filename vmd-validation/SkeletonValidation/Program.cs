@@ -1,7 +1,7 @@
 using System.Text;
 using UnityEngine;
-using Seleka2.Actions;
-using Seleka2.Mmd;
+using SFM.Actions;
+using SFM.Mmd;
 
 try
 {
@@ -673,7 +673,7 @@ using(var pose=new RuntimeVmdPose(bad.avatar,new ActionDefinition(),expressive))
 {
     Check(pose.Apply(.5f)&&bad.renderer.GetBlendShapeWeight(425)==0,"Unexpected model layout disables morph writes while keeping body animation available");
 }
-Check(Seleka2.Actions.Plugin.LogSource.Messages.Any(m=>m.Contains("FIXED_FACE_LAYOUT_MISMATCH")),"Unsupported layout produces a clear one-time diagnostic");
+Check(SFM.Actions.Plugin.LogSource.Messages.Any(m=>m.Contains("FIXED_FACE_LAYOUT_MISMATCH")),"Unsupported layout produces a clear one-time diagnostic");
 var protectedFace=Avatar();protectedFace.renderer.SetBlendShapeWeight(55,71);protectedFace.renderer.SetBlendShapeWeight(145,72);protectedFace.renderer.SetBlendShapeWeight(373,73);
 var protectedLayer=new ActionFaceMorphLayer(protectedFace.avatar,new ActionDefinition{KeepGameExpressions=false});
 Check(!protectedLayer.BindMorph(protectedFace.renderer,55)&&!protectedLayer.BindMorph(protectedFace.renderer,145)&&!protectedLayer.BindMorph(protectedFace.renderer,373),"Appearance slots cannot be registered by the fixed morph layer");
@@ -690,7 +690,7 @@ catch(Exception error)
     Environment.ExitCode=1;
 }
 
-namespace Seleka2.Actions
+namespace SFM.Actions
 {
     public enum ActionBodyMask { FullBody,UpperBody,LowerBody }
     public sealed class ActionDefinition
@@ -715,7 +715,7 @@ namespace Seleka2.Actions
     public sealed class Logger {public readonly List<string> Messages=new();public void LogInfo(string message)=>Messages.Add(message); public void LogWarning(string message)=>Messages.Add(message); }
     public static class Plugin { public static Logger LogSource=new(); }
 }
-public static class Plugin {public const string Guid="test";public static Seleka2.Actions.Logger LogSource=new();}
+public static class Plugin {public const string Guid="test";public static SFM.Actions.Logger LogSource=new();}
 namespace HarmonyLib { [AttributeUsage(AttributeTargets.Class)] public sealed class HarmonyPatch:Attribute {public HarmonyPatch(Type owner,string method){}} }
 namespace ExposureUnnoticed2.Object3D.Player.Scripts {public sealed class PlayerBoneScaleAdjustManager {} public sealed class PlayerBoneScaleAdjuster {}}
 namespace ExposureUnnoticed2.Object3D.IngameManager {public sealed class InGameUiManager {public static InGameUiManager Instance;public bool IsOpenSomeUi;}}

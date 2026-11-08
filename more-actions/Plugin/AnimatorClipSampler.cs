@@ -3,7 +3,7 @@ using UnityEngine;
 using UnityEngine.Animations;
 using UnityEngine.Playables;
 
-namespace Seleka2.Actions;
+namespace SFM.Actions;
 
 // Native Humanoid/Generic evaluation runs on a script-free, renderer-free
 // proxy. Never assign a controller, Avatar or root-motion flag to the player.

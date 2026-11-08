@@ -5,7 +5,7 @@ using System.Linq;
 using System.Collections.Generic;
 using UnityEngine;
 
-namespace Seleka2.Mmd;
+namespace SFM.Mmd;
 
 // MMD's default character faces -Z, while this game's character faces +Z.
 // Rotate the MMD frame 180 degrees about Y, as UnityVMDPlayer does. This is

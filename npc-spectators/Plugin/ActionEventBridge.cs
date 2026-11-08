@@ -3,7 +3,7 @@ using System.Linq;
 using System.Reflection;
 using System.Text.Json;
 
-namespace Seleka2.NpcSpectators;
+namespace SFM.NpcSpectators;
 
 // Optional registration through a CLR-only delegate API. No base/MMD assembly
 // reference is introduced, so NPC Spectators still loads on its own.
@@ -13,8 +13,8 @@ internal static class ActionEventBridge
     internal static void Refresh()
     {
         if (registration != null) return;
-        var assembly = AppDomain.CurrentDomain.GetAssemblies().FirstOrDefault(a => a.GetName().Name == "Seleka2.MoreActions");
-        var registry = assembly?.GetType("Seleka2.Actions.ActionEventRegistry");
+        var assembly = AppDomain.CurrentDomain.GetAssemblies().FirstOrDefault(a => a.GetName().Name == "SFM.MoreActions");
+        var registry = assembly?.GetType("SFM.Actions.ActionEventRegistry");
         if (registry == null) return;
         var method = registry.GetMethod("Register", BindingFlags.Public | BindingFlags.Static, null,
             new[] { typeof(string), typeof(Action<string>), typeof(Func<string, string, IDisposable>) }, null);

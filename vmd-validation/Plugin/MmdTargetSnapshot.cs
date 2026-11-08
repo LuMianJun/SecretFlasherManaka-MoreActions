@@ -2,10 +2,10 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using UnityEngine;
-using Seleka2.Actions;
+using SFM.Actions;
 using NVector = System.Numerics.Vector3;
 
-namespace Seleka2.Mmd;
+namespace SFM.Mmd;
 
 // Live references are collected separately from persistent shape/solver data.
 internal sealed class MmdTargetSnapshot

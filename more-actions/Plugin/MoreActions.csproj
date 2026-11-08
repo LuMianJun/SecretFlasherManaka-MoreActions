@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <TargetFramework>net6.0</TargetFramework><LangVersion>latest</LangVersion>
-    <AssemblyName>Seleka2.MoreActions</AssemblyName><EnableDefaultCompileItems>true</EnableDefaultCompileItems>
+    <AssemblyName>SFM.MoreActions</AssemblyName><EnableDefaultCompileItems>true</EnableDefaultCompileItems>
     <RestoreIgnoreFailedSources>true</RestoreIgnoreFailedSources>
   </PropertyGroup>
   <ItemGroup>

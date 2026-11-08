@@ -5,7 +5,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using UnityEngine;
 
-namespace Seleka2.Actions;
+namespace SFM.Actions;
 
 // Imports AnimReplacer-style bundles from the Actions collection. Every clip
 // becomes an action; clips named after a native motion double as replacement

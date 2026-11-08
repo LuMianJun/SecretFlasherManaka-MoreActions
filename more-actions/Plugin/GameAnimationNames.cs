@@ -4,7 +4,7 @@
 using System;
 using System.Collections.Generic;
 using ExposureUnnoticed2.Scripts.Base;
-namespace Seleka2.Actions;
+namespace SFM.Actions;
 internal static class GameAnimationNames
 {
     sealed record Entry(string Key,string[] Words,string[] Suffix);

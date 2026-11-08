@@ -30,7 +30,7 @@ internal static class InstalledContract
         using var motion=new PEReader(File.OpenRead(motionDll));var mm=motion.GetMetadataReader();
         string[] cr=cm.AssemblyReferences.Select(h=>cm.GetString(cm.GetAssemblyReference(h).Name)).ToArray();
         string[] mr=mm.AssemblyReferences.Select(h=>mm.GetString(mm.GetAssemblyReference(h).Name)).ToArray();
-        if(cr.Contains("Seleka2.VmdProbe")||mr.Contains("Seleka2.NpcSpectators"))throw new Exception("Plugins have a mandatory assembly dependency.");
+        if(cr.Contains("SFM.VmdProbe")||mr.Contains("SFM.NpcSpectators"))throw new Exception("Plugins have a mandatory assembly dependency.");
         bool nativeApproach=false;
         foreach(var handle in cm.MemberReferences)
         {

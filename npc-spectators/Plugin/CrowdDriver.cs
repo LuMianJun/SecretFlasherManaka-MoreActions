@@ -10,7 +10,7 @@ using ExposureUnnoticed2.Scripts.InGame;
 using ExposureUnnoticed2.Object3D.IngameManager;
 using ExposureUnnoticed2.Scripts.Base;
 
-namespace Seleka2.NpcSpectators;
+namespace SFM.NpcSpectators;
 
 public sealed class CrowdDriver : MonoBehaviour
 {

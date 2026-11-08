@@ -4,7 +4,7 @@ using System.Numerics;
 
 public static class Plugin
 {
-    public const string Guid = "local.seleka2.vmdprobe";
+    public const string Guid = "local.sfm.vmdprobe";
     public static Setting<bool> UseCamera = new() { Value = true };
     public static TestLog LogSource = new();
 }
@@ -78,7 +78,7 @@ namespace ExposureUnnoticed2.Object3D.Player.Scripts
         public ExposureUnnoticed2.Object3D.Camera.FPCameraController fpCameraController = new();
     }
 }
-namespace Seleka2.Actions
+namespace SFM.Actions
 {
     public static class Plugin { public static TestLog LogSource = new(); }
     public enum ActionBodyMask { FullBody, UpperBody, LowerBody }

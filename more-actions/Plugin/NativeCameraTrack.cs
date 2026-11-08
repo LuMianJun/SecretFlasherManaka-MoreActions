@@ -4,7 +4,7 @@ using HarmonyLib;
 using UnityEngine;
 using ExposureUnnoticed2.Object3D.Player.Scripts;
 
-namespace Seleka2.Actions;
+namespace SFM.Actions;
 
 // Replacement packs carry skeleton bones only. The native clips also key the
 // camera markers (CameraTarget, FirstPersonCameraParent/FirstPersonCamera):
@@ -264,7 +264,7 @@ internal static class NativeCameraTrack
     {
         if(owner==animator&&real.Count>0)return true;
         Release();owner=animator;
-        proxyRoot=new GameObject("Seleka2CameraTrack"){hideFlags=HideFlags.HideAndDontSave};
+        proxyRoot=new GameObject("SFMCameraTrack"){hideFlags=HideFlags.HideAndDontSave};
         var referencer=player.Pca.PlayerAvatarObjectReferencer;
         // The referencer points at CameraTarget2; native clips key its parent,
         // the actual camera pivot. Sampling the child silently binds nothing.

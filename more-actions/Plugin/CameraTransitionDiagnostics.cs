@@ -7,7 +7,7 @@ using ExposureUnnoticed2.Object3D.Player.Scripts;
 using HarmonyLib;
 using UnityEngine;
 
-namespace Seleka2.Actions;
+namespace SFM.Actions;
 
 // Read-only snapshots: four selected frames per crouch/action/controller
 // transition, not a continuous camera trace and never an offset correction.

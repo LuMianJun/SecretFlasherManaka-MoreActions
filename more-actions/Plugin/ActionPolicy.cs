@@ -1,6 +1,6 @@
 using System;
 
-namespace Seleka2.Actions;
+namespace SFM.Actions;
 
 public readonly record struct ActionAvailability(bool Initialized, bool Idle, bool NativeAction, bool Ecstasy, bool Crouching, bool Sitting, bool Handcuffed, bool SexMode, bool Moving, bool UiOpen, bool GameUnavailable);
 

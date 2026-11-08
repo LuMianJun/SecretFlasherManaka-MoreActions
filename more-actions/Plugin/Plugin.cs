@@ -14,16 +14,16 @@ using ExposureUnnoticed2.ObjectUI.InGame.RingMenu;
 using ExposureUnnoticed2.ObjectUI.InGame.MessagePanel;
 using ExposureUnnoticed2.Scripts.Base;
 using ExposureUnnoticed2.Scripts.InGame;
-using Seleka2.ModSettings;
+using SFM.ModSettings;
 using Il2CppInterop.Runtime.Attributes;
 using ExposureUnnoticed2.Master.Action;
 
-namespace Seleka2.Actions;
+namespace SFM.Actions;
 
-[BepInPlugin(Guid, "Seleka2 More Actions", "1.4.0")]
+[BepInPlugin(Guid, "SFM More Actions", "1.4.0")]
 public sealed class Plugin : BasePlugin
 {
-    public const string Guid = "local.seleka2.moreactions";
+    public const string Guid = "local.sfm.moreactions";
     internal static ManualLogSource LogSource;
     internal static ConfigEntry<float> Volume;
     internal static ConfigEntry<bool> FollowCamera;

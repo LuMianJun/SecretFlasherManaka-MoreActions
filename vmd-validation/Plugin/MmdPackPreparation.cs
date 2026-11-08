@@ -2,10 +2,10 @@ using System;
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
-using Seleka2.Actions;
+using SFM.Actions;
 using UnityEngine;
 
-namespace Seleka2.Mmd;
+namespace SFM.Mmd;
 
 public sealed class MmdPackPreparation : MonoBehaviour
 {

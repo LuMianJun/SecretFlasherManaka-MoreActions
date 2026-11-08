@@ -1,4 +1,4 @@
-namespace Seleka2.Actions;
+namespace SFM.Actions;
 using System.Collections.Generic;
 
 public static class MotionRig

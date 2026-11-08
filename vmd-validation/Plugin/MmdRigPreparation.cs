@@ -3,12 +3,12 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using HarmonyLib;
-using Seleka2.Actions;
+using SFM.Actions;
 using ExposureUnnoticed2.Object3D.Player.Scripts;
 using ExposureUnnoticed2.Object3D.IngameManager;
 using UnityEngine;
 
-namespace Seleka2.Mmd;
+namespace SFM.Mmd;
 
 public sealed class MmdRigPreparation : MonoBehaviour
 {

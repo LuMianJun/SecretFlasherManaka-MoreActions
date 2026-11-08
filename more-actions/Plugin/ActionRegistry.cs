@@ -4,7 +4,7 @@ using System.IO;
 using System.Linq;
 using System.Text.Json;
 
-namespace Seleka2.Actions;
+namespace SFM.Actions;
 
 public enum ActionBodyMask { FullBody, UpperBody, LowerBody }
 

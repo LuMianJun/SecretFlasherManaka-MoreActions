@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using UnityEngine;
 
-namespace Seleka2.Actions;
+namespace SFM.Actions;
 
 // Owns only explicitly selected body transforms. Native animation still runs
 // for body customization, facial animation and accessory physics.

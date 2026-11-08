@@ -6,7 +6,7 @@ namespace UnityEngine
         public void SampleAnimation(GameObject target,float seconds)=>Evaluate?.Invoke(target,seconds);
     }
 }
-namespace Seleka2.Actions
+namespace SFM.Actions
 {
     public sealed class ActionDefinition
     {

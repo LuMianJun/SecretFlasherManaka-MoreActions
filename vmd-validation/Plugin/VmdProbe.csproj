@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <TargetFramework>net6.0</TargetFramework><LangVersion>latest</LangVersion>
-    <AssemblyName>Seleka2.VmdProbe</AssemblyName><EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <AssemblyName>SFM.VmdProbe</AssemblyName><EnableDefaultCompileItems>false</EnableDefaultCompileItems>
     <RestoreIgnoreFailedSources>true</RestoreIgnoreFailedSources>
   </PropertyGroup>
   <ItemGroup>

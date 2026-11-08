@@ -1,4 +1,4 @@
-namespace Seleka2.Actions;
+namespace SFM.Actions;
 using ExposureUnnoticed2.Object3D.Camera;
 using ExposureUnnoticed2.Object3D.Player.Scripts;
 using UnityEngine;

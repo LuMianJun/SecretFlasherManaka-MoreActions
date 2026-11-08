@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 using UnityEngine;
 
-namespace Seleka2.NpcSpectators;
+namespace SFM.NpcSpectators;
 
 // Standpoint selection only. Cast before navigation projection, then recheck
 // the actual projected point so a nearby navmesh cannot put a spectator behind a wall.

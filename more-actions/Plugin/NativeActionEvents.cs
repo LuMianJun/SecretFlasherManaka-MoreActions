@@ -8,7 +8,7 @@ using ExposureUnnoticed2.Scripts.Base;
 using ExposureUnnoticed2.Scripts.Sound;
 using UnityEngine;
 
-namespace Seleka2.Actions;
+namespace SFM.Actions;
 
 internal static class NativeActionEvents
 {

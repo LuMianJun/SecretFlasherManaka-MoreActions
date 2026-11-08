@@ -1,13 +1,13 @@
 using System;
 using HarmonyLib;
-using Seleka2.Actions;
+using SFM.Actions;
 using ExposureUnnoticed2.Object3D.Camera;
 using ExposureUnnoticed2.Object3D.Player.Scripts;
 using UnityEngine;
 using NVector = System.Numerics.Vector3;
 using NQuaternion = System.Numerics.Quaternion;
 
-namespace Seleka2.Mmd;
+namespace SFM.Mmd;
 
 public sealed class MmdCameraDriver : MonoBehaviour
 {

@@ -1,4 +1,4 @@
-using Seleka2.Actions;
+using SFM.Actions;
 using UnityEngine;
 using UnityEngine.Playables;
 
@@ -90,7 +90,7 @@ try
         Array.Fill(faceNode.renderer.Values,0);Array.Fill(bodyNode.renderer.Values,0);
     };
     actor.isInitialized=false;NativeAnimationReplacements.Tick(actor);
-    Check(actor.runtimeAnimatorController==baseController&&!Seleka2.ModSettings.ModOptions.Rows.Keys.Any(k=>k.StartsWith("replacement.variant.")),"Player initialization cannot cache an incomplete clip catalog");
+    Check(actor.runtimeAnimatorController==baseController&&!SFM.ModSettings.ModOptions.Rows.Keys.Any(k=>k.StartsWith("replacement.variant.")),"Player initialization cannot cache an incomplete clip catalog");
     actor.isInitialized=true;
     NativeAnimationReplacements.Tick(actor);
     var aId="test.a";var bId="test.b";
@@ -98,7 +98,7 @@ try
     var bRow=(Read:(Func<bool>)(()=>NativeAnimationReplacements.Catalog.Selected("Female_Idle_Base")==bId),Write:(Action<bool>)(v=>NativeAnimationReplacements.SelectVariant(bId,v)));
     Check(actor.runtimeAnimatorController==baseController&&!enable.Value,"Replacement defaults never change the actor controller");
     Check(actor.UpdateCalls==0,"Disabled detached replacements do not force native evaluation");
-    Check(NativeAnimationReplacements.Catalog.Options.Count==2&&!Seleka2.ModSettings.ModOptions.Rows.Keys.Any(k=>k.StartsWith("replacement.variant.")),"Replacement candidates belong to the browser instead of expanding the settings page");
+    Check(NativeAnimationReplacements.Catalog.Options.Count==2&&!SFM.ModSettings.ModOptions.Rows.Keys.Any(k=>k.StartsWith("replacement.variant.")),"Replacement candidates belong to the browser instead of expanding the settings page");
     aRow.Write(true);enable.Value=true;
     var playerState=ExposureUnnoticed2.Object3D.Player.Scripts.PlayerController.Instance.Pca.PlayerState;
     playerState.IsSit=true;NativeAnimationReplacements.Tick(actor);
@@ -190,7 +190,7 @@ try
     Check(transferred.runtimeAnimatorController==foreign&&transferred.Weights[1]==.8f&&transferredShape.renderer.Values[0]==91f&&transferred.cullingMode==AnimatorCullingMode.CullCompletely,"A different controller taking ownership during evaluation keeps its own appearance and policy");
     var ambiguousBase=new RuntimeAnimatorController{Originals=new[]{new AnimationClip{name="Female_Idle_Base"},new AnimationClip{name="Female_Idle_Base"}}};
     var ambiguousActor=new Animator{avatar=new(),runtimeAnimatorController=ambiguousBase};saved.Value="{\"Female_Idle_Base\":\""+aId+"\"}";NativeAnimationReplacements.Tick(ambiguousActor);
-    Check(ambiguousActor.runtimeAnimatorController==ambiguousBase&&!Seleka2.ModSettings.ModOptions.Rows.Keys.Any(k=>k.StartsWith("replacement.variant.")),"Distinct original clips sharing a name are excluded instead of choosing an arbitrary target");
+    Check(ambiguousActor.runtimeAnimatorController==ambiguousBase&&!SFM.ModSettings.ModOptions.Rows.Keys.Any(k=>k.StartsWith("replacement.variant.")),"Distinct original clips sharing a name are excluded instead of choosing an arbitrary target");
     var unreferencedLayer=(AnimatorOverrideController)UnityEngine.Object.LastInstantiated;
     NativeAnimationReplacements.Release();
     Check(unreferencedLayer.destroyed,"A detached layer with no native owner is destroyed on release");
@@ -224,7 +224,7 @@ try
         Check(ActionNames.Clip("CatPose")=="CatPose"&&ActionNames.Clip("V-sign")=="V-sign"&&ActionNames.Clip("Author_Custom")=="Author_Custom","External motion names remain unchanged in language "+language);
     }
     ActionSettingsApi.Initialize();
-    Check(Seleka2.ModSettings.ModOptions.Dedicated&&!string.IsNullOrWhiteSpace(Seleka2.ModSettings.ModOptions.PageTitle()),"Shared settings API registers a dedicated localized page");
+    Check(SFM.ModSettings.ModOptions.Dedicated&&!string.IsNullOrWhiteSpace(SFM.ModSettings.ModOptions.PageTitle()),"Shared settings API registers a dedicated localized page");
     ActionRegistry.Entries.Clear();Check(ActionRegistry.Entries.Count==0,"Provider cleanup unregisters actions");
     Console.WriteLine($"PASS {assertions} assertions: action collection, replacements, sampling, multilingual labels and cleanup; offline boundaries, not rendered game verification");
 }

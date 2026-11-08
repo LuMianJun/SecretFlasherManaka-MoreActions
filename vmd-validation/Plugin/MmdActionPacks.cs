@@ -4,9 +4,9 @@ using System.IO;
 using System.Linq;
 using System.Text.Json;
 using System.Text.Json.Serialization;
-using Seleka2.Actions;
+using SFM.Actions;
 
-namespace Seleka2.Mmd;
+namespace SFM.Mmd;
 
 internal sealed record MmdActionPack(ActionDefinition Action, string Directory, string Json,
     string MotionPath, MmdReferencePose ReferencePose);

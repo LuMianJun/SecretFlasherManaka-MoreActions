@@ -1,7 +1,7 @@
 ﻿#pragma warning disable CS9113 // Adapter constructor parameters mirror production signatures.
 // Offline boundaries only: production driver, scheduler, native adapters and
 // optional NPC registration are linked unchanged by EventValidation.csproj.
-using Seleka2.Actions;
+using SFM.Actions;
 using ExposureUnnoticed2.Scripts.Base;
 namespace Il2CppInterop.Runtime.Attributes
 {
@@ -215,7 +215,7 @@ namespace ExposureUnnoticed2.Object3D.Player.Scripts
         public void FootR(UnityEngine.AnimationEvent value) => Feet.Add(("Right",(ExposureUnnoticed2.Object3D.Player.ScriptableObject.MFootAnimationEventRecord)value.objectReferenceParameter));
     }
 }
-namespace Seleka2.ModSettings
+namespace SFM.ModSettings
 {
     public static class ModOptions
     {
@@ -223,7 +223,7 @@ namespace Seleka2.ModSettings
         public static void Number(string a,string b,string c,BepInEx.Configuration.ConfigEntry<float> d,int e,int f,float g,string h,string i,string j) {}
     }
 }
-namespace Seleka2.Actions
+namespace SFM.Actions
 {
     internal static class CameraTransitionDiagnostics {internal static void Configure(BepInEx.Configuration.ConfigFile config){}internal static void BeginFrame(ExposureUnnoticed2.Object3D.Player.Scripts.PlayerController player){}internal static void EndFrame(){} }
     internal static class NativeAnimationReplacements { internal static void Configure(BepInEx.Configuration.ConfigFile config){}internal static void Tick(UnityEngine.Animator animator){}internal static void Release(){} }

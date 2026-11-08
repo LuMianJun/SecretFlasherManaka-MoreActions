@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using UnityEngine;
 
-namespace Seleka2.Actions;
+namespace SFM.Actions;
 
 // Fixed base-model channel layout, verified against the original Player /
 // Manustia Body.001 export. Only names/indices are included, no model assets.

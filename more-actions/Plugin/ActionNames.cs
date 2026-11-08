@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using ExposureUnnoticed2.Scripts.Base;
 using ExposureUnnoticed2.Scripts.InGame;
 
-namespace Seleka2.Actions;
+namespace SFM.Actions;
 
 internal static class ActionNames
 {

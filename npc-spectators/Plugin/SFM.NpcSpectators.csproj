@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <TargetFramework>net6.0</TargetFramework><LangVersion>latest</LangVersion>
-    <AssemblyName>Seleka2.NpcSpectators</AssemblyName><RestoreIgnoreFailedSources>true</RestoreIgnoreFailedSources>
+    <AssemblyName>SFM.NpcSpectators</AssemblyName><RestoreIgnoreFailedSources>true</RestoreIgnoreFailedSources>
   </PropertyGroup>
   <ItemGroup>
     <Reference Include="BepInEx.Core"><HintPath>$(GameDir)/BepInEx/core/BepInEx.Core.dll</HintPath><Private>false</Private></Reference>

@@ -1,4 +1,4 @@
-namespace Seleka2.Actions;
+namespace SFM.Actions;
 using System;
 using System.Collections.Generic;
 using UnityEngine;

@@ -6,11 +6,11 @@ using ExposureUnnoticed2.Scripts.Base;
 using HadakaCoat.ObjectsUi.Common.Button;
 using HarmonyLib;
 using Il2CppInterop.Runtime;
-using Seleka2.ModSettings;
+using SFM.ModSettings;
 using UnityEngine;
 using UnityEngine.UI;
 
-namespace Seleka2.Actions;
+namespace SFM.Actions;
 
 internal static class MoreActionsSettingsPage
 {

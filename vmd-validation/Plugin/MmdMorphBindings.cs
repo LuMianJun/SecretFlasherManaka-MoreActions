@@ -1,10 +1,10 @@
 using System;
 using System.Collections.Generic;
 using System.Text;
-using Seleka2.Actions;
+using SFM.Actions;
 using UnityEngine;
 
-namespace Seleka2.Mmd;
+namespace SFM.Mmd;
 
 internal static class MmdMorphBindings
 {

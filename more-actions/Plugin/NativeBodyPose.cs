@@ -4,7 +4,7 @@ using System.Reflection;
 using HarmonyLib;
 using ExposureUnnoticed2.Object3D.Player.Scripts;
 
-namespace Seleka2.Actions;
+namespace SFM.Actions;
 
 // Bracket only the active player's native late pass. NPC LookAt updates occur
 // outside this scope and retain their original behavior.

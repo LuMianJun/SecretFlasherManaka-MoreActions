@@ -24,7 +24,7 @@ internal static class InstalledCameraContract
                 throw new Exception("Unexpected BepInDependency constructor");
             if(signature.ReadByte()!=0x11)throw new Exception("MMD dependency must use presence/load-order, not a version string");
             var blob=metadata.GetBlobReader(attribute.Value);
-            if(blob.ReadUInt16()!=1||blob.ReadSerializedString()!="local.seleka2.moreactions"||blob.ReadInt32()!=1)
+            if(blob.ReadUInt16()!=1||blob.ReadSerializedString()!="local.sfm.moreactions"||blob.ReadInt32()!=1)
                 throw new Exception("MMD must retain its More Actions hard dependency");
             found++;
         }
@@ -107,9 +107,9 @@ internal static class InstalledCameraContract
             ["OptionItemBarView"] = new[] { "Initialize", "OnChangeSlider" },
             ["Localizer"] = new[] { "Trans" }
         });
-        string baseDll = Path.Combine(game, "BepInEx", "plugins", "Seleka2MoreActions", "Seleka2.MoreActions.dll");
-        string mmdDll = Path.Combine(game, "BepInEx", "plugins", "Seleka2VmdProbe", "Seleka2.VmdProbe.dll");
-        string npcDll = Path.Combine(game, "BepInEx", "plugins", "Seleka2NpcSpectators", "Seleka2.NpcSpectators.dll");
+        string baseDll = Path.Combine(game, "BepInEx", "plugins", "SFMMoreActions", "SFM.MoreActions.dll");
+        string mmdDll = Path.Combine(game, "BepInEx", "plugins", "SFMVmdProbe", "SFM.VmdProbe.dll");
+        string npcDll = Path.Combine(game, "BepInEx", "plugins", "SFMNpcSpectators", "SFM.NpcSpectators.dll");
         VerifyDriverInjectionBoundary(baseDll);
         VerifyPresenceDependency(mmdDll);
         Check(Path.Combine(game,"BepInEx","interop","UnityEngine.AnimationModule.dll"),new()
@@ -149,13 +149,13 @@ internal static class InstalledCameraContract
             if (references.Contains("UnityEngine.InputLegacyModule") || references.Contains("UnityEngine.IMGUIModule")) throw new Exception("Obsolete hotkey/IMGUI dependency: " + file);
             var types = metadata.TypeDefinitions.Select(h => metadata.GetString(metadata.GetTypeDefinition(h).Name)).ToHashSet();
             if (types.Contains("TabActionPreview") || types.Contains("ProbeUi")) throw new Exception("Obsolete test UI still compiled: " + file);
-            if (file == npcDll && (references.Contains("Seleka2.MoreActions") || references.Contains("Seleka2.VmdProbe"))) throw new Exception("NPC plugin must remain standalone");
+            if (file == npcDll && (references.Contains("SFM.MoreActions") || references.Contains("SFM.VmdProbe"))) throw new Exception("NPC plugin must remain standalone");
         }
         using var basePe = new PEReader(File.OpenRead(baseDll)); using var mmdPe = new PEReader(File.OpenRead(mmdDll));
         var b = basePe.GetMetadataReader(); var m = mmdPe.GetMetadataReader();
         string[] baseRefs = b.AssemblyReferences.Select(h => b.GetString(b.GetAssemblyReference(h).Name)).ToArray();
         string[] mmdRefs = m.AssemblyReferences.Select(h => m.GetString(m.GetAssemblyReference(h).Name)).ToArray();
-        if (baseRefs.Contains("Seleka2.VmdProbe") || !mmdRefs.Contains("Seleka2.MoreActions") || mmdRefs.Contains("Seleka2.NpcSpectators")) throw new Exception("Incorrect plugin dependency direction");
+        if (baseRefs.Contains("SFM.VmdProbe") || !mmdRefs.Contains("SFM.MoreActions") || mmdRefs.Contains("SFM.NpcSpectators")) throw new Exception("Incorrect plugin dependency direction");
         if (!baseRefs.Contains("UnityEngine.PhysicsModule")) throw new Exception("Root motion must reference the installed physics controller module");
         bool controllerMove = false;
         foreach (var handle in b.MemberReferences)
@@ -189,13 +189,13 @@ internal static class InstalledCameraContract
         {
             var pack = Path.Combine(root, "Motions", folder);
             if (Directory.GetFiles(pack, "*.action.json").Length != 0) throw new Exception("Old manifest was not retired");
-            var resolved = Seleka2.Mmd.MmdActionPacks.Read(pack);
+            var resolved = SFM.Mmd.MmdActionPacks.Read(pack);
             if (resolved.Action.Id != folder || resolved.Action.DisplayName != folder || resolved.Action.AudioFile != "BGM.wav") throw new Exception("Folder defaults did not resolve");
             if (!File.Exists(Path.Combine(pack, "camera.vmd"))) throw new Exception("Missing camera resource");
             if (folder == "WAVEFILE")
             {
                 using var json = JsonDocument.Parse(File.ReadAllText(Path.Combine(pack, "action.json"))); var data = json.RootElement;
-                if (data.EnumerateObject().Count() != 1 || Math.Abs(data.GetProperty("audioDelaySeconds").GetDouble() - 160d / 30) > .000001 || resolved.ReferencePose != Seleka2.Mmd.MmdReferencePose.A)
+                if (data.EnumerateObject().Count() != 1 || Math.Abs(data.GetProperty("audioDelaySeconds").GetDouble() - 160d / 30) > .000001 || resolved.ReferencePose != SFM.Mmd.MmdReferencePose.A)
                     throw new Exception("WAVEFILE must retain only its music delay override and use the generated A-pose skeleton");
             }
             else if (File.Exists(Path.Combine(pack, "action.json"))) throw new Exception("Shake must use manifest-free defaults");

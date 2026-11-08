@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Text.Json;
 
-namespace Seleka2.Actions;
+namespace SFM.Actions;
 
 // One chosen resource ID per original clip. UI checkboxes derive from this
 // mapping, so conflicting variants cannot both be enabled by load order.

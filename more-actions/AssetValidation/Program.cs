@@ -1,5 +1,5 @@
 using System.Text;
-using Seleka2.Actions;
+using SFM.Actions;
 using UnityEngine;
 
 Boundary.MainThread=Environment.CurrentManagedThreadId;
@@ -78,7 +78,7 @@ namespace UnityEngine
         public T LoadAsset<T>(string path) where T:new()=>new(); public void Unload(bool all){}
     }
 }
-namespace Seleka2.Actions
+namespace SFM.Actions
 {
     public sealed class ActionDefinition {public string Id,AudioFile,AudioPath,AudioAsset="",BundlePath="",ClipAsset="";public IActionSource RuntimeSource;}
     public static class ActionRegistry

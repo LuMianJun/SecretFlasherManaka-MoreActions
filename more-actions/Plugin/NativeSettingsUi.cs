@@ -7,7 +7,7 @@ using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 
-namespace Seleka2.Actions;
+namespace SFM.Actions;
 
 // This adapter is only for the entry in the native settings list. The browser
 // itself builds standard uGUI controls and has no native prefab dependencies.

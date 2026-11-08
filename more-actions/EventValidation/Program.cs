@@ -1,6 +1,6 @@
 using System.Text.Json;
-using Seleka2.Actions;
-using Seleka2.NpcSpectators;
+using SFM.Actions;
+using SFM.NpcSpectators;
 using UnityEngine;
 using ExposureUnnoticed2.Object3D.Player.Scripts;
 using ExposureUnnoticed2.Object3D.Player.ScriptableObject;

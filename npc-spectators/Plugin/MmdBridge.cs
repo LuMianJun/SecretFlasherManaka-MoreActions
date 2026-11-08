@@ -1,7 +1,7 @@
 using System;
 using System.Reflection;
 
-namespace Seleka2.NpcSpectators;
+namespace SFM.NpcSpectators;
 
 // No assembly reference, dependency attribute, or bundle requirement on the MMD mod.
 internal sealed class MmdBridge : IDisposable
@@ -22,7 +22,7 @@ internal sealed class MmdBridge : IDisposable
         {
             foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())
             {
-                var found = assembly.GetType("Seleka2.Motion.MotionPlaybackApi", false);
+                var found = assembly.GetType("SFM.Motion.MotionPlaybackApi", false);
                 if (found != null) return found;
             }
             return null;

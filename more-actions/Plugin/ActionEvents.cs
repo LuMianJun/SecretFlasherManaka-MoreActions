@@ -4,7 +4,7 @@ using System.Linq;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
-namespace Seleka2.Actions;
+namespace SFM.Actions;
 
 public sealed class ActionEventDefinition
 {

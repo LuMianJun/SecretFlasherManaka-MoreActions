@@ -6,7 +6,7 @@ using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 
-namespace Seleka2.Actions;
+namespace SFM.Actions;
 
 // The native menu owns entry, pause and close. Every control inside this page
 // is constructed from standard uGUI/TMP, with explicit dimensions and fonts.

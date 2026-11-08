@@ -1,8 +1,8 @@
 using System.Numerics;
 using System.Text;
 using System.Text.Json;
-using Seleka2.Mmd;
-using Seleka2.Actions;
+using SFM.Mmd;
+using SFM.Actions;
 using ExposureUnnoticed2.Object3D.Player.Scripts;
 
 if(args.Length==2&&args[0]=="--injection-check")
@@ -22,7 +22,7 @@ int assertions = 0;
 void Check(bool ok, string name) { assertions++; if (!ok) throw new Exception(name); }
 bool Close(float a, float b) => Math.Abs(a - b) < 0.0001;
 void Reject(Action action, string name) { bool rejected = false; try { action(); } catch { rejected = true; } Check(rejected, name); }
-string directory = Path.Combine(Path.GetTempPath(), "seleka-camera-" + Guid.NewGuid().ToString("N"));
+string directory = Path.Combine(Path.GetTempPath(), "sfm-camera-" + Guid.NewGuid().ToString("N"));
 Directory.CreateDirectory(directory);
 try
 {

@@ -121,7 +121,7 @@ namespace UnityEngine.Animations
         public static bool InternalCreateAnimationOutput(ref UnityEngine.Playables.PlayableGraph graph,string name,out UnityEngine.Playables.PlayableOutputHandle output){output=new(){State=graph.State};return !FailCreation;}
     }
 }
-namespace Seleka2.Actions
+namespace SFM.Actions
 {
     internal static class CameraTransitionDiagnostics {internal static void ReplacementChange(UnityEngine.Animator animator,string phase){} }
     public sealed class ActionDefinition { public string Id,DisplayName,Description,ProviderId;public bool Loop,ShowInRing=true;public string Bundle,BundlePath,ClipAsset;public IActionSource RuntimeSource; }
@@ -176,7 +176,7 @@ namespace ExposureUnnoticed2.Object3D.Player.Scripts
     public sealed class PlayerStateModel { public bool IsCrouch,IsSit,IsEcstasyMotion;public int CurrentState;public NativeAction CurrentAction=new(); }
     public sealed class NativeAction {public int Type=-1;}
 }
-namespace Seleka2.ModSettings
+namespace SFM.ModSettings
 {
     public static class ModOptions
     {
@@ -190,7 +190,7 @@ namespace Seleka2.ModSettings
     }
 }
 
-namespace Seleka2.Actions
+namespace SFM.Actions
 {
     // Camera marker sampling is exercised in-game; the offline boundary only
     // needs the release hook used by the replacement lifecycle.

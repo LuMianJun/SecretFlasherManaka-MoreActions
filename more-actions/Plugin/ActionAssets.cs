@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using UnityEngine;
 
-namespace Seleka2.Actions;
+namespace SFM.Actions;
 
 // Each playback instance owns its sampling skeleton and restoration.
 // Keep the native Animator enabled: native size controllers need its fresh pose.

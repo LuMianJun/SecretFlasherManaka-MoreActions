@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 
-namespace Seleka2.NpcSpectators;
+namespace SFM.NpcSpectators;
 
 internal static class CrowdPolicy
 {

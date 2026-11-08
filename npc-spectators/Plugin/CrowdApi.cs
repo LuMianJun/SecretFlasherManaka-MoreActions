@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 
-namespace Seleka2.NpcSpectators;
+namespace SFM.NpcSpectators;
 
 // Optional API for other action mods. Each caller owns a distinct source ID.
 // Requests are thread-safe; all Unity work stays in the driver's main-thread tick.

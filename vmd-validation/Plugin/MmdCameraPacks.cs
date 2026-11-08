@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Text.Json;
 
-namespace Seleka2.Mmd;
+namespace SFM.Mmd;
 
 internal sealed class CameraOptions
 {

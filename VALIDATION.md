@@ -9,7 +9,7 @@
 ```powershell
 $gameDir = "D:/Games/SecretFlasherManaka"
 dotnet build vmd-validation/Plugin/VmdProbe.csproj -c Release "-p:GameDir=$gameDir"
-dotnet build npc-spectators/Plugin/Seleka2.NpcSpectators.csproj -c Release "-p:GameDir=$gameDir"
+dotnet build npc-spectators/Plugin/SFM.NpcSpectators.csproj -c Release "-p:GameDir=$gameDir"
 ```
 
 第一条命令会同时构建更多动作与 MMD。仅构建更多动作时，使用 `more-actions/Plugin/MoreActions.csproj`。DLL 输出到各插件项目的 `bin/Release/net6.0`。
@@ -54,3 +54,13 @@ dotnet run --project vmd-validation/CameraValidation -c Release -- --package "D:
 ```
 
 此模式只检查插件、原版互操作接口和说明文件，不要求玩家拥有 WAVEFILE/Shake 测试素材。原有带素材入口仍会严格验证这些素材的默认导入规则。
+
+## 安装与命名迁移验证
+
+生成安装包后运行：
+
+```powershell
+./tests/InstallerValidation.ps1 -PackageDir "./releases/SFM-MoreActions-v1.4.0"
+```
+
+此验证在临时目录生成模拟文件，不修改实际游戏。覆盖首次安装、重复升级、Seleka2 到 SFM 的动作/配置迁移、新数据优先、占用检查与中途失败回滚。模拟标记不作为运行时程序集加载；原游戏接口检查仍独立执行。

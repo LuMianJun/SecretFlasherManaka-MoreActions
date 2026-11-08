@@ -1,7 +1,7 @@
 using System;
 using UnityEngine;
 
-namespace Seleka2.Actions;
+namespace SFM.Actions;
 
 // The common runtime owns locomotion; providers never warp a live character.
 internal sealed class ActionRootMotion

@@ -1,4 +1,4 @@
-using Seleka2.Actions;
+using SFM.Actions;
 using ExposureUnnoticed2.ObjectUI.InGame.RingMenu;
 using Il2CppInterop.Runtime.InteropTypes.Arrays;
 
@@ -125,7 +125,7 @@ namespace ExposureUnnoticed2.Object3D.IngameManager
     public sealed class InGameUiManager { public static InGameUiManager Instance; public bool IsOpenSomeUi; }
     public sealed class SexManager { public static SexManager Instance; public bool IsSexMode; }
 }
-namespace Seleka2.Actions
+namespace SFM.Actions
 {
     internal static class ActionNames { internal static string Display(ActionDefinition definition)=>definition.DisplayName; }
     public sealed class ActionDefinition { public string Id, DisplayName; public bool ShowInRing = true; }

@@ -1,6 +1,6 @@
 using System.Text;
-using Seleka2.Actions;
-using Seleka2.Mmd;
+using SFM.Actions;
+using SFM.Mmd;
 
 int count = 0;
 void Check(bool ok, string name) { count++; if (!ok) throw new Exception(name); }
@@ -120,7 +120,7 @@ sealed class Source : IActionSource
     public IActionPose CreatePose(UnityEngine.GameObject target, ActionDefinition action) => throw new NotSupportedException();
 }
 namespace UnityEngine { public sealed class GameObject {} public struct Vector3 { public float x,y,z; } }
-namespace Seleka2.Actions
+namespace SFM.Actions
 {
     public sealed class Logger { public void LogWarning(string message) {} }
     public static class Plugin { public static Logger LogSource = new(); }

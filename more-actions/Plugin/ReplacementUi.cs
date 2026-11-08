@@ -8,7 +8,7 @@ using UnityEngine.Events;
 using UnityEngine.EventSystems;
 using UnityEngine.UI;
 
-namespace Seleka2.Actions;
+namespace SFM.Actions;
 
 // Standard uGUI only. Game resources supply fonts and optional checkbox art,
 // never a settings/graphics controller or its serialized layout constraints.

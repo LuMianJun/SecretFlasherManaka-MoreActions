@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using UnityEngine;
 using NVector = System.Numerics.Vector3;
 
-namespace Seleka2.Mmd;
+namespace SFM.Mmd;
 
 // A synthetic MMD topology, sized from this avatar's mesh bind poses. Its
 // control nodes are solver-only: the live hierarchy is never modified.

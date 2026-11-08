@@ -9,7 +9,7 @@ using ExposureUnnoticed2.Scripts.Base;
 using ExposureUnnoticed2.Scripts.InGame;
 using ExposureUnnoticed2.Object3D.IngameManager;
 
-namespace Seleka2.Actions;
+namespace SFM.Actions;
 
 internal static class RingActionMenu
 {

@@ -13,7 +13,7 @@ using UnityEngine;
 using UnityEngine.UI;
 using TMPro;
 
-namespace Seleka2.ModSettings;
+namespace SFM.ModSettings;
 
 // Linked privately into each plugin: installing NPC Spectators alone still
 // provides its settings, without depending on another plugin or UI assembly.

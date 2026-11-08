@@ -26,7 +26,7 @@
 
    将示例路径换成自己的游戏根目录，也就是游戏 EXE 所在目录。安装器会检查目标文件占用、备份旧文件并校验复制结果，失败时回滚。
 
-也可以手动把包内 `BepInEx` 文件夹合并到游戏根目录。更新时先退出游戏并备份旧插件。
+也可以手动把包内 `BepInEx` 文件夹合并到游戏根目录。更新时先退出游戏。使用过 Seleka2 前缀版本的用户应运行安装脚本完成迁移。
 
 安装后的插件目录：
 
@@ -34,15 +34,15 @@
 游戏目录/
 └─ BepInEx/
    └─ plugins/
-      ├─ Seleka2MoreActions/
-      │  └─ Seleka2.MoreActions.dll
-      ├─ Seleka2VmdProbe/
-      │  └─ Seleka2.VmdProbe.dll
-      └─ Seleka2NpcSpectators/
-         └─ Seleka2.NpcSpectators.dll
+      ├─ SFMMoreActions/
+      │  └─ SFM.MoreActions.dll
+      ├─ SFMVmdProbe/
+      │  └─ SFM.VmdProbe.dll
+      └─ SFMNpcSpectators/
+         └─ SFM.NpcSpectators.dll
 ```
 
-`Seleka2`、`VmdProbe` 是现有插件的内部目录和程序集名称，安装时保留即可。
+`SFM` 是插件前缀；`VmdProbe` 是 MMD 模块的程序集名称，安装时保留目录结构即可。
 
 公开仓库和公开安装包不附带游戏程序集、MMD 动作、镜头、模型或音乐。请自行准备资源，并遵守作者的使用与配布条款。
 
@@ -51,7 +51,7 @@
 在下面的目录中新建一个文件夹：
 
 ```text
-BepInEx/plugins/Seleka2VmdProbe/Motions/我的舞蹈/
+BepInEx/plugins/SFMVmdProbe/Motions/我的舞蹈/
 ```
 
 按默认文件名放入资源：
@@ -202,7 +202,7 @@ NPC 使用原版寻路实际走近，只招募符合条件的普通行人。警�
 将动画 AssetBundle 放入更多动作插件的 `Actions` 目录，每个资源包可单独建立子文件夹：
 
 ```text
-BepInEx/plugins/Seleka2MoreActions/Actions/
+BepInEx/plugins/SFMMoreActions/Actions/
 ├─ 我的动作包/
 │  ├─ pose.bundle
 │  └─ walk.bundle
@@ -263,8 +263,10 @@ JSON 可在指定时间播放原版音效、触发脚步或召集 NPC，见 [动
 
 ## 升级兼容说明
 
+- 使用过 Seleka2 前缀版本时，请运行安装脚本。它会将动作与配置复制到 SFM 目录，优先保留已有的新配置，并把旧 DLL 备份移出插件加载目录，避免双重加载。原有素材与旧配置保留。
+- 若手动升级，请先移走三个旧版 DLL，再迁移动作和配置；不要同时加载两套插件。公共程序集、命名空间与插件 GUID 已使用 SFM 前缀，依赖旧接口的第三方扩展需更新。
 - 更新时请同时安装包内的更多动作与 MMD DLL，避免只更新其中一个。
-- 从使用 `BepInEx/plugins/AnimReplacer/` 目录的试用版升级时，请把动画包移至 `BepInEx/plugins/Seleka2MoreActions/Actions/`；旧的 `[LegacyAnimations] Directory` 配置不生效。迁移后请重新选择替换资源和转盘快捷槽。
+- 从使用 `BepInEx/plugins/AnimReplacer/` 目录的试用版升级时，请把动画包移至 `BepInEx/plugins/SFMMoreActions/Actions/`；旧的 `[LegacyAnimations] Directory` 配置不生效。迁移后请重新选择替换资源和转盘快捷槽。
 - 使用过配套 PMD 模型配置的动作，请删除 `action.json` 中的 `modelFile` 字段。`source.pmd` 不参与导入，插件使用游戏角色生成骨架。安装器保留已有动作、模型、音乐和配置文件。
 
 ## 开源参考与依赖

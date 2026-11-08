@@ -6,10 +6,10 @@ using System.Linq;
 using BepInEx.Configuration;
 using ExposureUnnoticed2.Object3D.IngameManager;
 using ExposureUnnoticed2.Object3D.Player.Scripts;
-using Seleka2.ModSettings;
+using SFM.ModSettings;
 using UnityEngine;
 
-namespace Seleka2.Actions;
+namespace SFM.Actions;
 
 internal static class NativeAnimationReplacements
 {

@@ -1,6 +1,6 @@
 using System.Reflection;
-using Seleka2.NpcSpectators;
-using Seleka2.Motion;
+using SFM.NpcSpectators;
+using SFM.Motion;
 using ExposureUnnoticed2.Object3D.NPC.Script;
 using ExposureUnnoticed2.Object3D.Player.Scripts;
 using ExposureUnnoticed2.Object3D.IngameManager;
@@ -124,15 +124,15 @@ PlayerController.Instance.Pca.PlayerState.CurrentAction.Type=ActionType.None;Tic
 MotionPlaybackApi.Publish("wavefile",true);Tick();Check(driver.Drive(normal.Nca.NpcLocomotion),"MMD trigger failed");
 MotionPlaybackApi.Publish("wavefile",false);Tick();Check(!driver.Drive(normal.Nca.NpcLocomotion),"MMD cancellation failed");
 MotionPlaybackApi.Publish("shake",true); Tick(); Check(!driver.Drive(normal.Nca.NpcLocomotion), "configured list remains default");
-Seleka2.NpcSpectators.Plugin.FollowAllMmd.Value = true; Tick(); Check(driver.Drive(normal.Nca.NpcLocomotion), "all-MMD checkbox includes new Shake imports");
-Seleka2.NpcSpectators.Plugin.FollowMmd.Value = false; Tick(); Check(!driver.Drive(normal.Nca.NpcLocomotion), "MMD trigger switch releases gathering");
-Seleka2.NpcSpectators.Plugin.FollowMmd.Value = true; Seleka2.NpcSpectators.Plugin.FollowAllMmd.Value = false; MotionPlaybackApi.Publish("shake",false); Tick();
+SFM.NpcSpectators.Plugin.FollowAllMmd.Value = true; Tick(); Check(driver.Drive(normal.Nca.NpcLocomotion), "all-MMD checkbox includes new Shake imports");
+SFM.NpcSpectators.Plugin.FollowMmd.Value = false; Tick(); Check(!driver.Drive(normal.Nca.NpcLocomotion), "MMD trigger switch releases gathering");
+SFM.NpcSpectators.Plugin.FollowMmd.Value = true; SFM.NpcSpectators.Plugin.FollowAllMmd.Value = false; MotionPlaybackApi.Publish("shake",false); Tick();
 driver.ManualRequested = !driver.ManualRequested;Tick();InGameManager.Instance.TempInGameState.IsTimeStop=true;Tick();
 Check(normal.Nca.NavAgent.updatePosition&&!driver.Drive(normal.Nca.NpcLocomotion),"time-stop not respected");
 InGameManager.Instance.TempInGameState.IsTimeStop=false;driver.ManualRequested = !driver.ManualRequested;Tick();
 Check(driver.Drive(normal.Nca.NpcLocomotion),"manual restart failed");
 NpcManager.Instance=new();Tick();Check(normal.Nca.NavAgent.updatePosition,"scene switch not restored");driver.OnDestroy();
-Check(!Seleka2.NpcSpectators.Plugin.Logger.Lines.Any(s=>s.Contains("FAILED")),"driver emitted unexpected failure");
+Check(!SFM.NpcSpectators.Plugin.Logger.Lines.Any(s=>s.Contains("FAILED")),"driver emitted unexpected failure");
 Pass("production driver: standalone settings/native trigger, MMD link, partial path exclusion, interruption, time-stop, scene cleanup");
 // Standpoint visibility and native-navigation ownership. Synthetic ray hits
 // exercise selection; they are not a rendering/physics or native movement emulator.
@@ -188,7 +188,7 @@ Physics.Cast=null;
 // One gathering keeps its original destinations while the performer moves.
 var stable=SelectionScene(54);var stableNpc=NpcManager.Instance.ExistNpcList[0];
 void StableTick() { Time.frameCount++;Time.unscaledTime+=.3f;stable.Update(); }
-int startLogs=Seleka2.NpcSpectators.Plugin.Logger.Lines.Count(s=>s.StartsWith("CROWD_START"));
+int startLogs=SFM.NpcSpectators.Plugin.Logger.Lines.Count(s=>s.StartsWith("CROWD_START"));
 StableTick();Check(stable.Drive(stableNpc.Nca.NpcLocomotion),"Initial fixed-center gathering did not recruit");
 var anchor=PlayerController.Instance.transform.position;
 var firstGoal=stableNpc.Nca.NavAgent.destination;int initialWrites=stableNpc.Nca.NavAgent.DestinationWrites,initialPaths=stableNpc.Nca.NavAgent.PathCalculations;
@@ -199,7 +199,7 @@ foreach(var moved in new[]{new Vector3(4,0,2),new Vector3(-5,0,3),new Vector3(9,
         &&Same(stableNpc.Nca.NpcLocomotion.SimpleTarget,firstGoal),"Performer displacement changed an existing spectator's target");
     Check(stableNpc.Nca.NavAgent.DestinationWrites==initialWrites&&stableNpc.Nca.NavAgent.PathCalculations==initialPaths,"Performer displacement caused destination reassignment or path selection");
 }
-Check(Seleka2.NpcSpectators.Plugin.Logger.Lines.Count(s=>s.StartsWith("CROWD_START"))==startLogs+1,"Movement restarted the gathering");
+Check(SFM.NpcSpectators.Plugin.Logger.Lines.Count(s=>s.StartsWith("CROWD_START"))==startLogs+1,"Movement restarted the gathering");
 var lateNpc=new NpcController(55);lateNpc.Transform.position=new(0,0,-8);NpcManager.Instance.ExistNpcList.Add(lateNpc);StableTick();
 Check(stable.Drive(lateNpc.Nca.NpcLocomotion)&&CrowdDriver.HorizontalSquare(lateNpc.Nca.NavAgent.destination-anchor)<16,
     "Late recruits must use the original anchor rather than the moved player");

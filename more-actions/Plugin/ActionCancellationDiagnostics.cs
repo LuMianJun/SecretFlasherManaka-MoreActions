@@ -8,7 +8,7 @@ using ExposureUnnoticed2.Object3D.Player.Scripts;
 using ExposureUnnoticed2.Object3D.IngameManager;
 using ExposureUnnoticed2.Scripts.InGame;
 
-namespace Seleka2.Actions;
+namespace SFM.Actions;
 
 // One snapshot on cancellation, never a per-frame trace. Numbers are world
 // metres; named nonfinite values stay serializable so diagnostics cannot hide

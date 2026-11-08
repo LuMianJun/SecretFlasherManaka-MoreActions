@@ -1,12 +1,12 @@
-# Seleka2 NPC Spectators 1.0.0
+# SFM NPC Spectators 1.0.0
 
-独立的 BepInEx 6 IL2CPP 插件，输出 `Seleka2.NpcSpectators.dll`。
+独立的 BepInEx 6 IL2CPP 插件，输出 `SFM.NpcSpectators.dll`。
 不修改游戏源码，不依赖 MMD 插件，不加载动画包，不写原版存档。
 
 ## 使用
 
-将 DLL 放入 `BepInEx/plugins/Seleka2NpcSpectators/`。
-配置由首次加载生成于 `BepInEx/config/local.seleka2.npcspectators.cfg`。
+将 DLL 放入 `BepInEx/plugins/SFMNpcSpectators/`。
+配置由首次加载生成于 `BepInEx/config/local.sfm.npcspectators.cfg`。
 
 | 安装组合 | 行为 |
 | --- | --- |
@@ -44,6 +44,10 @@
 巡逻路线和路线索引在围观期间不推进。先释放接管，再让原版状态进入逻辑接手。
 原版视野、可疑度、发现玩家、任务判定和时间停止仍生效；围观不会屏蔽这些规则。
 打开其他 UI 会结束当前接管，设置页手动请求保留至关闭界面后执行；退出场景、失去玩家或游戏结束会结束手动请求及接管。
+
+## 升级兼容
+
+从 Seleka2 前缀版本升级时，请运行安装脚本，迁移配置并备份移走旧 DLL。手动升级需先移走旧 DLL，避免两套围观插件同时加载。
 
 ## 常见问题
 

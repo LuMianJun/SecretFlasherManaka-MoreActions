@@ -4,7 +4,7 @@ using System.Linq;
 using System.Numerics;
 using System.Text;
 
-namespace Seleka2.Mmd;
+namespace SFM.Mmd;
 
 internal readonly record struct CameraSample(Vector3 Center, Quaternion Rotation, float Distance, float Fov, bool Perspective);
 

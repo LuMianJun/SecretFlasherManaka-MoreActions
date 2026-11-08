@@ -7,7 +7,7 @@ namespace ExposureUnnoticed2.Object3D.Player.Scripts
  public sealed class Locomotion {public Fp fpCameraController;}
  public sealed class Fp {public UnityEngine.Transform transform,Child;}
 }
-namespace Seleka2.Actions
+namespace SFM.Actions
 {
  internal static class NativeAnimationReplacements
  {

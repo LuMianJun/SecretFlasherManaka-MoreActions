@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 
-namespace Seleka2.Actions;
+namespace SFM.Actions;
 
 internal sealed record ReplacementOption(string Id,string Slot,string Pack,string Source);
 
