@@ -141,5 +141,5 @@ try {
     }
     throw $failure
 }
-Write-Output "Installed SFM More Actions 1.4.0, MMD 1.1.0, NPC Spectators 1.0.0. Backup: $backupRoot"
+Write-Output "Installed SFM More Actions 1.4.1, MMD 1.1.0, NPC Spectators 1.0.0. Backup: $backupRoot"
 Write-Output ("Migrated user files: " + $created.Count + "; retired legacy DLLs: " + $retired.Count)

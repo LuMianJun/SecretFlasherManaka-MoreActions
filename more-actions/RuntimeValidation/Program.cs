@@ -25,6 +25,25 @@ try
     Check(ActionPolicy.BlockReason(registered, idle) == null && ActionPolicy.BlockReason(registered, idle with { Handcuffed = true }) == "handcuffed", "Runtime actions retain native handcuff restrictions");
     Check(ActionPolicy.BlockReason(registered, idle with { Sitting = true }) == "stand first" && ActionPolicy.BlockReason(registered, idle with { Moving = true }) == "moving", "Runtime actions retain posture/movement restrictions");
     ActionRegistry.UnregisterProvider("mmd"); Check(ActionRegistry.Get("shake") == null, "Runtime provider cleanup");
+    var pack=Path.Combine(root,"MyPack");Directory.CreateDirectory(pack);
+    File.WriteAllBytes(Path.Combine(pack,"pose.bundle"),new byte[]{1});
+    File.WriteAllText(Path.Combine(pack,"pose.action.json"),"{\"bundle\":\"pose.bundle\",\"clipAsset\":\"Pose\"}");
+    Check(ActionRegistry.LoadPacks(root,"unity")==1,"Unity JSON can omit id and displayName");
+    var imported=ActionRegistry.Get("MyPack/Pose");
+    Check(imported!=null&&imported.DisplayName=="Pose","Default identity uses relative folder plus clip name");
+    ActionRegistry.RegisterAlias("legacy-unity-id",imported.Id);
+    Check(ReferenceEquals(ActionRegistry.Get("legacy-unity-id"),imported),"Legacy IDs resolve to the registered action snapshot");
+    Check(UnityActionIdentity.ForClip(root,root,"Pose")==new DirectoryInfo(root).Name+"/Pose","Root clips use the root folder name");
+    Check(UnityActionIdentity.ClipKey("assets/animations/Pose.anim")=="Pose","Full resource paths resolve the clip key");
+    Check(UnityActionIdentity.ForClip(root,pack,"Pose.v2")=="MyPack/Pose.v2","Clip suffixes other than .anim remain part of the identity");
+    Check(!UnityActionIdentity.ForClip(root,pack,"Pose,variant").Contains(','),"Generated IDs cannot corrupt comma-delimited shortcuts");
+    Reject(()=>UnityActionIdentity.ForClip(root,Path.GetDirectoryName(root),"Pose"),"Default IDs cannot escape the action root");
+    File.Delete(Path.Combine(pack,"pose.action.json"));
+    File.WriteAllText(Path.Combine(pack,"explicit.action.json"),"{\"id\":\"stable-id\",\"displayName\":\"Custom name\",\"bundle\":\"pose.bundle\",\"clipAsset\":\"Pose\"}");
+    Check(ActionRegistry.LoadPacks(root,"unity")==1&&ActionRegistry.Get("stable-id").DisplayName=="Custom name","Explicit identity and display labels take priority");
+    ActionRegistry.UnregisterProvider("unity");
+    Check(ActionRegistry.Get("legacy-unity-id")==null,"Provider removal also removes legacy aliases");
+    File.Delete(Path.Combine(pack,"explicit.action.json"));File.Delete(Path.Combine(pack,"pose.bundle"));Directory.Delete(pack);
     Console.WriteLine("PASS " + count + " assertions: runtime registration, audio paths, snapshots, invalid packs, native restrictions, provider cleanup");
 }
 finally { File.Delete(Path.Combine(root, "BGM.wav")); Directory.Delete(root); }

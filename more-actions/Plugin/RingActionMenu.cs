@@ -24,7 +24,16 @@ internal static class RingActionMenu
     static string[] Choices()
     {
         var result = new string[8]; Array.Fill(result, "");
-        var saved = (LastActions.Value ?? "").Split(','); Array.Copy(saved, result, Math.Min(saved.Length, 8)); return result;
+        var saved = (LastActions.Value ?? "").Split(','); Array.Copy(saved, result, Math.Min(saved.Length, 8));
+        bool changed=false;
+        for(int i=0;i<result.Length;i++)
+        {
+            var canonical=ActionRegistry.Get(result[i])?.Id;
+            if(canonical==null||canonical==result[i])continue;
+            result[i]=canonical;changed=true;
+        }
+        if(changed)LastActions.Value=string.Join(",",result);
+        return result;
     }
     static void Save(int slot, string id) { var saved = Choices(); saved[slot] = id ?? ""; LastActions.Value = string.Join(",", saved); }
 

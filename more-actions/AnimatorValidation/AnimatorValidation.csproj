@@ -1,6 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup><OutputType>Exe</OutputType><TargetFramework>net10.0</TargetFramework><ImplicitUsings>enable</ImplicitUsings></PropertyGroup>
   <ItemGroup>
+    <Compile Include="../Plugin/UnityActionIdentity.cs" Link="UnityActionIdentity.cs" />
     <Compile Include="../Plugin/AnimatorClipSampler.cs" Link="AnimatorClipSampler.cs" />
     <Compile Include="../Plugin/RuntimeActionSource.cs" Link="RuntimeActionSource.cs" />
     <Compile Include="../Plugin/LoadedAction.cs" Link="LoadedAction.cs" />

@@ -44,4 +44,6 @@ browser.Mode(true);catalog.Original("Walk");
 Check(!browser.VisibleSlots(catalog).Contains("Walk")&&browser.VisibleSlots(catalog).Contains("Pose"),"Selected-only slot filter remains global across packs");
 int browserRevision=browser.Revision;browser.Mode(true);browser.Filter(true);
 Check(browser.Revision==browserRevision,"Unchanged browser state does not force a rebuild");
+Check(selection.Remap(id=>id=="A.idle1"?"new-A-idle":id)&&selection.Get("Idle")=="new-A-idle"&&selection.Get("Pose")=="B.pose","Legacy identity migration changes only resolved selections");
+Check(!selection.Remap(id=>id),"Canonical selection migration is idempotent");
 Console.WriteLine($"PASS {checks} assertions: replacement browser catalog, compact slot view, exclusive sources, deterministic bulk apply, owned-only clear and configuration persistence.");

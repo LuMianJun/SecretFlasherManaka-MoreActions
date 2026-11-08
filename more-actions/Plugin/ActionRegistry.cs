@@ -46,9 +46,20 @@ public sealed class ActionDefinition
 public static class ActionRegistry
 {
     static readonly Dictionary<string, ActionDefinition> entries = new(StringComparer.Ordinal);
+    static readonly Dictionary<string,string> aliases = new(StringComparer.Ordinal);
     public static int Revision { get; private set; }
     public static IReadOnlyList<ActionDefinition> GetAll() => entries.Values.ToArray();
-    public static ActionDefinition Get(string id) => id != null && entries.TryGetValue(id, out var value) ? value : null;
+    public static ActionDefinition Get(string id)
+    {
+        if(id==null)return null;
+        if(entries.TryGetValue(id,out var value))return value;
+        return aliases.TryGetValue(id,out var target)&&entries.TryGetValue(target,out value)?value:null;
+    }
+    internal static void RegisterAlias(string alias,string id)
+    {
+        if(alias==id||entries.ContainsKey(alias)||!entries.ContainsKey(id))return;
+        aliases[alias]=id;Revision++;Notify();
+    }
     public static event Action Changed;
     internal static void SetRingVisibility(string id,bool visible)
     {
@@ -108,7 +119,13 @@ public static class ActionRegistry
                 options.Converters.Add(new System.Text.Json.Serialization.JsonStringEnumConverter());
                 string json = File.ReadAllText(file);
                 ActionEventSchema.ValidateJson(json);
-                Register(JsonSerializer.Deserialize<ActionDefinition>(json, options), Path.GetDirectoryName(file), providerId); count++;
+                var definition=JsonSerializer.Deserialize<ActionDefinition>(json, options);
+                using var doc=JsonDocument.Parse(json);
+                bool Has(string name)=>doc.RootElement.EnumerateObject().Any(p=>p.Name.Equals(name,StringComparison.OrdinalIgnoreCase));
+                string clip=UnityActionIdentity.ClipKey(definition.ClipAsset);
+                if(!Has("id"))definition.Id=UnityActionIdentity.ForClip(directory,Path.GetDirectoryName(file),clip);
+                if(!Has("displayName"))definition.DisplayName=clip;
+                Register(definition, Path.GetDirectoryName(file), providerId); count++;
             }
             catch (Exception e) { Plugin.LogSource?.LogWarning("ACTION_PACK_REJECTED file=" + Path.GetFileName(file) + " reason=" + e.Message); }
         }
@@ -119,6 +136,7 @@ public static class ActionRegistry
     {
         var ids = entries.Values.Where(d => d.ProviderId == providerId).Select(d => d.Id).ToArray();
         foreach (var id in ids) entries.Remove(id);
+        foreach(var alias in aliases.Where(p=>!entries.ContainsKey(p.Value)).Select(p=>p.Key).ToArray())aliases.Remove(alias);
         if (ids.Length > 0) { Revision++; Notify(); }
     }
 

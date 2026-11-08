@@ -1,6 +1,6 @@
 ﻿param(
     [Parameter(Mandatory=$true)][string]$GameDir,
-    [string]$OutputDir = (Join-Path $PSScriptRoot 'releases/SFM-MoreActions-v1.4.0')
+    [string]$OutputDir = (Join-Path $PSScriptRoot 'releases/SFM-MoreActions-v1.4.1')
 )
 $ErrorActionPreference = 'Stop'
 $gameRoot = (Resolve-Path -LiteralPath $GameDir).Path

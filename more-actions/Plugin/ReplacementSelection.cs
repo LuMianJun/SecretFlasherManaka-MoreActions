@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Text.Json;
 
 namespace SFM.Actions;
@@ -18,6 +19,17 @@ internal sealed class ReplacementSelection
         Revision++;
     }
     internal string Serialize() => JsonSerializer.Serialize(selected);
+    internal bool Remap(Func<string,string> resolve)
+    {
+        bool changed=false;
+        foreach(var slot in selected.Keys.ToArray())
+        {
+            var value=resolve(selected[slot]);
+            if(value==selected[slot])continue;
+            selected[slot]=value;changed=true;
+        }
+        if(changed)Revision++;return changed;
+    }
     internal void Load(string json)
     {
         var data=JsonSerializer.Deserialize<Dictionary<string,string>>(json);

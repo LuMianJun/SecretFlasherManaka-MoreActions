@@ -216,6 +216,7 @@ internal static class NativeAnimationReplacements
     }
     static void BuildSettings()
     {
+        Persist(selection.Remap(id=>ActionRegistry.Get(id)?.Id??id));
         ModOptions.Remove("replacement.variant.");ModOptions.Remove("replacement.group.");
         var candidates=new List<(ActionDefinition Definition,string Slot,string Group)>();
         foreach(var definition in ActionRegistry.GetAll())

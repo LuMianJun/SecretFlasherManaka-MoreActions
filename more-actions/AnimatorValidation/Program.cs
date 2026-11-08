@@ -119,6 +119,8 @@ try
     Check(actor.UpdateCalls==1&&markerHeight==1.137f,"Controller attachment forces one zero-time native pose evaluation before additive correction");
     Check(evaluatedAlways&&actor.cullingMode==AnimatorCullingMode.CullUpdateTransforms,"One-shot native evaluation is not culled and restores the prior culling policy");
     Check(faceNode.renderer.Values.SequenceEqual(new[]{62f,17f})&&bodyNode.renderer.Values[0]==43f,"Native refresh preserves customization on both fixed base-model meshes");
+    ActionRegistry.RegisterAlias("legacy-a",aId);saved.Value="{\"Female_Idle_Base\":\"legacy-a\"}";NativeAnimationReplacements.Tick(actor);
+    Check(NativeAnimationReplacements.Catalog.Selected("Female_Idle_Base")==aId&&saved.Value.Contains(aId),"Saved legacy replacement IDs migrate when the alias becomes available");
     int notifications=layer.Notifications;
     int evaluations=actor.UpdateCalls;
     bRow.Write(true);NativeAnimationReplacements.Tick(actor);
@@ -225,6 +227,15 @@ try
     }
     ActionSettingsApi.Initialize();
     Check(SFM.ModSettings.ModOptions.Dedicated&&!string.IsNullOrWhiteSpace(SFM.ModSettings.ModOptions.PageTitle()),"Shared settings API registers a dedicated localized page");
+    var autoClip=new AnimationClip{name="Pose",isHumanMotion=true};
+    Pack("Auto/MyPack/pose.bundle",("clip.anim",autoClip));
+    ActionBundleImport.Begin(Path.Combine(root,"Auto"),"auto-test");
+    for(int step=0;step<500&&ActionRegistry.Get("MyPack/Pose")==null;step++){ActionBundleImport.Tick();Thread.Sleep(1);}
+    var autoAction=ActionRegistry.Get("MyPack/Pose");
+    Check(autoAction?.RuntimeSource is AnimatorActionSource,"No-JSON bundles use folder/clip identities");
+    Check(ReferenceEquals(ActionRegistry.Get("bundle:MyPack/pose.bundle:clip.anim"),autoAction),"Legacy bundle paths resolve to the new action identity");
+    ActionBundleImport.Clear();
+    Check(ActionRegistry.Get("MyPack/Pose")==null&&autoClip.destroyed,"Imported clip cleanup follows the new identity");
     ActionRegistry.Entries.Clear();Check(ActionRegistry.Entries.Count==0,"Provider cleanup unregisters actions");
     Console.WriteLine($"PASS {assertions} assertions: action collection, replacements, sampling, multilingual labels and cleanup; offline boundaries, not rendered game verification");
 }

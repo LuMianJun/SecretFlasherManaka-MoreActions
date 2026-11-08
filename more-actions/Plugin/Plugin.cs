@@ -20,7 +20,7 @@ using ExposureUnnoticed2.Master.Action;
 
 namespace SFM.Actions;
 
-[BepInPlugin(Guid, "SFM More Actions", "1.4.0")]
+[BepInPlugin(Guid, "SFM More Actions", "1.4.1")]
 public sealed class Plugin : BasePlugin
 {
     public const string Guid = "local.sfm.moreactions";
@@ -52,7 +52,7 @@ public sealed class Plugin : BasePlugin
         int count = ActionRegistry.LoadPacks(Path.GetFullPath(Path.Combine(pluginDirectory, packs.Value)), Guid);
         ActionBundleImport.Begin(Path.GetFullPath(Path.Combine(pluginDirectory, packs.Value)), Guid + ".bundles");
 
-        Log.LogInfo("MORE_ACTIONS_READY version=1.4.0 packs=" + count + " ring=true nativeRestrictions=true runtimeSources=true settings=true");
+        Log.LogInfo("MORE_ACTIONS_READY version=1.4.1 packs=" + count + " ring=true nativeRestrictions=true runtimeSources=true settings=true");
     }
 }
 
@@ -111,6 +111,7 @@ public sealed class ActionDriver : MonoBehaviour
     [HideFromIl2Cpp]
     internal void Request(string id)
     {
+        if(id!=null)id=ActionRegistry.Get(id)?.Id??id;
         if (!Playing && id != null && ActionRegistry.Get(id) != null && (requests.PendingId == id || nativeExit?.Id == id))
         {
             requests.Clear(); requestRevision++; AbandonNativeExit("selected again"); return;

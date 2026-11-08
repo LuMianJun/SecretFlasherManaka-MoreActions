@@ -128,7 +128,9 @@ namespace SFM.Actions
     public static class ActionRegistry
     {
         public static int Revision;
-        public static ActionDefinition Get(string id)=>Entries.TryGetValue(id,out var entry)?entry.Definition:null;
+        public static Dictionary<string,string> Aliases=new();
+        public static void RegisterAlias(string alias,string id){Aliases[alias]=id;Revision++;}
+        public static ActionDefinition Get(string id)=>id!=null&&(Entries.TryGetValue(id,out var entry)||Aliases.TryGetValue(id,out var canonical)&&Entries.TryGetValue(canonical,out entry))?entry.Definition:null;
         public static IEnumerable<ActionDefinition> GetAll()=>Entries.Values.Select(e=>e.Definition);
         public static void SetRingVisibility(string id,bool visible){if(Entries.TryGetValue(id,out var value))value.Definition.ShowInRing=visible;}
         public static Dictionary<string,(ActionDefinition Definition,IActionSource Source,string Provider)> Entries=new();

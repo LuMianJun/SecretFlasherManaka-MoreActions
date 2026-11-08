@@ -109,13 +109,20 @@ internal static class ActionBundleImport
                 var source = new AnimatorActionSource(clip, relative);
                 var definition = new ActionDefinition
                 {
-                    Id = Id(relative, asset),
+                    Id = UnityActionIdentity.ForClip(root,Path.GetDirectoryName(file),clip.name),
                     DisplayName = GameAnimationNames.Label(clip.name),
                     Description = "Action bundle / " + relative + " / " + clip.name,
                     ShowInRing = !GameAnimationNames.IsOriginal(clip.name),
                     Loop = true
                 };
-                ActionRegistry.RegisterRuntime(definition, source, Path.GetDirectoryName(file), provider);
+                try { ActionRegistry.RegisterRuntime(definition, source, Path.GetDirectoryName(file), provider); }
+                catch
+                {
+                    var owner=(ActionRegistry.Get(definition.Id)?.RuntimeSource as IActionClipSource)?.Clip;
+                    if(owner!=clip)UnityEngine.Object.Destroy(clip);
+                    throw;
+                }
+                ActionRegistry.RegisterAlias(Id(relative,asset),definition.Id);
                 clips.Add(clip); registered++; Revision++;
                 Plugin.LogSource.LogInfo("ACTION_BUNDLE_CLIP_READY id=" + definition.Id + " clip=" + clip.name + " seconds=" + source.Duration + " humanoid=" + clip.isHumanMotion);
             }
