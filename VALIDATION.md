@@ -27,6 +27,7 @@ dotnet run --project more-actions/FaceRestoreValidation -c Release
 dotnet run --project more-actions/EventValidation -c Release
 dotnet run --project more-actions/RingValidation -c Release
 dotnet run --project more-actions/RuntimeValidation -c Release
+dotnet run --project more-actions/StatsValidation -c Release
 dotnet run --project vmd-validation/ImportValidation -c Release
 dotnet run --project vmd-validation/InterpolationValidation -c Release
 dotnet run --project vmd-validation/SkeletonValidation -c Release
@@ -64,3 +65,11 @@ dotnet run --project vmd-validation/CameraValidation -c Release -- --package "D:
 ```
 
 此验证在临时目录生成模拟文件，不修改实际游戏。覆盖首次安装、重复升级、Seleka2 到 SFM 的动作/配置迁移、新数据优先、占用检查与中途失败回滚。模拟标记不作为运行时程序集加载；原游戏接口检查仍独立执行。
+
+StatsValidation 验证属性参数、原生输入、按帧去重、角色归属、排尿、方向感知及姿势任务条件；使用明确的原生边界夹具。EventValidation 另外覆盖真实播放驱动的开始/暂停/停止门禁。通过离线验证不代表已完成游戏内属性及任务实测。
+
+核对属性补丁的原版入口：
+
+```powershell
+dotnet run --project more-actions/AnimatorValidation -c Release -- --stats-interop $gameDir more-actions/Plugin/bin/Release/net6.0/SFM.MoreActions.dll
+```

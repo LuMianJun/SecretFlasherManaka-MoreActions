@@ -24,6 +24,23 @@
 没有可选播放接口或未安装 MMD 时，围观插件仍可独立运行。MMD 插件提供此接口。
 `Integration/FollowAllMmd` 默认 false，保持现有动作名单；开启后所有导入的 MMD 动作均可触发。`Triggers/FollowNativeActions` 默认 true。`Gathering/Radius` 默认 2.8 米，`Spacing` 默认 1.1 米；可在设置页或配置文件调整。
 
+## 全部插件配置
+
+以下保存在 BepInEx/config/local.sfm.npcspectators.cfg，不需要单独编写 JSON。修改配置文件后重启游戏；界面提供的开关和滑条可直接调整。
+
+| 配置项 | 默认值 | 含义与范围 |
+| --- | --- | --- |
+| `[General] Enabled` | true | 围观总开关；关闭后释放当前接管。 |
+| `[Triggers] FollowNativeActions` | true | 是否由名单中的原版动作自动触发。 |
+| `[Triggers] NativeActions` | HipShake | 逗号分隔的原版 ActionType 枚举名或数字；空字符串关闭名单触发，不能填写 None/-1。 |
+| `[Integration] FollowMmd` | true | 是否监听 MMD 播放触发围观；未安装 MMD 时不影响其他触发方式。 |
+| `[Integration] FollowAllMmd` | false | 开启后所有 MMD 动作均可触发，忽略名单；仍需要 FollowMmd=true。 |
+| `[Integration] MmdActions` | wavefile | 逗号分隔的 MMD 动作 ID；仅在 FollowMmd=true 且 FollowAllMmd=false 时使用。 |
+| `[Gathering] Radius` | 2.8 米 | 第一圈站位距本轮聚集中心的距离；限制在 1.8～8 米。 |
+| `[Gathering] Spacing` | 1.1 米 | 目标站位间的最小间距；限制在 0.8～3 米。 |
+
+“手动召集”是当前场景的临时请求，默认关闭，不写入上述配置文件。动作 JSON 的 npc.spectators 事件属于另一种可选触发方式，见下节。
+
 ## 动作事件触发
 
 安装更多动作后，可以在动作配置的 onStart 或 events 中添加 `{"event":"npc.spectators"}`（events 内还需 time）。不需要开启 MMD 动作触发，但仍服从“启用”总开关和原版场景条件。每次播放持有自己的请求，停止时自动释放，不影响其他来源。
