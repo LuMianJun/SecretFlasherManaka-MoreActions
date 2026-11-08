@@ -1,20 +1,81 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <TargetFramework>net6.0</TargetFramework><LangVersion>latest</LangVersion>
-    <AssemblyName>SFM.MoreActions</AssemblyName><EnableDefaultCompileItems>true</EnableDefaultCompileItems>
-    <RestoreIgnoreFailedSources>true</RestoreIgnoreFailedSources>
+    <AssemblyName>SFM.MoreActions</AssemblyName>
   </PropertyGroup>
+  <Import Project="../../shared/PluginReferences.props" />
   <ItemGroup>
-    <Reference Include="BepInEx.Core"><HintPath>$(GameDir)/BepInEx/core/BepInEx.Core.dll</HintPath><Private>false</Private></Reference>
-    <Reference Include="BepInEx.Unity.IL2CPP"><HintPath>$(GameDir)/BepInEx/core/BepInEx.Unity.IL2CPP.dll</HintPath><Private>false</Private></Reference>
-    <Reference Include="Il2CppInterop.Runtime"><HintPath>$(GameDir)/BepInEx/core/Il2CppInterop.Runtime.dll</HintPath><Private>false</Private></Reference>
-    <Reference Include="0Harmony"><HintPath>$(GameDir)/BepInEx/core/0Harmony.dll</HintPath><Private>false</Private></Reference>
-    <Reference Include="Game"><HintPath>$(GameDir)/BepInEx/interop/Assembly-CSharp.dll</HintPath><Private>false</Private></Reference>
-    <Reference Include="Il2Cppmscorlib"><HintPath>$(GameDir)/BepInEx/interop/Il2Cppmscorlib.dll</HintPath><Private>false</Private></Reference>
-    <Reference Include="UnityEngine.CoreModule"><HintPath>$(GameDir)/BepInEx/interop/UnityEngine.CoreModule.dll</HintPath><Private>false</Private></Reference>
-    <Reference Include="UnityEngine.PhysicsModule"><HintPath>$(GameDir)/BepInEx/interop/UnityEngine.PhysicsModule.dll</HintPath><Private>false</Private></Reference>
-    <Reference Include="UnityEngine.AnimationModule"><HintPath>$(GameDir)/BepInEx/interop/UnityEngine.AnimationModule.dll</HintPath><Private>false</Private></Reference>
-    <Reference Include="UnityEngine.AudioModule"><HintPath>$(GameDir)/BepInEx/interop/UnityEngine.AudioModule.dll</HintPath><Private>false</Private></Reference>
-    <Reference Include="UnityEngine.AssetBundleModule"><HintPath>$(GameDir)/BepInEx/interop/UnityEngine.AssetBundleModule.dll</HintPath><Private>false</Private></Reference>
-  <Reference Include="Unity.TextMeshPro"><HintPath>$(GameDir)/BepInEx/interop/Unity.TextMeshPro.dll</HintPath><Private>false</Private></Reference><Reference Include="UnityEngine.UI"><HintPath>$(GameDir)/BepInEx/interop/UnityEngine.UI.dll</HintPath><Private>false</Private></Reference></ItemGroup>
-<ItemGroup><Compile Include="../../shared/ModOptions.cs" Link="ModOptions.cs" /></ItemGroup></Project>
+    <Reference Include="UnityEngine.PhysicsModule">
+      <HintPath>$(GameDir)/BepInEx/interop/UnityEngine.PhysicsModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="UnityEngine.AnimationModule">
+      <HintPath>$(GameDir)/BepInEx/interop/UnityEngine.AnimationModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="UnityEngine.AudioModule">
+      <HintPath>$(GameDir)/BepInEx/interop/UnityEngine.AudioModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="UnityEngine.AssetBundleModule">
+      <HintPath>$(GameDir)/BepInEx/interop/UnityEngine.AssetBundleModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+  </ItemGroup>
+  <!-- Preserve the existing Harmony patch declaration order when adding files. -->
+  <ItemGroup>
+    <Compile Include="Import/ActionAssets.cs" />
+    <Compile Include="Rig/ActionPose.cs" />
+    <Compile Include="Rig/ActionBodyPoseLease.cs" />
+    <Compile Include="Import/ActionBundleImport.cs" />
+    <Compile Include="Diagnostics/ActionCancellationDiagnostics.cs" />
+    <Compile Include="Import/ActionConfiguration.cs" />
+    <Compile Include="Playback/ActionEvents.cs" />
+    <Compile Include="Rig/ActionFaceMorphLayer.cs" />
+    <Compile Include="UI/ActionNames.cs" />
+    <Compile Include="Actions/ActionPolicy.cs" />
+    <Compile Include="Api/ActionPlaybackApi.cs" />
+    <Compile Include="Playback/ActionRequestQueue.cs" />
+    <Compile Include="Actions/ActionDefinition.cs" />
+    <Compile Include="Actions/ActionDefinitionValidation.cs" />
+    <Compile Include="Import/ActionPackLoader.cs" />
+    <Compile Include="Actions/ActionRegistry.cs" />
+    <Compile Include="Playback/ActionRootMotion.cs" />
+    <Compile Include="UI/ActionSettingsApi.cs" />
+    <Compile Include="Actions/ActionStats.cs" />
+    <Compile Include="Rig/AnimatorClipSampler.cs" />
+    <Compile Include="Diagnostics/CameraTransitionDiagnostics.cs" />
+    <Compile Include="Rig/FixedModelFace.cs" />
+    <Compile Include="UI/GameAnimationNames.cs" />
+    <Compile Include="Import/LoadedAction.cs" />
+    <Compile Include="UI/MoreActionsSettingsPage.cs" />
+    <Compile Include="Playback/MotionAudioClock.cs" />
+    <Compile Include="Native/MotionFaceCamera.cs" />
+    <Compile Include="Rig/MotionRig.cs" />
+    <Compile Include="Rig/MotionSkeleton.cs" />
+    <Compile Include="Native/NativeActionEvents.cs" />
+    <Compile Include="Native/NativeActionLease.cs" />
+    <Compile Include="Native/NativeActionStats.cs" />
+    <Compile Include="Replacements/ReplacementService.cs" />
+    <Compile Include="UI/ReplacementSettings.cs" />
+    <Compile Include="Replacements/NativeAnimationReplacements.cs" />
+    <Compile Include="Native/NativeAnimatorRefresh.cs" />
+    <Compile Include="Native/NativeBodyPose.cs" />
+    <Compile Include="Native/NativeCameraTrack.cs" />
+    <Compile Include="UI/NativeSettingsUi.cs" />
+    <Compile Include="Plugin.cs" />
+    <Compile Include="Playback/ActionDriver.cs" />
+    <Compile Include="Playback/PlaybackSession.cs" />
+    <Compile Include="Native/ActionPlaybackPatches.cs" />
+    <Compile Include="UI/ReplacementBrowserModel.cs" />
+    <Compile Include="UI/ReplacementBrowserView.cs" />
+    <Compile Include="Replacements/ReplacementCatalog.cs" />
+    <Compile Include="Replacements/ReplacementSelection.cs" />
+    <Compile Include="UI/ReplacementUi.cs" />
+    <Compile Include="UI/RingActionMenu.cs" />
+    <Compile Include="Api/RuntimeActionSource.cs" />
+    <Compile Include="Import/UnityActionIdentity.cs" />
+    <Compile Include="Import/UnityActionOverrides.cs" />
+    <Compile Include="Import/WaveAudio.cs" />
+    <Compile Include="../../shared/ModOptions.cs" Link="ModOptions.cs" />
+  </ItemGroup>
+</Project>

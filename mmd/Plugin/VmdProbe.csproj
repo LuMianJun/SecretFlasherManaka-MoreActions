@@ -1,0 +1,33 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <AssemblyName>SFM.VmdProbe</AssemblyName>
+  </PropertyGroup>
+  <Import Project="../../shared/PluginReferences.props" />
+  <!-- Preserve the existing Harmony patch declaration order when adding files. -->
+  <ItemGroup>
+    <Compile Include="Plugin.cs" />
+    <Compile Include="Api/MotionPlaybackApi.cs" />
+    <Compile Include="Camera/VmdCameraMotion.cs" />
+    <Compile Include="Camera/MmdCameraPacks.cs" />
+    <Compile Include="Import/MmdActionPacks.cs" />
+    <Compile Include="Camera/MmdCameraDriver.cs" />
+    <Compile Include="Motion/MmdMotion.cs" />
+    <Compile Include="Motion/MmdSkeleton.cs" />
+    <Compile Include="Rig/GameMmdSkeleton.cs" />
+    <Compile Include="Rig/MmdReferencePose.cs" />
+    <Compile Include="Playback/RuntimeVmdSource.cs" />
+    <Compile Include="Rig/RuntimeVmdRig.cs" />
+    <Compile Include="Playback/RuntimeVmdPose.cs" />
+    <Compile Include="Rig/MmdRigCache.cs" />
+    <Compile Include="Rig/MmdTargetSnapshot.cs" />
+    <Compile Include="Rig/MmdMorphBindings.cs" />
+    <Compile Include="Rig/MmdRigPreparation.cs" />
+    <Compile Include="Import/MmdPackPreparation.cs" />
+    <Compile Include="../../shared/ModOptions.cs" Link="ModOptions.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../more-actions/Plugin/MoreActions.csproj">
+      <Private>false</Private>
+    </ProjectReference>
+  </ItemGroup>
+</Project>

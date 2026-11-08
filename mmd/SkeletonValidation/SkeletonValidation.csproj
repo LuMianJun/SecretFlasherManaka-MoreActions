@@ -1,0 +1,33 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="../../more-actions/Plugin/Rig/FixedModelFace.cs" Link="FixedModelFace.cs" />
+    <Compile Include="../Plugin/Rig/MmdMorphBindings.cs" Link="MmdMorphBindings.cs" />
+    <Compile Include="../Plugin/Rig/MmdReferencePose.cs" Link="MmdReferencePose.cs" />
+    <Compile Include="../../more-actions/Plugin/Rig/ActionBodyPoseLease.cs" Link="ActionBodyPoseLease.cs" />
+    <Compile Include="../../more-actions/Plugin/Rig/ActionFaceMorphLayer.cs" Link="ActionFaceMorphLayer.cs" />
+    <Compile Include="../Plugin/Rig/GameMmdSkeleton.cs" Link="GameMmdSkeleton.cs" />
+    <Compile Include="../Plugin/Rig/MmdTargetSnapshot.cs" Link="MmdTargetSnapshot.cs" />
+    <Compile Include="../Plugin/Import/MmdPackPreparation.cs" Link="MmdPackPreparation.cs" />
+    <Compile Include="../Plugin/Rig/MmdRigPreparation.cs" Link="MmdRigPreparation.cs" />
+    <Compile Include="../Plugin/Import/MmdActionPacks.cs" Link="MmdActionPacks.cs" />
+    <Compile Include="../Plugin/Camera/MmdCameraPacks.cs" Link="MmdCameraPacks.cs" />
+    <Compile Include="../Plugin/Camera/VmdCameraMotion.cs" Link="VmdCameraMotion.cs" />
+    <Compile Include="../Plugin/Motion/MmdMotion.cs" Link="MmdMotion.cs" />
+    <Compile Include="../Plugin/Motion/MmdSkeleton.cs" Link="MmdSkeleton.cs" />
+    <Compile Include="../Plugin/Playback/RuntimeVmdSource.cs" Link="RuntimeVmdSource.cs" />
+    <Compile Include="../Plugin/Rig/RuntimeVmdRig.cs" Link="RuntimeVmdRig.cs" />
+    <Compile Include="../Plugin/Playback/RuntimeVmdPose.cs" Link="RuntimeVmdPose.cs" />
+    <Compile Include="../Plugin/Rig/MmdRigCache.cs" Link="MmdRigCache.cs" />
+    <Compile Include="../../more-actions/Plugin/Rig/MotionSkeleton.cs" Link="MotionSkeleton.cs" />
+    <Compile Include="../../more-actions/Plugin/Rig/MotionRig.cs" Link="MotionRig.cs" />
+    <Compile Include="../../more-actions/Plugin/Actions/ActionPolicy.cs" Link="ActionPolicy.cs" />
+    <Compile Include="../../more-actions/Plugin/Api/ActionPlaybackApi.cs" Link="ActionPlaybackApi.cs" />
+    <Compile Include="../../more-actions/Plugin/Playback/ActionRequestQueue.cs" Link="ActionRequestQueue.cs" />
+    <Compile Include="../../more-actions/Plugin/Api/RuntimeActionSource.cs" Link="RuntimeActionSource.cs" />
+  </ItemGroup>
+</Project>

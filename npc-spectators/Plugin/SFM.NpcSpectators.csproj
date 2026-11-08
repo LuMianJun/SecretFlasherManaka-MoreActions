@@ -1,18 +1,33 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <TargetFramework>net6.0</TargetFramework><LangVersion>latest</LangVersion>
-    <AssemblyName>SFM.NpcSpectators</AssemblyName><RestoreIgnoreFailedSources>true</RestoreIgnoreFailedSources>
+    <AssemblyName>SFM.NpcSpectators</AssemblyName>
   </PropertyGroup>
+  <Import Project="../../shared/PluginReferences.props" />
   <ItemGroup>
-    <Reference Include="BepInEx.Core"><HintPath>$(GameDir)/BepInEx/core/BepInEx.Core.dll</HintPath><Private>false</Private></Reference>
-    <Reference Include="BepInEx.Unity.IL2CPP"><HintPath>$(GameDir)/BepInEx/core/BepInEx.Unity.IL2CPP.dll</HintPath><Private>false</Private></Reference>
-    <Reference Include="Il2CppInterop.Runtime"><HintPath>$(GameDir)/BepInEx/core/Il2CppInterop.Runtime.dll</HintPath><Private>false</Private></Reference>
-    <Reference Include="0Harmony"><HintPath>$(GameDir)/BepInEx/core/0Harmony.dll</HintPath><Private>false</Private></Reference>
-    <Reference Include="Game"><HintPath>$(GameDir)/BepInEx/interop/Assembly-CSharp.dll</HintPath><Private>false</Private></Reference>
-    <Reference Include="Il2Cppmscorlib"><HintPath>$(GameDir)/BepInEx/interop/Il2Cppmscorlib.dll</HintPath><Private>false</Private></Reference>
-    <Reference Include="UnityEngine.CoreModule"><HintPath>$(GameDir)/BepInEx/interop/UnityEngine.CoreModule.dll</HintPath><Private>false</Private></Reference>
-    <Reference Include="UnityEngine.AnimationModule"><HintPath>$(GameDir)/BepInEx/interop/UnityEngine.AnimationModule.dll</HintPath><Private>false</Private></Reference>
-    <Reference Include="UnityEngine.PhysicsModule"><HintPath>$(GameDir)/BepInEx/interop/UnityEngine.PhysicsModule.dll</HintPath><Private>false</Private></Reference>
-    <Reference Include="UnityEngine.AIModule"><HintPath>$(GameDir)/BepInEx/interop/UnityEngine.AIModule.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine.AnimationModule">
+      <HintPath>$(GameDir)/BepInEx/interop/UnityEngine.AnimationModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="UnityEngine.PhysicsModule">
+      <HintPath>$(GameDir)/BepInEx/interop/UnityEngine.PhysicsModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="UnityEngine.AIModule">
+      <HintPath>$(GameDir)/BepInEx/interop/UnityEngine.AIModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
   </ItemGroup>
-<ItemGroup><Compile Include="../../shared/ModOptions.cs" Link="ModOptions.cs" /></ItemGroup><ItemGroup><Reference Include="UnityEngine.UI"><HintPath>$(GameDir)/BepInEx/interop/UnityEngine.UI.dll</HintPath><Private>false</Private></Reference></ItemGroup><ItemGroup><Reference Include="Unity.TextMeshPro"><HintPath>$(GameDir)/BepInEx/interop/Unity.TextMeshPro.dll</HintPath><Private>false</Private></Reference></ItemGroup></Project>
+  <!-- Preserve the existing Harmony patch declaration order when adding files. -->
+  <ItemGroup>
+    <Compile Include="Integration/ActionEventBridge.cs" />
+    <Compile Include="Integration/CrowdApi.cs" />
+    <Compile Include="Gathering/CrowdDriver.cs" />
+    <Compile Include="Native/Spectator.cs" />
+    <Compile Include="Native/CrowdNativePatches.cs" />
+    <Compile Include="Gathering/CrowdPolicy.cs" />
+    <Compile Include="Gathering/CrowdVisibility.cs" />
+    <Compile Include="Integration/MmdBridge.cs" />
+    <Compile Include="Plugin.cs" />
+    <Compile Include="../../shared/ModOptions.cs" Link="ModOptions.cs" />
+  </ItemGroup>
+</Project>

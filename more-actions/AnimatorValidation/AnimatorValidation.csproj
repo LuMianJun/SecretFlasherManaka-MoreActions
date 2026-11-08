@@ -1,18 +1,24 @@
 <Project Sdk="Microsoft.NET.Sdk">
-  <PropertyGroup><OutputType>Exe</OutputType><TargetFramework>net10.0</TargetFramework><ImplicitUsings>enable</ImplicitUsings></PropertyGroup>
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
   <ItemGroup>
-    <Compile Include="../Plugin/UnityActionOverrides.cs" Link="UnityActionOverrides.cs" />
-    <Compile Include="../Plugin/UnityActionIdentity.cs" Link="UnityActionIdentity.cs" />
-    <Compile Include="../Plugin/AnimatorClipSampler.cs" Link="AnimatorClipSampler.cs" />
-    <Compile Include="../Plugin/RuntimeActionSource.cs" Link="RuntimeActionSource.cs" />
-    <Compile Include="../Plugin/LoadedAction.cs" Link="LoadedAction.cs" />
-    <Compile Include="../Plugin/ActionBundleImport.cs" Link="ActionBundleImport.cs" />
-    <Compile Include="../Plugin/NativeAnimationReplacements.cs" Link="NativeAnimationReplacements.cs" />
-    <Compile Include="../Plugin/NativeAnimatorRefresh.cs" Link="NativeAnimatorRefresh.cs" />
-    <Compile Include="../Plugin/ReplacementCatalog.cs" Link="ReplacementCatalog.cs" />
-    <Compile Include="../Plugin/ReplacementSelection.cs" Link="ReplacementSelection.cs" />
-    <Compile Include="../Plugin/ActionNames.cs" Link="ActionNames.cs" />
-    <Compile Include="../Plugin/GameAnimationNames.cs" Link="GameAnimationNames.cs" />
-    <Compile Include="../Plugin/ActionSettingsApi.cs" Link="ActionSettingsApi.cs" />
+    <Compile Include="../Plugin/Import/UnityActionOverrides.cs" Link="UnityActionOverrides.cs" />
+    <Compile Include="../Plugin/Import/UnityActionIdentity.cs" Link="UnityActionIdentity.cs" />
+    <Compile Include="../Plugin/Rig/AnimatorClipSampler.cs" Link="AnimatorClipSampler.cs" />
+    <Compile Include="../Plugin/Api/RuntimeActionSource.cs" Link="RuntimeActionSource.cs" />
+    <Compile Include="../Plugin/Import/LoadedAction.cs" Link="LoadedAction.cs" />
+    <Compile Include="../Plugin/Import/ActionBundleImport.cs" Link="ActionBundleImport.cs" />
+    <Compile Include="../Plugin/Replacements/ReplacementService.cs" Link="ReplacementService.cs" />
+    <Compile Include="../Plugin/UI/ReplacementSettings.cs" Link="ReplacementSettings.cs" />
+    <Compile Include="../Plugin/Replacements/NativeAnimationReplacements.cs" Link="NativeAnimationReplacements.cs" />
+    <Compile Include="../Plugin/Native/NativeAnimatorRefresh.cs" Link="NativeAnimatorRefresh.cs" />
+    <Compile Include="../Plugin/Replacements/ReplacementCatalog.cs" Link="ReplacementCatalog.cs" />
+    <Compile Include="../Plugin/Replacements/ReplacementSelection.cs" Link="ReplacementSelection.cs" />
+    <Compile Include="../Plugin/UI/ActionNames.cs" Link="ActionNames.cs" />
+    <Compile Include="../Plugin/UI/GameAnimationNames.cs" Link="GameAnimationNames.cs" />
+    <Compile Include="../Plugin/UI/ActionSettingsApi.cs" Link="ActionSettingsApi.cs" />
   </ItemGroup>
 </Project>

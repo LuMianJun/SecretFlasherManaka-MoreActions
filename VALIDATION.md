@@ -1,5 +1,7 @@
 # 离线验证
 
+模块目录、状态归属和更新顺序见[代码结构](ARCHITECTURE.md)。
+
 验证项目使用 .NET 10，生产插件目标为 .NET 6。请使用 .NET 10 SDK，并准备目标游戏已生成的 `BepInEx/core` 和 `BepInEx/interop`。游戏及 Unity 程序集由使用者本地提供，不包含在仓库中。
 
 ## 从源码构建
@@ -8,7 +10,7 @@
 
 ```powershell
 $gameDir = "D:/Games/SecretFlasherManaka"
-dotnet build vmd-validation/Plugin/VmdProbe.csproj -c Release "-p:GameDir=$gameDir"
+dotnet build mmd/Plugin/VmdProbe.csproj -c Release "-p:GameDir=$gameDir"
 dotnet build npc-spectators/Plugin/SFM.NpcSpectators.csproj -c Release "-p:GameDir=$gameDir"
 ```
 
@@ -28,10 +30,10 @@ dotnet run --project more-actions/EventValidation -c Release
 dotnet run --project more-actions/RingValidation -c Release
 dotnet run --project more-actions/RuntimeValidation -c Release
 dotnet run --project more-actions/StatsValidation -c Release
-dotnet run --project vmd-validation/ImportValidation -c Release
-dotnet run --project vmd-validation/InterpolationValidation -c Release
-dotnet run --project vmd-validation/SkeletonValidation -c Release
-dotnet run --project vmd-validation/CameraValidation -c Release
+dotnet run --project mmd/ImportValidation -c Release
+dotnet run --project mmd/InterpolationValidation -c Release
+dotnet run --project mmd/SkeletonValidation -c Release
+dotnet run --project mmd/CameraValidation -c Release
 dotnet run --project npc-spectators/Validation -c Release
 ```
 
@@ -51,7 +53,7 @@ dotnet run --project npc-spectators/Validation -c Release
 无素材安装包的接口检查可显式使用：
 
 ```powershell
-dotnet run --project vmd-validation/CameraValidation -c Release -- --package "D:/Games/SecretFlasherManaka"
+dotnet run --project mmd/CameraValidation -c Release -- --package "D:/Games/SecretFlasherManaka"
 ```
 
 此模式只检查插件、原版互操作接口和说明文件，不要求玩家拥有 WAVEFILE/Shake 测试素材。原有带素材入口仍会严格验证这些素材的默认导入规则。

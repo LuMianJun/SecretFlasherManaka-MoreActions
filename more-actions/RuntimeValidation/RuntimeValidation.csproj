@@ -1,15 +1,24 @@
 <Project Sdk="Microsoft.NET.Sdk">
-  <PropertyGroup><OutputType>Exe</OutputType><TargetFramework>net10.0</TargetFramework><ImplicitUsings>enable</ImplicitUsings></PropertyGroup>
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
   <ItemGroup>
-    <Compile Include="../Plugin/ActionConfiguration.cs" Link="ActionConfiguration.cs" />
-    <Compile Include="../Plugin/UnityActionOverrides.cs" Link="UnityActionOverrides.cs" />
+    <Compile Include="../Plugin/Import/ActionConfiguration.cs" Link="ActionConfiguration.cs" />
+    <Compile Include="../Plugin/Import/UnityActionOverrides.cs" Link="UnityActionOverrides.cs" />
     <None Include="../examples/*.action.json" Link="examples/%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
-    <Compile Include="../Plugin/ActionStats.cs" Link="ActionStats.cs" />
-    <Compile Include="../Plugin/UnityActionIdentity.cs" Link="UnityActionIdentity.cs" />
-    <Compile Include="../Plugin/ActionEvents.cs" Link="ActionEvents.cs" />
-    <Compile Include="../Plugin/ActionRegistry.cs" Link="ActionRegistry.cs" />
-    <Compile Include="../Plugin/ActionPolicy.cs" Link="ActionPolicy.cs" />
-    <Compile Include="../Plugin/MotionRig.cs" Link="MotionRig.cs" />
-    <Compile Include="../Plugin/RuntimeActionSource.cs" Link="RuntimeActionSource.cs" />
+    <Compile Include="../Plugin/Actions/ActionStats.cs" Link="ActionStats.cs" />
+    <Compile Include="../Plugin/Import/UnityActionIdentity.cs" Link="UnityActionIdentity.cs" />
+    <Compile Include="../Plugin/Playback/ActionEvents.cs" Link="ActionEvents.cs" />
+    <Compile Include="../Plugin/Actions/ActionDefinition.cs" Link="ActionDefinition.cs" />
+    <Compile Include="../Plugin/Actions/ActionDefinitionValidation.cs" Link="ActionDefinitionValidation.cs" />
+    <Compile Include="../Plugin/Import/ActionPackLoader.cs" Link="ActionPackLoader.cs" />
+    <Compile Include="../Plugin/Actions/ActionRegistry.cs" Link="ActionRegistry.cs" />
+    <Compile Include="../Plugin/Actions/ActionPolicy.cs" Link="ActionPolicy.cs" />
+    <Compile Include="../Plugin/Api/ActionPlaybackApi.cs" Link="ActionPlaybackApi.cs" />
+    <Compile Include="../Plugin/Playback/ActionRequestQueue.cs" Link="ActionRequestQueue.cs" />
+    <Compile Include="../Plugin/Rig/MotionRig.cs" Link="MotionRig.cs" />
+    <Compile Include="../Plugin/Api/RuntimeActionSource.cs" Link="RuntimeActionSource.cs" />
   </ItemGroup>
 </Project>

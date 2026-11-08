@@ -1,20 +1,35 @@
 <Project Sdk="Microsoft.NET.Sdk">
-  <PropertyGroup><OutputType>Exe</OutputType><TargetFramework>net10.0</TargetFramework><ImplicitUsings>enable</ImplicitUsings><AssemblyName>SFM.MoreActions</AssemblyName></PropertyGroup>
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AssemblyName>SFM.MoreActions</AssemblyName>
+  </PropertyGroup>
   <ItemGroup>
-    <Compile Include="../Plugin/ActionConfiguration.cs" Link="ActionConfiguration.cs" />
-    <Compile Include="../Plugin/ActionStats.cs" Link="ActionStats.cs" />
-    <Compile Include="../Plugin/UnityActionIdentity.cs" Link="UnityActionIdentity.cs" />
-    <Compile Include="../Plugin/ActionCancellationDiagnostics.cs" Link="ActionCancellationDiagnostics.cs" />
-    <Compile Include="../Plugin/NativeActionLease.cs" Link="NativeActionLease.cs" />
-    <Compile Include="../Plugin/Plugin.cs" Link="Plugin.cs" /><Compile Include="../Plugin/NativeBodyPose.cs" Link="NativeBodyPose.cs" /><Compile Include="../Plugin/ActionRootMotion.cs" Link="ActionRootMotion.cs" />
-    <Compile Include="../Plugin/ActionEvents.cs" Link="ActionEvents.cs" />
-    <Compile Include="../Plugin/NativeActionEvents.cs" Link="NativeActionEvents.cs" />
-    <Compile Include="../Plugin/ActionRegistry.cs" Link="ActionRegistry.cs" />
-    <Compile Include="../Plugin/ActionPolicy.cs" Link="ActionPolicy.cs" />
-    <Compile Include="../Plugin/RuntimeActionSource.cs" Link="RuntimeActionSource.cs" />
-    <Compile Include="../Plugin/MotionAudioClock.cs" Link="MotionAudioClock.cs" />
-    <Compile Include="../Plugin/MotionRig.cs" Link="MotionRig.cs" />
-    <Compile Include="../../npc-spectators/Plugin/ActionEventBridge.cs" Link="ActionEventBridge.cs" />
-    <Compile Include="../../npc-spectators/Plugin/CrowdApi.cs" Link="CrowdApi.cs" />
+    <Compile Include="../Plugin/Import/ActionConfiguration.cs" Link="ActionConfiguration.cs" />
+    <Compile Include="../Plugin/Actions/ActionStats.cs" Link="ActionStats.cs" />
+    <Compile Include="../Plugin/Import/UnityActionIdentity.cs" Link="UnityActionIdentity.cs" />
+    <Compile Include="../Plugin/Diagnostics/ActionCancellationDiagnostics.cs" Link="ActionCancellationDiagnostics.cs" />
+    <Compile Include="../Plugin/Native/NativeActionLease.cs" Link="NativeActionLease.cs" />
+    <Compile Include="../Plugin/Plugin.cs" Link="Plugin.cs" />
+    <Compile Include="../Plugin/Playback/ActionDriver.cs" Link="ActionDriver.cs" />
+    <Compile Include="../Plugin/Playback/PlaybackSession.cs" Link="PlaybackSession.cs" />
+    <Compile Include="../Plugin/Native/ActionPlaybackPatches.cs" Link="ActionPlaybackPatches.cs" />
+    <Compile Include="../Plugin/Native/NativeBodyPose.cs" Link="NativeBodyPose.cs" />
+    <Compile Include="../Plugin/Playback/ActionRootMotion.cs" Link="ActionRootMotion.cs" />
+    <Compile Include="../Plugin/Playback/ActionEvents.cs" Link="ActionEvents.cs" />
+    <Compile Include="../Plugin/Native/NativeActionEvents.cs" Link="NativeActionEvents.cs" />
+    <Compile Include="../Plugin/Actions/ActionDefinition.cs" Link="ActionDefinition.cs" />
+    <Compile Include="../Plugin/Actions/ActionDefinitionValidation.cs" Link="ActionDefinitionValidation.cs" />
+    <Compile Include="../Plugin/Import/ActionPackLoader.cs" Link="ActionPackLoader.cs" />
+    <Compile Include="../Plugin/Actions/ActionRegistry.cs" Link="ActionRegistry.cs" />
+    <Compile Include="../Plugin/Actions/ActionPolicy.cs" Link="ActionPolicy.cs" />
+    <Compile Include="../Plugin/Api/ActionPlaybackApi.cs" Link="ActionPlaybackApi.cs" />
+    <Compile Include="../Plugin/Playback/ActionRequestQueue.cs" Link="ActionRequestQueue.cs" />
+    <Compile Include="../Plugin/Api/RuntimeActionSource.cs" Link="RuntimeActionSource.cs" />
+    <Compile Include="../Plugin/Playback/MotionAudioClock.cs" Link="MotionAudioClock.cs" />
+    <Compile Include="../Plugin/Rig/MotionRig.cs" Link="MotionRig.cs" />
+    <Compile Include="../../npc-spectators/Plugin/Integration/ActionEventBridge.cs" Link="ActionEventBridge.cs" />
+    <Compile Include="../../npc-spectators/Plugin/Integration/CrowdApi.cs" Link="CrowdApi.cs" />
   </ItemGroup>
 </Project>

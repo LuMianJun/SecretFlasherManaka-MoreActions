@@ -257,3 +257,5 @@ namespace SFM.Actions
 }
 
 namespace SFM.Actions { internal static class NativeActionStats { internal static ActionStatValues Resolve(ActionDefinition a)=>ActionStatsSchema.Resolve(a,_=>ActionStatValues.Empty); } }
+
+namespace SFM.Actions { internal static class ReplacementService {internal static void Configure(BepInEx.Configuration.ConfigFile config){}} internal static class ReplacementSettings {internal static void Register(){}} }

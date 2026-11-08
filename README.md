@@ -72,7 +72,7 @@ NPC 围观在 **设置 → 游戏系统** 中开启并选择触发方式。NPC �
 各 Mod 的功能、参数含义、默认值和完整示例见：
 
 - [更多动作说明](more-actions/README.zh-CN.md)：Unity 动画包、替换管理、精简 JSON、全部动作字段及属性参数。
-- [MMD 说明](vmd-validation/README.zh-CN.md)：VMD、音乐、配套镜头、参考姿势、表情及属性配置。
+- [MMD 说明](mmd/README.zh-CN.md)：VMD、音乐、配套镜头、参考姿势、表情及属性配置。
 - [NPC 围观说明](npc-spectators/README.md)：触发方式、配置默认值、围观范围与解散条件。
 - [动作事件说明](shared/动作事件说明.zh-CN.md)：音效、脚步及围观事件。
 

@@ -1,12 +1,19 @@
 <Project Sdk="Microsoft.NET.Sdk">
-  <PropertyGroup><OutputType>Exe</OutputType><TargetFramework>net10.0</TargetFramework><ImplicitUsings>enable</ImplicitUsings><LangVersion>latest</LangVersion></PropertyGroup>
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+  </PropertyGroup>
   <ItemGroup>
-    <Compile Include="../Plugin/CrowdApi.cs" Link="CrowdApi.cs" />
-    <Compile Include="../Plugin/ActionEventBridge.cs" Link="ActionEventBridge.cs" />
-    <Compile Include="../Plugin/CrowdPolicy.cs" Link="CrowdPolicy.cs" />
-    <Compile Include="../Plugin/CrowdDriver.cs" Link="CrowdDriver.cs" />
-    <Compile Include="../Plugin/CrowdVisibility.cs" Link="CrowdVisibility.cs" />
-    <Compile Include="../Plugin/MmdBridge.cs" Link="MmdBridge.cs" />
-    <Compile Include="../../vmd-validation/Plugin/MotionPlaybackApi.cs" Link="MotionPlaybackApi.cs" />
+    <Compile Include="../Plugin/Integration/CrowdApi.cs" Link="CrowdApi.cs" />
+    <Compile Include="../Plugin/Integration/ActionEventBridge.cs" Link="ActionEventBridge.cs" />
+    <Compile Include="../Plugin/Gathering/CrowdPolicy.cs" Link="CrowdPolicy.cs" />
+    <Compile Include="../Plugin/Gathering/CrowdDriver.cs" Link="CrowdDriver.cs" />
+    <Compile Include="../Plugin/Native/Spectator.cs" Link="Spectator.cs" />
+    <Compile Include="../Plugin/Native/CrowdNativePatches.cs" Link="CrowdNativePatches.cs" />
+    <Compile Include="../Plugin/Gathering/CrowdVisibility.cs" Link="CrowdVisibility.cs" />
+    <Compile Include="../Plugin/Integration/MmdBridge.cs" Link="MmdBridge.cs" />
+    <Compile Include="../../mmd/Plugin/Api/MotionPlaybackApi.cs" Link="MotionPlaybackApi.cs" />
   </ItemGroup>
 </Project>

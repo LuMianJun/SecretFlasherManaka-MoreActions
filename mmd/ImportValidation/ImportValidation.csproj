@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="../../more-actions/Plugin/Import/ActionConfiguration.cs" Link="ActionConfiguration.cs" />
+    <Compile Include="../../more-actions/Plugin/Actions/ActionStats.cs" Link="ActionStats.cs" />
+    <Compile Include="../../more-actions/Plugin/Import/UnityActionIdentity.cs" Link="UnityActionIdentity.cs" />
+    <Compile Include="../Plugin/Rig/MmdReferencePose.cs" Link="MmdReferencePose.cs" />
+    <Compile Include="../../more-actions/Plugin/Playback/ActionEvents.cs" Link="ActionEvents.cs" />
+    <Compile Include="../Plugin/Import/MmdActionPacks.cs" Link="MmdActionPacks.cs" />
+    <Compile Include="../Plugin/Camera/MmdCameraPacks.cs" Link="MmdCameraPacks.cs" />
+    <Compile Include="../Plugin/Camera/VmdCameraMotion.cs" Link="VmdCameraMotion.cs" />
+    <Compile Include="../../more-actions/Plugin/Actions/ActionDefinition.cs" Link="ActionDefinition.cs" />
+    <Compile Include="../../more-actions/Plugin/Actions/ActionDefinitionValidation.cs" Link="ActionDefinitionValidation.cs" />
+    <Compile Include="../../more-actions/Plugin/Import/ActionPackLoader.cs" Link="ActionPackLoader.cs" />
+    <Compile Include="../../more-actions/Plugin/Actions/ActionRegistry.cs" Link="ActionRegistry.cs" />
+    <Compile Include="../../more-actions/Plugin/Actions/ActionPolicy.cs" Link="ActionPolicy.cs" />
+    <Compile Include="../../more-actions/Plugin/Api/ActionPlaybackApi.cs" Link="ActionPlaybackApi.cs" />
+    <Compile Include="../../more-actions/Plugin/Playback/ActionRequestQueue.cs" Link="ActionRequestQueue.cs" />
+    <Compile Include="../../more-actions/Plugin/Rig/MotionRig.cs" Link="MotionRig.cs" />
+    <Compile Include="../../more-actions/Plugin/Api/RuntimeActionSource.cs" Link="RuntimeActionSource.cs" />
+  </ItemGroup>
+</Project>

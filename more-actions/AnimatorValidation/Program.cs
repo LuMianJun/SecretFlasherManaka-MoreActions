@@ -79,7 +79,7 @@ try
     UnityEngine.Animations.AnimationPlayableGraphExtensions.FailCreation=false;
     // Production replacement manager over native controller/config boundaries.
     var config=new BepInEx.Configuration.ConfigFile();
-    NativeAnimationReplacements.Configure(config);
+    ReplacementService.Configure(config);ReplacementSettings.Register();
     var enable=(BepInEx.Configuration.ConfigEntry<bool>)config.Values["Replacements.Enabled"];
     var saved=(BepInEx.Configuration.ConfigEntry<string>)config.Values["Replacements.Selections"];
     var nativeClip=new AnimationClip{name="Female_Idle_Base"};var otherClip=new AnimationClip{name="Unchanged"};
@@ -101,11 +101,11 @@ try
     actor.isInitialized=true;
     NativeAnimationReplacements.Tick(actor);
     var aId="test.a";var bId="test.b";
-    var aRow=(Read:(Func<bool>)(()=>NativeAnimationReplacements.Catalog.Selected("Female_Idle_Base")==aId),Write:(Action<bool>)(v=>NativeAnimationReplacements.SelectVariant(aId,v)));
-    var bRow=(Read:(Func<bool>)(()=>NativeAnimationReplacements.Catalog.Selected("Female_Idle_Base")==bId),Write:(Action<bool>)(v=>NativeAnimationReplacements.SelectVariant(bId,v)));
+    var aRow=(Read:(Func<bool>)(()=>ReplacementService.Catalog.Selected("Female_Idle_Base")==aId),Write:(Action<bool>)(v=>ReplacementService.SelectVariant(aId,v)));
+    var bRow=(Read:(Func<bool>)(()=>ReplacementService.Catalog.Selected("Female_Idle_Base")==bId),Write:(Action<bool>)(v=>ReplacementService.SelectVariant(bId,v)));
     Check(actor.runtimeAnimatorController==baseController&&!enable.Value,"Replacement defaults never change the actor controller");
     Check(actor.UpdateCalls==0,"Disabled detached replacements do not force native evaluation");
-    Check(NativeAnimationReplacements.Catalog.Options.Count==2&&!SFM.ModSettings.ModOptions.Rows.Keys.Any(k=>k.StartsWith("replacement.variant.")),"Replacement candidates belong to the browser instead of expanding the settings page");
+    Check(ReplacementService.Catalog.Options.Count==2&&!SFM.ModSettings.ModOptions.Rows.Keys.Any(k=>k.StartsWith("replacement.variant.")),"Replacement candidates belong to the browser instead of expanding the settings page");
     aRow.Write(true);enable.Value=true;
     var playerState=ExposureUnnoticed2.Object3D.Player.Scripts.PlayerController.Instance.Pca.PlayerState;
     playerState.IsSit=true;NativeAnimationReplacements.Tick(actor);
@@ -127,7 +127,7 @@ try
     Check(evaluatedAlways&&actor.cullingMode==AnimatorCullingMode.CullUpdateTransforms,"One-shot native evaluation is not culled and restores the prior culling policy");
     Check(faceNode.renderer.Values.SequenceEqual(new[]{62f,17f})&&bodyNode.renderer.Values[0]==43f,"Native refresh preserves customization on both fixed base-model meshes");
     ActionRegistry.RegisterAlias("legacy-a",aId);saved.Value="{\"Female_Idle_Base\":\"legacy-a\"}";NativeAnimationReplacements.Tick(actor);
-    Check(NativeAnimationReplacements.Catalog.Selected("Female_Idle_Base")==aId&&saved.Value.Contains(aId),"Saved legacy replacement IDs migrate when the alias becomes available");
+    Check(ReplacementService.Catalog.Selected("Female_Idle_Base")==aId&&saved.Value.Contains(aId),"Saved legacy replacement IDs migrate when the alias becomes available");
     int notifications=layer.Notifications;
     int evaluations=actor.UpdateCalls;
     bRow.Write(true);NativeAnimationReplacements.Tick(actor);

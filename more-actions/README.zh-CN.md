@@ -75,7 +75,7 @@ Tab、Esc 等菜单操作本身不直接停止动作。原版菜单暂停游戏�
 | Unity 自动导入 | 不放 JSON | 导入包内全部片段、静音循环、自动生成 ID。 |
 | Unity 自动导入参数 | 与 bundle 同名的 .action.json | 只填写需要修改的字段，其余继承自动导入；不必填 ID、资源名或 loop。 |
 | Unity 显式指定片段 | 名称.action.json，填写 bundle、clipAsset | 仅导入指定片段，其余使用下表默认值。 |
-| MMD 导入 | 可选 action.json | 使用 motion.vmd，以及存在的 BGM.wav、camera.vmd。完整参数见 [MMD 使用说明](../vmd-validation/README.zh-CN.md)。 |
+| MMD 导入 | 可选 action.json | 使用 motion.vmd，以及存在的 BGM.wav、camera.vmd。完整参数见 [MMD 使用说明](../mmd/README.zh-CN.md)。 |
 
 两种配置共享播放、音乐、表情、范围、事件和原版属性参数，但资源字段不同。Unity 使用 bundle、clipAsset；vmdFile、referencePose、camera 属于 MMD 配置。
 

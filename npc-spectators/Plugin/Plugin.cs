@@ -9,10 +9,11 @@ using SFM.ModSettings;
 
 namespace SFM.NpcSpectators;
 
-[BepInPlugin("local.sfm.npcspectators", "SFM NPC Spectators", "1.0.0")]
+[BepInPlugin("local.sfm.npcspectators", "SFM NPC Spectators", Version)]
 [BepInDependency("local.sfm.moreactions", BepInDependency.DependencyFlags.SoftDependency)]
 public sealed class Plugin : BasePlugin
 {
+    internal const string Version = "1.0.0";
     internal static ManualLogSource Logger;
     internal static ConfigEntry<bool> Enabled, FollowMmd, FollowNative, FollowAllMmd;
     internal static ConfigEntry<string> NativeActions, MmdActions;
@@ -39,6 +40,6 @@ public sealed class Plugin : BasePlugin
         ModOptions.Number("crowd.radius", "[NPC围观] 围观半径", "[Spectators] Radius", Radius, 18, 80, 0.1f, "m", "玩家与第一圈围观行人的距离。", "Distance from the player to the inner spectator ring.");
         ModOptions.Number("crowd.spacing", "[NPC围观] 行人间距", "[Spectators] Spacing", Spacing, 8, 30, 0.1f, "m", "围观目标位置之间的最小间距。", "Minimum separation between spectator destinations.");
         new Harmony("local.sfm.npcspectators").PatchAll(typeof(Plugin).Assembly);
-        Log.LogInfo("CROWD_READY version=1.0.0 standalone=settings native=HipShake optionalMmd=true");
+        Log.LogInfo("CROWD_READY version=" + Version + " standalone=settings native=HipShake optionalMmd=true");
     }
 }
