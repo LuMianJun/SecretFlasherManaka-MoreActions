@@ -14,7 +14,7 @@ public sealed class ActionBodyPoseLease : IActionBodyPose, IDisposable
     readonly Transform[][] correctionBones;
     readonly Animator animator;
     readonly AnimatorCullingMode savedCulling;
-    bool nativePass, applied, restoredForUpdate, disposed;
+    bool nativePass, applied, disposed;
     readonly bool ownsLeftKnee;
 
     readonly struct State
@@ -29,17 +29,19 @@ public sealed class ActionBodyPoseLease : IActionBodyPose, IDisposable
 
     sealed class Correction : IDisposable
     {
+        readonly ActionBodyPoseLease owner;
         readonly Transform[] bones;
         readonly State[] states;
         bool restored;
-        internal Correction(Transform[] bones)
+        internal Correction(ActionBodyPoseLease owner,Transform[] bones)
         {
-            this.bones=bones; states=new State[bones.Length];
+            this.owner=owner;this.bones=bones; states=new State[bones.Length];
             for(int i=0;i<bones.Length;i++) states[i]=new State(bones[i]);
         }
         public void Dispose()
         {
             if(restored)return; restored=true;
+            if(owner.disposed)return;
             for(int i=0;i<bones.Length;i++)states[i].Restore(bones[i]);
         }
     }
@@ -70,12 +72,12 @@ public sealed class ActionBodyPoseLease : IActionBodyPose, IDisposable
     public void RestoreNativeBody()
     {
         if(disposed||!applied)return;
-        Restore(raw); applied=false; restoredForUpdate=true;
+        Restore(raw); applied=false;
     }
     public void BeginNativeBody()
     {
         if(disposed)return;
-        Capture(raw); nativePass=true; restoredForUpdate=false;
+        Capture(raw); nativePass=true;
     }
     public void EndNativeBody(bool succeeded)
     {
@@ -87,7 +89,7 @@ public sealed class ActionBodyPoseLease : IActionBodyPose, IDisposable
     {
         if(disposed||!nativePass)return null;
         var selected=correctionBones[(int)correction];
-        return selected.Length==0?null:new Correction(selected);
+        return selected.Length==0?null:new Correction(this,selected);
     }
     public bool SuppressKneeOffset => !disposed&&nativePass&&ownsLeftKnee;
 
@@ -96,13 +98,16 @@ public sealed class ActionBodyPoseLease : IActionBodyPose, IDisposable
     public void ApplyBaseline()
     {
         if(disposed)throw new ObjectDisposedException(nameof(ActionBodyPoseLease));
-        Restore(native); applied=true; restoredForUpdate=false;
+        Restore(native); applied=true;
     }
     public void Dispose()
     {
         if(disposed)return;
         disposed=true; nativePass=false;
-        try { Restore(restoredForUpdate?raw:native); }
+        // Once output has been withdrawn (or before its first application),
+        // the live transforms belong to native animation again. Do not write
+        // constructor/previous-frame snapshots over its newer result.
+        try { if(applied)Restore(native); }
         finally
         { if(animator!=null&&animator.cullingMode==AnimatorCullingMode.AlwaysAnimate)animator.cullingMode=savedCulling; }
     }

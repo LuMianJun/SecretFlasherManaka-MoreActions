@@ -6,7 +6,7 @@ namespace Seleka2.Actions;
 
 // Each playback instance owns its sampling skeleton and restoration.
 // Keep the native Animator enabled: native size controllers need its fresh pose.
-internal sealed class ActionPose : IActionPose, IActionFacePose
+internal sealed class ActionPose : IActionPose, IActionFacePose, IActionBodyPose
 {
     readonly LoadedAction action;
     readonly GameObject liveRoot;
@@ -19,6 +19,7 @@ internal sealed class ActionPose : IActionPose, IActionFacePose
     ActionFaceMorphLayer face;
     Vector3 savedHip, hipOrigin;
     bool restored;
+    ActionBodyPoseLease body;
     public int BoneCount => bones.Count;
 
     internal ActionPose(GameObject target, LoadedAction loaded)
@@ -35,6 +36,7 @@ internal sealed class ActionPose : IActionPose, IActionFacePose
             savedRotations = new Quaternion[bones.Count];
             for (int i = 0; i < bones.Count; i++) savedRotations[i] = bones[i].live.localRotation;
             savedHip = resolved["Armature/Hips"].localPosition;
+            body = new ActionBodyPoseLease(target, bones.ConvertAll(b => b.live));
             if (action.Definition.WriteFaceMorphs)
                 foreach (var renderer in liveRoot.GetComponentsInChildren<SkinnedMeshRenderer>(true))
                 {
@@ -78,11 +80,12 @@ internal sealed class ActionPose : IActionPose, IActionFacePose
     {
         if (liveRoot == null || proxy == null || action.Clip == null) return false;
         Sample(Mathf.Clamp(time, 0, action.Duration));
+        body?.ApplyBaseline();
         foreach (var bone in bones)
         {
             if (bone.live == null || bone.sample == null) return false;
             bone.live.localRotation = bone.sample.localRotation;
-            if (bone.path == "Armature/Hips" && action.Definition.WriteHipTranslation) bone.live.localPosition = savedHip + bone.sample.localPosition - hipOrigin;
+            if (bone.path == "Armature/Hips" && action.Definition.WriteHipTranslation) bone.live.localPosition += bone.sample.localPosition - hipOrigin;
         }
         face?.Begin();
         foreach (var shape in morphs) if (shape.live != null) face?.Write(shape.live, shape.index, shape.sample.GetBlendShapeWeight(shape.index));
@@ -90,6 +93,12 @@ internal sealed class ActionPose : IActionPose, IActionFacePose
     }
 
     public void RestoreNativeFace() => face?.RestoreNativeFace();
+
+    public void RestoreNativeBody() => body?.RestoreNativeBody();
+    public void BeginNativeBody() => body?.BeginNativeBody();
+    public void EndNativeBody(bool succeeded) => body?.EndNativeBody(succeeded);
+    public IDisposable PreserveNativeCorrection(ActionBoneCorrection correction) => body?.PreserveNativeCorrection(correction);
+    public bool SuppressKneeOffset => body?.SuppressKneeOffset ?? false;
 
     internal void Restore()
     {
@@ -101,5 +110,9 @@ internal sealed class ActionPose : IActionPose, IActionFacePose
         }
         face?.RestoreNativeFace();
     }
-    public void Dispose() { Restore(); if (proxy != null) UnityEngine.Object.Destroy(proxy); proxy = null; }
+    public void Dispose()
+    {
+        try { if (body != null) { body.Dispose(); face?.RestoreNativeFace(); } else Restore(); }
+        finally { if (proxy != null) UnityEngine.Object.Destroy(proxy); proxy = null; }
+    }
 }

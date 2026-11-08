@@ -1,0 +1,36 @@
+namespace UnityEngine
+{
+    public sealed class AnimationClip : Object
+    {
+        public float length=2;public Action<GameObject,float> Evaluate;
+        public void SampleAnimation(GameObject target,float seconds)=>Evaluate?.Invoke(target,seconds);
+    }
+}
+namespace Seleka2.Actions
+{
+    public sealed class ActionDefinition
+    {
+        public bool WriteHipTranslation=true,WriteFaceMorphs=true,KeepGameExpressions=true,Loop;
+        public string[] BonePaths=Array.Empty<string>();
+    }
+    public static class ActionPolicy
+    {
+        public static bool WritesBone(ActionDefinition action,string path)=>action.BonePaths.Length==0||action.BonePaths.Contains(path);
+    }
+    internal sealed class LoadedAction
+    {
+        public ActionDefinition Definition;public UnityEngine.AnimationClip Clip;
+        public float Duration=>Clip.length;
+    }
+    // The native graph has its own interop/clock validation. This boundary only
+    // supplies pose samples so real ActionPose transfer/restore code is tested.
+    internal sealed class AnimatorClipSampler : IDisposable
+    {
+        readonly UnityEngine.GameObject proxy;readonly UnityEngine.AnimationClip clip;
+        internal AnimatorClipSampler(UnityEngine.GameObject target,UnityEngine.Animator animator,UnityEngine.AnimationClip clip){proxy=target;this.clip=clip;}
+        internal void Sample(float seconds)=>clip.SampleAnimation(proxy,seconds);
+        public void Dispose(){}
+    }
+    public sealed class Logger {public void LogWarning(string value){} }
+    public static class Plugin {public static Logger LogSource=new();}
+}
