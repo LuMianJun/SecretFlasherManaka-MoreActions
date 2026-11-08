@@ -1,4 +1,4 @@
-﻿#pragma warning disable CS9113 // Adapter constructor parameters mirror production signatures.
+#pragma warning disable CS9113 // Adapter constructor parameters mirror production signatures.
 // Offline boundaries only: production driver, scheduler, native adapters and
 // optional NPC registration are linked unchanged by EventValidation.csproj.
 using SFM.Actions;
@@ -255,3 +255,5 @@ namespace SFM.Actions
         public static Dictionary<string, LoadedAction> Items = new(); public static HashSet<string> Pending = new(); public static bool TryGet(ActionDefinition definition, out LoadedAction loaded) { loaded = Pending.Contains(definition.Id) ? null : Items[definition.Id]; return loaded != null; } public static void Tick() {} public static void Clear() {}
     }
 }
+
+namespace SFM.Actions { internal static class NativeActionStats { internal static ActionStatValues Resolve(ActionDefinition a)=>ActionStatsSchema.Resolve(a,_=>ActionStatValues.Empty); } }

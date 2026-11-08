@@ -5,6 +5,8 @@ namespace SFM.Actions;
 
 internal static class UnityActionIdentity
 {
+    internal static string LegacyBundleId(string relative, string asset)
+        => ("bundle:" + relative.Replace('\\', '/') + ":" + asset).Replace(',', '_');
     static string Part(string value)=>value.Replace("%","%25").Replace(",","%2C").Replace("/","%2F").Replace("\\","%5C");
     internal static string ClipKey(string asset)
     {

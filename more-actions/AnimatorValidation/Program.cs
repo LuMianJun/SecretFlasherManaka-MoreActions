@@ -2,6 +2,13 @@ using SFM.Actions;
 using UnityEngine;
 using UnityEngine.Playables;
 
+if(args.Length==3&&args[0]=="--stats-interop")
+{
+    try { StatsInteropContract.Verify(args[1],args[2]); }
+    catch(Exception error) { Console.Error.WriteLine(error.Message);Environment.ExitCode=1; }
+    return;
+}
+
 if(args.Length==4&&args[0]=="--settings-interop")
 {
     try { SettingsInteropContract.Verify(args[1],args[2],args[3]); }
@@ -229,9 +236,11 @@ try
     Check(SFM.ModSettings.ModOptions.Dedicated&&!string.IsNullOrWhiteSpace(SFM.ModSettings.ModOptions.PageTitle()),"Shared settings API registers a dedicated localized page");
     var autoClip=new AnimationClip{name="Pose",isHumanMotion=true};
     Pack("Auto/MyPack/pose.bundle",("clip.anim",autoClip));
+    File.WriteAllText(Path.Combine(root,"Auto/MyPack/pose.bundle.action.json"),"{\"displayName\":\"Short label\",\"loop\":false}");
     ActionBundleImport.Begin(Path.Combine(root,"Auto"),"auto-test");
     for(int step=0;step<500&&ActionRegistry.Get("MyPack/Pose")==null;step++){ActionBundleImport.Tick();Thread.Sleep(1);}
     var autoAction=ActionRegistry.Get("MyPack/Pose");
+    Check(autoAction?.DisplayName=="Short label"&&!autoAction.Loop,"Sparse sidecar overrides only explicit values after loading real clip metadata");
     Check(autoAction?.RuntimeSource is AnimatorActionSource,"No-JSON bundles use folder/clip identities");
     Check(ReferenceEquals(ActionRegistry.Get("bundle:MyPack/pose.bundle:clip.anim"),autoAction),"Legacy bundle paths resolve to the new action identity");
     ActionBundleImport.Clear();

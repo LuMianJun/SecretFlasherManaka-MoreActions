@@ -20,6 +20,10 @@ try
     Json("{\"REFERENCEPOSE\":\"a\"}"); Check(Read().ReferencePose==MmdReferencePose.A,"Reference pose field and value are case insensitive");
     foreach(var json in new[]{"{\"referencePose\":null}","{\"referencePose\":0}","{\"referencePose\":true}","{\"referencePose\":\"\"}","{\"referencePose\":\"B\"}","{\"referencePose\":\"1\"}","{\"referencePose\":\"A\",\"ReferencePose\":\"T\"}"})
     {Json(json);Reject(()=>Read(),"Invalid reference pose is rejected rather than silently falling back: "+json);}
+    Json("{\"nativeKind\":\"Onani\",\"stats\":{\"ecstasyPerSecond\":0.03,\"canStartPee\":true},\"poseMission\":true}");
+    var statPack=Read();Register(statPack);var statAction=ActionRegistry.Get(statPack.Action.Id);
+    Check(statAction.NativeKind=="Onani"&&statAction.Stats.EcstasyPerSecond==.03f&&statAction.Stats.CanStartPee==true&&statAction.PoseMission,"MMD imports the same stat and task configuration as Unity clips");ActionRegistry.UnregisterProvider("test");
+    Json("{\"stats\":{\"ecstasyPerSecon\":0.03}}");Reject(()=>Read(),"MMD rejects stat spelling errors instead of silently ignoring them");
     File.Delete(manifest);
     Json("{\"modelFile\":\"legacy.pmd\"}");string modelMigration="";
     try { Read(); } catch(ArgumentException error) { modelMigration=error.Message; }

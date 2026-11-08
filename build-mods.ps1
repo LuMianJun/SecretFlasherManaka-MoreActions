@@ -1,6 +1,6 @@
 ﻿param(
     [Parameter(Mandatory=$true)][string]$GameDir,
-    [string]$OutputDir = (Join-Path $PSScriptRoot 'releases/SFM-MoreActions-v1.4.1')
+    [string]$OutputDir = (Join-Path $PSScriptRoot 'releases/SFM-MoreActions-v1.5.0')
 )
 $ErrorActionPreference = 'Stop'
 $gameRoot = (Resolve-Path -LiteralPath $GameDir).Path
@@ -30,13 +30,13 @@ foreach ($file in $files) {
     New-Item -ItemType Directory -Path ([IO.Path]::GetDirectoryName($target)) -Force | Out-Null
     Copy-Item -LiteralPath (Join-Path $PSScriptRoot $file.source) -Destination $target
     if ($file.target.EndsWith('/README.zh-CN.md')) {
-        $content = [IO.File]::ReadAllText($target).Replace('../shared/','').Replace('(../README.md)','(../../../README.md)').Replace('(../vmd-validation/README.zh-CN.md)','(../SFMVmdProbe/README.zh-CN.md)').Replace('(../THIRD_PARTY_NOTICES.md)','(THIRD_PARTY_NOTICES.md)')
+        $content = [IO.File]::ReadAllText($target).Replace('../shared/','').Replace('../more-actions/','../SFMMoreActions/').Replace('(../README.md)','(../../../README.md)').Replace('(../vmd-validation/README.zh-CN.md)','(../SFMVmdProbe/README.zh-CN.md)').Replace('(../THIRD_PARTY_NOTICES.md)','(THIRD_PARTY_NOTICES.md)')
         [IO.File]::WriteAllText($target,$content)
     }
 }
 Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'README.md'),(Join-Path $PSScriptRoot 'install-mods.ps1') -Destination $destination
 $readmePath = Join-Path $destination 'README.md'
-$readme = [IO.File]::ReadAllText($readmePath).Replace('(vmd-validation/README.zh-CN.md)','(BepInEx/plugins/SFMVmdProbe/README.zh-CN.md)').Replace('(more-actions/README.zh-CN.md)','(BepInEx/plugins/SFMMoreActions/README.zh-CN.md)').Replace('(npc-spectators/README.md)','(BepInEx/plugins/SFMNpcSpectators/README.zh-CN.md)').Replace('(shared/动作事件说明.zh-CN.md)','(BepInEx/plugins/SFMMoreActions/动作事件说明.zh-CN.md)').Replace('(THIRD_PARTY_NOTICES.md)','(BepInEx/plugins/SFMVmdProbe/THIRD_PARTY_NOTICES.md)').Replace('(VALIDATION.md)','(https://github.com/LuMianJun/SecretFlasherManaka-MoreActions/blob/main/VALIDATION.md)')
+$readme = [IO.File]::ReadAllText($readmePath).Replace('(vmd-validation/README.zh-CN.md)','(BepInEx/plugins/SFMVmdProbe/README.zh-CN.md)').Replace('(more-actions/README.zh-CN.md)','(BepInEx/plugins/SFMMoreActions/README.zh-CN.md)').Replace('(npc-spectators/README.md)','(BepInEx/plugins/SFMNpcSpectators/README.zh-CN.md)').Replace('(shared/动作事件说明.zh-CN.md)','(BepInEx/plugins/SFMMoreActions/动作事件说明.zh-CN.md)').Replace('(THIRD_PARTY_NOTICES.md)','(BepInEx/plugins/SFMVmdProbe/THIRD_PARTY_NOTICES.md)').Replace('(more-actions/README.zh-CN.md#','(BepInEx/plugins/SFMMoreActions/README.zh-CN.md#').Replace('(VALIDATION.md)','(https://github.com/LuMianJun/SecretFlasherManaka-MoreActions/blob/main/VALIDATION.md)')
 [IO.File]::WriteAllText($readmePath,$readme)
 $files | ForEach-Object {
     $path = Join-Path $destination $_.target

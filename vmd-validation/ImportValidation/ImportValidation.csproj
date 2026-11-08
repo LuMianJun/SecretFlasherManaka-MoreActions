@@ -1,6 +1,8 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup><OutputType>Exe</OutputType><TargetFramework>net10.0</TargetFramework><ImplicitUsings>enable</ImplicitUsings></PropertyGroup>
   <ItemGroup>
+    <Compile Include="../../more-actions/Plugin/ActionConfiguration.cs" Link="ActionConfiguration.cs" />
+    <Compile Include="../../more-actions/Plugin/ActionStats.cs" Link="ActionStats.cs" />
     <Compile Include="../../more-actions/Plugin/UnityActionIdentity.cs" Link="UnityActionIdentity.cs" />
     <Compile Include="../Plugin/MmdReferencePose.cs" Link="MmdReferencePose.cs" />
     <Compile Include="../../more-actions/Plugin/ActionEvents.cs" Link="ActionEvents.cs" />

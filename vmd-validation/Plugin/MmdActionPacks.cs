@@ -41,9 +41,10 @@ internal static class MmdActionPacks
         CheckFields(root, "id", "displayName", "description", "vmdFile", "audioFile", "referencePose",
             "audioDelaySeconds", "volume", "loop", "requiresHands", "requiresStanding", "bodyMask",
             "writeHipTranslation", "writeFaceMorphs", "keepGameExpressions", "followFaceCamera", "showInRing", "bonePaths", "camera",
-            "events", "onStart", "onFinish", "onCancel", "useClipEvents");
+            "events", "onStart", "onFinish", "onCancel", "useClipEvents", "nativeKind", "stats", "poseMission", "ecstasyPerSecond", "dokidokiAdd", "moisturePerSecond",
+            "staminaPerSecond", "strange", "strangenessScale", "discomfort", "canStartPee");
         ActionEventSchema.ValidateJson(json);
-        var action = JsonSerializer.Deserialize<ActionDefinition>(json, options);
+        var action = ActionConfiguration.Parse(json);
         string label = new DirectoryInfo(directory).Name;
         if (!TryField(root, "id", out _)) action.Id = label;
         if (!TryField(root, "displayName", out _)) action.DisplayName = label;

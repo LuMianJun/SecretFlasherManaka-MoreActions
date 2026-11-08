@@ -9,7 +9,7 @@ using HarmonyLib;
 using BepInEx.Configuration;
 using SFM.ModSettings;
 
-[BepInPlugin(Guid, "SFM MMD Actions", "1.1.0")]
+[BepInPlugin(Guid, "SFM MMD Actions", "1.2.0")]
 [BepInDependency(SFM.Actions.Plugin.Guid)]
 public sealed class Plugin : BasePlugin
 {
@@ -30,7 +30,7 @@ public sealed class Plugin : BasePlugin
         ActionPlaybackApi.PlaybackChanged += ForwardCompatibilityEvent;
         var cameraDriver = AddComponent<MmdCameraDriver>(); cameraDriver.Bind();
         new Harmony(Guid).PatchAll(typeof(Plugin).Assembly);
-        Log.LogInfo("MMD_ACTIONS_LOADING version=1.1.0 queued=" + count + " directVmd=true cameraDistribution=true settings=true base=" + SFM.Actions.Plugin.Guid);
+        Log.LogInfo("MMD_ACTIONS_LOADING version=1.2.0 queued=" + count + " directVmd=true cameraDistribution=true settings=true base=" + SFM.Actions.Plugin.Guid);
     }
     static void ForwardCompatibilityEvent(string id, bool active)
     {

@@ -88,6 +88,9 @@ namespace SFM.Actions
         public string ProviderId { get; set; } = "";
         public string DisplayName { get; set; } = "";
         public string AudioFile { get; set; } = "";
+        public string NativeKind { get; set; } = "None";
+        public ActionStatsDefinition Stats { get; set; } = new();
+        public bool PoseMission { get; set; }
         public bool Loop { get; set; }
         public ActionEventDefinition[] Events { get; set; } = Array.Empty<ActionEventDefinition>();
         public ActionEventDefinition[] OnStart { get; set; } = Array.Empty<ActionEventDefinition>();

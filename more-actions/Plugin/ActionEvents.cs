@@ -52,6 +52,7 @@ public static class ActionEventSchema
     {
         using var doc = JsonDocument.Parse(json);
         if (doc.RootElement.ValueKind != JsonValueKind.Object) throw new ArgumentException("Action configuration must be an object");
+        ActionStatsSchema.ValidateJson(doc.RootElement);
         foreach (var field in doc.RootElement.EnumerateObject())
         {
             bool timed = field.Name.Equals("events", StringComparison.OrdinalIgnoreCase);

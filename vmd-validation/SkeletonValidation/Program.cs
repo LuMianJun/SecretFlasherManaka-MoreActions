@@ -699,6 +699,16 @@ namespace SFM.Actions
         public bool KeepGameExpressions {get;set;}=true; public bool WriteHipTranslation=true,WriteFaceMorphs=true,RequiresHands=true,RequiresStanding=true;public bool Loop;
     }
     public static class ActionEventSchema {public static void ValidateJson(string json) {}}
+    // Configuration validation is covered by ImportValidation/RuntimeValidation.
+    public static class ActionConfiguration
+    {
+        public static ActionDefinition Parse(string json)
+        {
+            var options=new System.Text.Json.JsonSerializerOptions{PropertyNameCaseInsensitive=true};
+            options.Converters.Add(new System.Text.Json.Serialization.JsonStringEnumConverter());
+            return System.Text.Json.JsonSerializer.Deserialize<ActionDefinition>(json,options);
+        }
+    }
     public static class ActionRegistry
     {
         public static Dictionary<string,ActionDefinition> Registered=new();

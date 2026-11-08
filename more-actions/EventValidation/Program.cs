@@ -111,6 +111,16 @@ void Start(ActionDefinition def, AnimationClip clip = null, float audioLength=0,
 }
 try
 {
+    var statsDefinition=Definition();statsDefinition.Stats.EcstasyPerSecond=.03f;statsDefinition.Stats.CanStartPee=true;statsDefinition.PoseMission=true;
+    Start(statsDefinition);
+    Check(!driver.TryGetStats(player.Pca.PlayerState,out _),"Stats are inactive during DSP scheduling lead");
+    Frame(.2);Check(driver.TryGetStats(player.Pca.PlayerState,out var activeStats)&&activeStats.EcstasyPerSecond==.03f&&activeStats.CanStartPee,"Actual playback resolves shared action stats");
+    Check(!driver.TryGetStats(new PlayerStateModel{Pointer=(IntPtr)99},out _),"Foreign player state cannot receive stats");
+    Time.timeScale=0;Check(!driver.TryGetStats(player.Pca.PlayerState,out _),"Paused actual driver cannot contribute stats");Time.timeScale=1;
+    Time.deltaTime=0;Check(!driver.TryGetStats(player.Pca.PlayerState,out _),"Zero simulation delta cannot contribute stats");Time.deltaTime=1/60f;
+    player.Pca.PlayerState.IsEcstasyMotion=true;Check(!driver.TryGetStats(player.Pca.PlayerState,out _),"Native ecstasy immediately blocks stat contributions");
+    Frame(.3);Check(!driver.Playing,"Native ecstasy retains existing stop-and-handoff logic");
+    Check(!driver.TryGetStats(player.Pca.PlayerState,out _),"Stopped actual driver cannot contribute stats");
     void NativeSetup(ActionDefinition def=null,IActionSource source=null,int type=50001)
     {
         Start(def??Definition(),runtimeSource:source);driver.Stop("native setup");loaded.Creates=0;loaded.LastPose=null;

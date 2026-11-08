@@ -20,7 +20,7 @@ using ExposureUnnoticed2.Master.Action;
 
 namespace SFM.Actions;
 
-[BepInPlugin(Guid, "SFM More Actions", "1.4.1")]
+[BepInPlugin(Guid, "SFM More Actions", "1.5.0")]
 public sealed class Plugin : BasePlugin
 {
     public const string Guid = "local.sfm.moreactions";
@@ -52,7 +52,7 @@ public sealed class Plugin : BasePlugin
         int count = ActionRegistry.LoadPacks(Path.GetFullPath(Path.Combine(pluginDirectory, packs.Value)), Guid);
         ActionBundleImport.Begin(Path.GetFullPath(Path.Combine(pluginDirectory, packs.Value)), Guid + ".bundles");
 
-        Log.LogInfo("MORE_ACTIONS_READY version=1.4.1 packs=" + count + " ring=true nativeRestrictions=true runtimeSources=true settings=true");
+        Log.LogInfo("MORE_ACTIONS_READY version=1.5.0 packs=" + count + " ring=true nativeRestrictions=true runtimeSources=true settings=true");
     }
 }
 
@@ -73,6 +73,8 @@ public sealed class ActionDriver : MonoBehaviour
     IActionPose pose;
     ActionRootMotion rootMotion;
     ActionEventRunner events;
+    ActionStatValues stats;
+    readonly ActionStatFrames statFrames = new();
     int eventRevision;
     bool stopping;
     AudioSource audio;
@@ -124,6 +126,19 @@ public sealed class ActionDriver : MonoBehaviour
     internal bool Owns(PlayerFacade facade) => Playing && Owner != null && facade?.pca?.PlayerState?.Pointer == Owner.Pca?.PlayerState?.Pointer;
     [HideFromIl2Cpp]
     internal bool Owns(PlayerAction action) => Playing && Owner != null && Owner.Pca?.PlayerAction?.Pointer == action?.Pointer;
+
+    [HideFromIl2Cpp]
+    internal bool TryGetStats(PlayerStateModel state, out ActionStatValues values)
+    {
+        values = default;
+        if (stopping || !Owns(state) || Owner != PlayerController.Instance || !Owner.gameObject.activeInHierarchy
+            || !clock.HasStarted(AudioSettings.dspTime) || clock.Paused || Time.timeScale <= 0 || Time.deltaTime <= 0
+            || state.CurrentAction == null || (int)state.CurrentAction.Type != -1 || (int)state.CurrentState != 0
+            || state.IsEcstasyMotion || ActionRegistry.Get(Definition.Id) != Definition) return false;
+        values = stats; return true;
+    }
+    [HideFromIl2Cpp]
+    internal bool TakeStatFrame(ActionStatChannel channel) => statFrames.Take(channel, Time.frameCount);
 
     [HideFromIl2Cpp]
     bool PlayerInputBlocked => Time.timeScale <= 0 || InGameUiManager.Instance?.IsOpenSomeCancelInputUi == true
@@ -348,6 +363,7 @@ public sealed class ActionDriver : MonoBehaviour
             if (loaded.Audio != null && loaded.Audio.loadState != AudioDataLoadState.Loaded) throw new Exception("Audio still loading; select the action again");
             if (request != requestRevision || !PrepareNativeIdle(id, request)) return;
             if (request != requestRevision || ActionRegistry.Get(id) != definition) return;
+            var resolvedStats = NativeActionStats.Resolve(definition);
             int revision = ++eventRevision;
             var eventClip = loaded.Clip ?? (definition.RuntimeSource as IActionClipSource)?.Clip;
             var embedded = definition.UseClipEvents && eventClip != null ? ClipActionEvents.Read(eventClip) : Array.Empty<ActionEventDefinition>();
@@ -367,10 +383,12 @@ public sealed class ActionDriver : MonoBehaviour
                 if (options?.audioMixer != null) { var groups = options.audioMixer.FindMatchingGroups("Bgm"); if (groups.Length > 0) audio.outputAudioMixerGroup = groups[0]; }
                 running = loaded; UpdateVolume(); audio.PlayScheduled(clock.AudioStartDsp);
             }
+            stats = resolvedStats;
             running = loaded; expectedPosition = Owner.transform.position; applyFrame = -1;
             if (Plugin.FollowCamera.Value && definition.FollowFaceCamera) try { faceCamera.Begin(Owner); } catch (Exception e) { Plugin.LogSource.LogWarning("ACTION_CAMERA_BEGIN_FAILED " + e.Message); }
             ActionPlaybackApi.Publish(definition, true);
             if (eventRevision != revision || !Playing) return;
+            Plugin.LogSource.LogInfo("ACTION_STATS id=" + id + " kind=" + definition.NativeKind + " ecstasy=" + stats.EcstasyPerSecond + " dokidoki=" + stats.DokidokiAdd + " moisture=" + stats.MoisturePerSecond + " stamina=" + stats.StaminaPerSecond + " strange=" + stats.Strange + " scale=" + stats.StrangenessScale + " discomfort=" + stats.Discomfort + " pee=" + stats.CanStartPee + " poseMission=" + definition.PoseMission);
             Plugin.LogSource.LogInfo("ACTION_START id=" + id + " bones=" + pose.BoneCount + " audioDelay=" + definition.AudioDelaySeconds + " poseMs=" + poseTimer.ElapsedMilliseconds + " rootMotion=" + (rootMotion != null));
         }
         catch (Exception e) { Stop("start failed"); Plugin.LogSource.LogError("ACTION_START_FAILED id=" + id + " " + e); }

@@ -20,6 +20,7 @@ internal static class ActionBundleImport
     static AssetBundle bundle;
     static Queue<string> assets;
     static string asset;
+    static string overrideJson;
     static AssetBundleRequest loading;
     static readonly List<AnimationClip> clips = new();
     static int registered;
@@ -78,7 +79,7 @@ internal static class ActionBundleImport
     }
 
     static string Id(string relative, string asset)
-        => ("bundle:" + relative.Replace('\\', '/') + ":" + asset).Replace(',', '_');
+        => UnityActionIdentity.LegacyBundleId(relative, asset);
 
     internal static void Tick()
     {
@@ -96,6 +97,7 @@ internal static class ActionBundleImport
                 if (!opening.isDone) return;
                 bundle = opening.assetBundle; opening = null;
                 if (bundle == null) throw new InvalidDataException("Bundle could not load; check duplicate internal bundle names");
+                overrideJson = UnityActionOverrides.Read(file);
                 assets = new Queue<string>(bundle.GetAllAssetNames().Where(n => n.EndsWith(".anim", StringComparison.OrdinalIgnoreCase)).OrderBy(n => n, StringComparer.Ordinal));
             }
             if (loading != null)
@@ -115,7 +117,11 @@ internal static class ActionBundleImport
                     ShowInRing = !GameAnimationNames.IsOriginal(clip.name),
                     Loop = true
                 };
-                try { ActionRegistry.RegisterRuntime(definition, source, Path.GetDirectoryName(file), provider); }
+                try
+                {
+                    if(overrideJson!=null)definition=UnityActionOverrides.Apply(definition,overrideJson);
+                    ActionRegistry.RegisterRuntime(definition, source, Path.GetDirectoryName(file), provider);
+                }
                 catch
                 {
                     var owner=(ActionRegistry.Get(definition.Id)?.RuntimeSource as IActionClipSource)?.Clip;

@@ -9,13 +9,14 @@ Directory.CreateDirectory(root); File.WriteAllBytes(Path.Combine(root, "BGM.wav"
 try
 {
     var source = new Source(22.3f);
-    var definition = new ActionDefinition { Id = "shake", DisplayName = "Shake", AudioFile = "BGM.wav" };
+    var definition = new ActionDefinition { Id = "shake", DisplayName = "Shake", AudioFile = "BGM.wav", Stats=new(){EcstasyPerSecond=.03f} };
     ActionRegistry.RegisterRuntime(definition, source, root, "mmd");
     var registered = ActionRegistry.Get("shake");
     Check(registered.RuntimeSource == source && registered.BundlePath == "" && registered.ProviderId == "mmd", "Source registration does not require a bundle");
     Check(registered.AudioPath == Path.Combine(root, "BGM.wav"), "Runtime imports retain shared audio loading");
-    definition.RequiresHands = false; definition.DisplayName = "changed";
+    definition.RequiresHands = false; definition.DisplayName = "changed";definition.Stats.EcstasyPerSecond=.9f;
     Check(registered.RequiresHands && registered.DisplayName == "Shake", "Registry snapshots provider rules");
+    Check(registered.Stats.EcstasyPerSecond==.03f,"Registry owns an independent snapshot of nested stat configuration");
     Reject(() => ActionRegistry.RegisterRuntime(new ActionDefinition { Id = "shake", DisplayName = "duplicate" }, source, root, "mmd"), "Duplicate runtime IDs rejected");
     Reject(() => ActionRegistry.Register(new ActionDefinition { Id = "missing", DisplayName = "Missing" }, root, "base"), "Clip packs still require clip assets");
     Reject(() => ActionRegistry.RegisterRuntime(new ActionDefinition { Id = "escape", DisplayName = "Escape", AudioFile = "../outside.wav" }, source, root, "mmd"), "Runtime audio cannot escape package");
@@ -44,6 +45,24 @@ try
     ActionRegistry.UnregisterProvider("unity");
     Check(ActionRegistry.Get("legacy-unity-id")==null,"Provider removal also removes legacy aliases");
     File.Delete(Path.Combine(pack,"explicit.action.json"));File.Delete(Path.Combine(pack,"pose.bundle"));Directory.Delete(pack);
+    var samples=Path.Combine(root,"examples");Directory.CreateDirectory(samples);
+    foreach(var name in new[]{"catpose","v-sign"})
+    {
+        File.WriteAllText(Path.Combine(samples,name),"UnityFS sample boundary");
+        File.Copy(Path.Combine(AppContext.BaseDirectory,"examples",name+".action.json"),Path.Combine(samples,name+".action.json"));
+    }
+    Check(ActionRegistry.LoadPacks(samples,"samples")==0,"Sparse sidecars wait for asynchronous bundle metadata instead of guessing resource names");
+    foreach(var pair in new[]{("catpose","CatPose"),("v-sign","V-sign")})
+    {
+        var sparse=UnityActionOverrides.Apply(new ActionDefinition{Id="Actions/"+pair.Item2,DisplayName=pair.Item2,Loop=true},UnityActionOverrides.Read(Path.Combine(samples,pair.Item1)));
+        ActionRegistry.RegisterRuntime(sparse,source,samples,"samples");
+    }
+    var cat=ActionRegistry.Get("Actions/CatPose");var sign=ActionRegistry.Get("Actions/V-sign");
+    Check(cat.Loop&&cat.PoseMission&&cat.Stats.EcstasyPerSecond==.1f,"Minimal CatPose config inherits looping, identity and native clip display name");
+    Check(sign.Loop&&sign.PoseMission&&sign.Stats.CanStartPee==true,"Minimal V-sign config retains independent pee and pose flags");
+    Check(ActionConfiguration.Parse("{\"stats\":{\"ecstasyPerSecond\":0.03},\"ecstasyPerSecond\":0.1}").Stats.EcstasyPerSecond==.1f,"Flat stat parameters override their legacy nested equivalent");
+    ActionRegistry.UnregisterProvider("samples");
+    foreach(var file in Directory.GetFiles(samples))File.Delete(file);Directory.Delete(samples);
     Console.WriteLine("PASS " + count + " assertions: runtime registration, audio paths, snapshots, invalid packs, native restrictions, provider cleanup");
 }
 finally { File.Delete(Path.Combine(root, "BGM.wav")); Directory.Delete(root); }

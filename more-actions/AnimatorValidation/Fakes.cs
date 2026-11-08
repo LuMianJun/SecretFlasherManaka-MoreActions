@@ -124,7 +124,12 @@ namespace UnityEngine.Animations
 namespace SFM.Actions
 {
     internal static class CameraTransitionDiagnostics {internal static void ReplacementChange(UnityEngine.Animator animator,string phase){} }
-    public sealed class ActionDefinition { public string Id,DisplayName,Description,ProviderId;public bool Loop,ShowInRing=true;public string Bundle,BundlePath,ClipAsset;public IActionSource RuntimeSource; }
+    public sealed class ActionDefinition
+    {
+        public string Id {get;set;} public string DisplayName {get;set;} public string Description {get;set;} public string ProviderId {get;set;}
+        public bool Loop {get;set;} public bool ShowInRing {get;set;}=true;
+        public string Bundle {get;set;} public string BundlePath {get;set;} public string ClipAsset {get;set;} public IActionSource RuntimeSource {get;set;}
+    }
     public static class ActionRegistry
     {
         public static int Revision;
@@ -203,3 +208,5 @@ namespace Il2CppInterop.Runtime
     public static class IL2CPP { static int next; public static IntPtr il2cpp_object_new(IntPtr klass)=>new(900000+ ++next); }
     public static class Il2CppClassPointerStore<T> { public static IntPtr NativeClassPtr=new(1); }
 }
+
+namespace SFM.Actions { public static class ActionConfiguration { public static ActionDefinition Parse(string json)=>System.Text.Json.JsonSerializer.Deserialize<ActionDefinition>(json,new System.Text.Json.JsonSerializerOptions{PropertyNameCaseInsensitive=true}); } }

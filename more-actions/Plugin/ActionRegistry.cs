@@ -36,6 +36,9 @@ public sealed class ActionDefinition
     public ActionEventDefinition[] OnStart { get; set; } = Array.Empty<ActionEventDefinition>();
     public ActionEventDefinition[] OnFinish { get; set; } = Array.Empty<ActionEventDefinition>();
     public ActionEventDefinition[] OnCancel { get; set; } = Array.Empty<ActionEventDefinition>();
+    public string NativeKind { get; set; } = "None";
+    public ActionStatsDefinition Stats { get; set; } = new();
+    public bool PoseMission { get; set; }
     public string ProviderId { get; internal set; } = "";
     public string BundlePath { get; internal set; } = "";
     public string AudioPath { get; internal set; } = "";
@@ -79,6 +82,7 @@ public static class ActionRegistry
     static void RegisterCore(ActionDefinition definition, string packDirectory, string providerId, IActionSource source)
     {
         if (definition == null) throw new ArgumentNullException(nameof(definition));
+        ActionStatsSchema.Validate(definition);
         ActionEventSchema.Validate(definition, source?.Duration);
         if (string.IsNullOrWhiteSpace(definition.Id) || definition.Id.Any(c => char.IsControl(c) || c == ',')) throw new ArgumentException("Action ID cannot be empty or contain control characters or commas");
         if (string.IsNullOrWhiteSpace(definition.DisplayName) || (source == null && (string.IsNullOrWhiteSpace(definition.Bundle) || string.IsNullOrWhiteSpace(definition.ClipAsset)))) throw new ArgumentException("Action requires a label and a clip or runtime source");
@@ -119,13 +123,20 @@ public static class ActionRegistry
                 options.Converters.Add(new System.Text.Json.Serialization.JsonStringEnumConverter());
                 string json = File.ReadAllText(file);
                 ActionEventSchema.ValidateJson(json);
-                var definition=JsonSerializer.Deserialize<ActionDefinition>(json, options);
                 using var doc=JsonDocument.Parse(json);
+                if(!doc.RootElement.EnumerateObject().Any(p=>p.Name.Equals("bundle",StringComparison.OrdinalIgnoreCase)||p.Name.Equals("clipAsset",StringComparison.OrdinalIgnoreCase))) continue;
+                var definition=ActionConfiguration.Parse(json);
                 bool Has(string name)=>doc.RootElement.EnumerateObject().Any(p=>p.Name.Equals(name,StringComparison.OrdinalIgnoreCase));
                 string clip=UnityActionIdentity.ClipKey(definition.ClipAsset);
                 if(!Has("id"))definition.Id=UnityActionIdentity.ForClip(directory,Path.GetDirectoryName(file),clip);
                 if(!Has("displayName"))definition.DisplayName=clip;
-                Register(definition, Path.GetDirectoryName(file), providerId); count++;
+                Register(definition, Path.GetDirectoryName(file), providerId);
+                if(definition.ClipAsset.Contains("/")||definition.ClipAsset.Contains("\\"))
+                {
+                    var registered=Get(definition.Id);
+                    RegisterAlias(UnityActionIdentity.LegacyBundleId(Path.GetRelativePath(directory,registered.BundlePath),definition.ClipAsset),registered.Id);
+                }
+                count++;
             }
             catch (Exception e) { Plugin.LogSource?.LogWarning("ACTION_PACK_REJECTED file=" + Path.GetFileName(file) + " reason=" + e.Message); }
         }
