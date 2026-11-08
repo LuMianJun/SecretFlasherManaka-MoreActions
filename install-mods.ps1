@@ -1,10 +1,10 @@
-param([Parameter(Mandatory=$true)][string]$GameDir)
+﻿param([Parameter(Mandatory=$true)][string]$GameDir)
 $ErrorActionPreference = 'Stop'
 $gameRoot = (Resolve-Path -LiteralPath $GameDir).Path
 $packageRoot = [IO.Path]::GetFullPath($PSScriptRoot)
 $pluginsRoot = [IO.Path]::GetFullPath((Join-Path $gameRoot 'BepInEx/plugins'))
 if (-not (Test-Path -LiteralPath (Join-Path $gameRoot 'BepInEx/core/BepInEx.Unity.IL2CPP.dll'))) { throw 'BepInEx IL2CPP installation not found.' }
-$manifest = @(Get-Content -LiteralPath (Join-Path $packageRoot 'files.sha256.json') -Raw | ConvertFrom-Json)
+$manifest = @(Get-Content -LiteralPath (Join-Path $packageRoot 'files.sha256.json') -Raw | ConvertFrom-Json | ForEach-Object { $_ })
 $required = @('BepInEx/plugins/Seleka2MoreActions/Seleka2.MoreActions.dll','BepInEx/plugins/Seleka2VmdProbe/Seleka2.VmdProbe.dll','BepInEx/plugins/Seleka2NpcSpectators/Seleka2.NpcSpectators.dll')
 $allowed = $required + @('BepInEx/plugins/Seleka2VmdProbe/README.zh-CN.md')
 $allowed += 'BepInEx/plugins/Seleka2VmdProbe/THIRD_PARTY_NOTICES.md'

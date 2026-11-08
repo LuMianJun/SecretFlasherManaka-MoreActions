@@ -1,4 +1,4 @@
-param(
+﻿param(
     [Parameter(Mandatory=$true)][string]$GameDir,
     [string]$OutputDir = (Join-Path $PSScriptRoot 'releases/SecretFlasherManaka-MoreActions-v1.0.0')
 )
