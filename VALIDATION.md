@@ -1,11 +1,27 @@
 # 离线验证
 
-验证项目使用 .NET 10，生产插件目标为 .NET 6。请使用 .NET 10 SDK，并按 README 准备本地游戏引用。
+验证项目使用 .NET 10，生产插件目标为 .NET 6。请使用 .NET 10 SDK，并准备目标游戏已生成的 `BepInEx/core` 和 `BepInEx/interop`。游戏及 Unity 程序集由使用者本地提供，不包含在仓库中。
+
+## 从源码构建
+
+在仓库根目录运行，将路径替换为自己的游戏目录：
+
+```powershell
+$gameDir = "D:/Games/SecretFlasherManaka"
+dotnet build vmd-validation/Plugin/VmdProbe.csproj -c Release "-p:GameDir=$gameDir"
+dotnet build npc-spectators/Plugin/Seleka2.NpcSpectators.csproj -c Release "-p:GameDir=$gameDir"
+```
+
+第一条命令会同时构建更多动作与 MMD。仅构建更多动作时，使用 `more-actions/Plugin/MoreActions.csproj`。DLL 输出到各插件项目的 `bin/Release/net6.0`。
+
+## 运行离线验证
 
 在仓库根目录执行：
 
 ```powershell
 dotnet run --project more-actions/AssetValidation -c Release
+dotnet run --project more-actions/AnimatorValidation -c Release
+dotnet run --project more-actions/FaceRestoreValidation -c Release
 dotnet run --project more-actions/EventValidation -c Release
 dotnet run --project more-actions/RingValidation -c Release
 dotnet run --project more-actions/RuntimeValidation -c Release

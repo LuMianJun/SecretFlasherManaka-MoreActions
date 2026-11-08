@@ -1,4 +1,4 @@
-# SecretFlasherManaka More Actions
+﻿# SecretFlasherManaka More Actions
 
 为《Secret Flasher Manaka》添加自定义动作、MMD 播放和可选的 NPC 围观功能，适用于 **BepInEx 6 IL2CPP**。
 
@@ -8,8 +8,8 @@
 
 | 插件 | 当前版本 | 功能与依赖 |
 | --- | --- | --- |
-| 更多动作 | 1.0.0 | 提供转盘入口、播放控制、音乐、表情叠加、设置和动作事件；可独立加载已适配游戏骨架的 Unity 动画包。 |
-| MMD | 1.0.0 | 直接读取 VMD，支持配套音乐、镜头和走位；需要安装更多动作。 |
+| 更多动作 | 1.2.4 | 提供转盘入口、播放控制、音乐、表情叠加、设置和动作事件；支持 Unity 动画包导入和原动作替换。 |
+| MMD | 1.1.0 | 直接读取 VMD，支持配套音乐、镜头和走位；需要安装更多动作。 |
 | NPC 围观 | 1.0.0 | 从无遮挡位置分配围观点，调用原版 NPC 目标移动；一轮围观保持固定中心，到位后面向玩家。可独立使用。 |
 
 只想播放 MMD，安装“更多动作 + MMD”即可；需要围观时再安装 NPC 插件。
@@ -81,19 +81,21 @@ BepInEx/plugins/Seleka2VmdProbe/Motions/我的舞蹈/
 
 默认使用 A-pose 参考校准。需要沿用 T-pose 参考的动作，可在原有 `action.json` 中添加 `"referencePose": "T"`；省略或填写 `"A"` 使用默认值。修改后重启游戏。
 
-MMD 使用内置的基础模型表情名称/索引表，支持微笑、眉毛、单眼眨眼等标准通道；保持原游戏表情叠加与捏脸保护。移除通用网格扫描；读档重绑引用并复用相同体型的骨架。缺失的 VMD 表情轨道会跳过。
+MMD 支持基础模型的微笑、眉毛、单眼眨眼等标准表情，保留捏脸形状。动作需要自带相应的 VMD 表情轨道；没有轨道时不会自动生成表情或口型。
 
-播放期间 MMD 接管动作控制的身体骨骼位置与旋转，隔离原版膝盖、脚趾和视线修正的冲突写入，并保留体型、骨长和鞋跟计算。每帧先撤回上次动作姿势，防止位置修正累积；停止后归还原版控制。头发、裙摆等附属物理保持原有处理。
+播放时保留游戏角色的体型、骨长和鞋跟计算，停止后恢复原版姿势控制。头发、裙摆等物理仍由游戏处理。
 
 ## 游戏内设置
 
-进入 **设置 → 游戏系统**，可调整：
+进入 **设置 → 更多动作**，可调整：
 
 - 动作音乐音量。
 - 原游戏表情叠加。
 - 原版面部摄像机跟随。
 - MMD 配套镜头开关。
-- NPC 围观总开关、手动召集、自动触发、半径和间距。
+- 原动作替换总开关、按资源包分组的逐项选择。
+
+NPC 围观保持独立，相关选项仍位于 **设置 → 游戏系统**。
 
 打开设置保留当前动作，并随原版游戏暂停或继续。设置保存在 `BepInEx/config`，无需修改游戏存档。
 
@@ -195,11 +197,44 @@ NPC 使用原版寻路实际走近，只招募符合条件的普通行人。警�
 
 更多说明见 [NPC 围观说明](npc-spectators/README.md)。
 
-## 更多动作与事件
+## 添加 Unity 动画包
 
-更多动作还支持已经适配游戏骨架的 Unity Generic 动画包，见 [更多动作使用说明](more-actions/README.zh-CN.md)。普通 `.anim` 或 FBX 不能直接当作动作包导入。
+将动画 AssetBundle 放入更多动作插件的 `Actions` 目录，每个资源包可单独建立子文件夹：
 
-JSON 动作事件可在指定时间播放原版音效、触发脚步或召集 NPC，见 [动作事件说明](shared/动作事件说明.zh-CN.md)。
+```text
+BepInEx/plugins/Seleka2MoreActions/Actions/
+├─ 我的动作包/
+│  ├─ pose.bundle
+│  └─ walk.bundle
+└─ 另一个动作包/
+   └─ pose.bundle
+```
+
+支持 AnimReplacer 风格的动画包，无需安装原插件 DLL、快捷键配置或 OverrideController 模板。只放 bundle 即可自动导入其中的动画；普通 `.anim` 或 FBX 文件不能直接使用。Humanoid 动画使用游戏角色的 Avatar，Generic 动画需要匹配游戏骨骼路径。
+
+- 与原版动画同名的资源用于原动作替换，只出现在设置页。
+- CatPose、V-sign 等新增动作从转盘播放，自动导入的动作默认循环，再次选择或移动可停止。
+- 不同目录中的同名文件可以共存；同名原动作的不同来源在设置中选择。
+
+需要自定义名称、音乐或事件时，可添加 `名称.action.json`。被 JSON 引用的 bundle 不会再自动展开，避免重复导入。配置示例见 [更多动作使用说明](more-actions/README.zh-CN.md)。
+
+动画包目录由更多动作配置 `[Actions] Directory` 指定，默认是插件目录下的 `Actions`；修改资源或配置后重启游戏。
+
+### 替换原版动作
+
+1. 打开 **设置 → 更多动作 → 原动作替换**。
+2. 开启总开关，按资源包勾选需要替换的动作。
+3. 关闭设置；角色站立且未执行动作时应用选择。蹲下、坐下或动作播放期间会等待合适时机。
+
+总开关默认关闭。同一原动作只能选择一个来源，选择新来源会取消旧来源；不同原动作可以混用不同资源包。取消勾选恢复对应原动画，关闭总开关恢复全部原动画并保留选择。
+
+匹配依据是包内 clip 名与游戏原动画名，区分大小写，与 bundle 文件名无关。设置只显示当前角色控制器中有匹配资源的动画。原版动作显示本地化名称，外部新增动作和资源包保留作者名称。
+
+替换沿用原版动作的触发方式、状态机、移动和碰撞规则，镜头保留原版取景；动作包无需提供镜头。选择保存在更多动作配置的 `[Replacements]` 中，不写入游戏存档，也不读取原 AnimReplacer 的勾选记录。
+
+### 动作事件
+
+JSON 可在指定时间播放原版音效、触发脚步或召集 NPC，见 [动作事件说明](shared/动作事件说明.zh-CN.md)。
 
 ## 常见问题
 
@@ -219,11 +254,15 @@ JSON 动作事件可在指定时间播放原版音效、触发脚步或召集 NP
 
 已知问题：在商场某些位置播放部分动作时，可能提前退出。取消时会记录一条 `ACTION_CANCEL_DIAGNOSTIC`，不会逐帧打印，详见 [更多动作使用说明中的诊断章节](more-actions/README.zh-CN.md)。
 
-0.10.0 起移除模型加载：`source.pmd` 不再读取；旧 `action.json` 若含 `modelFile`，请删除该字段，否则会收到明确的迁移提示。已有模型文件不会被安装器删除。
-
 **为什么表情开关开启后仍不叠加？**
 
 检查动作 JSON 是否设置了 `keepGameExpressions: false`，它优先于界面开关。若设置了 `writeFaceMorphs: false`，动作本身不会接管表情。
+
+## 升级兼容说明
+
+- 更新时请同时安装包内的更多动作与 MMD DLL，避免只更新其中一个。
+- 从使用 `BepInEx/plugins/AnimReplacer/` 目录的试用版升级时，请把动画包移至 `BepInEx/plugins/Seleka2MoreActions/Actions/`；旧的 `[LegacyAnimations] Directory` 配置不生效。迁移后请重新选择替换资源和转盘快捷槽。
+- 使用过配套 PMD 模型配置的动作，请删除 `action.json` 中的 `modelFile` 字段。`source.pmd` 不参与导入，插件使用游戏角色生成骨架。安装器保留已有动作、模型、音乐和配置文件。
 
 ## 开源参考与依赖
 
@@ -232,37 +271,21 @@ JSON 动作事件可在指定时间播放原版音效、触发脚步或召集 NP
 | 项目或资料 | 参考范围 |
 | --- | --- |
 | [UnityVMDPlayer](https://github.com/hobosore/UnityVMDPlayer/blob/2cee8abd56c68ad3e88bcf4086e33185aa5ca4e8/UnityVMDPlayer.cs) | 参考中心、槽骨骼与全亲位移、0.08 单位比例、默认 A-pose、骨骼插值参数布局及 MorphPlayer 表情绑定。当前位移接入游戏现有角色控制器，表情沿用游戏侧叠加与外观保护。 |
-| [three.js r160 — MMDLoader](https://github.com/mrdoob/three.js/blob/r160/examples/jsm/loaders/MMDLoader.js) | 早期 VMD 动画、插值、坐标及镜头实现的参考。 |
+| [three.js r160 — MMDLoader](https://github.com/mrdoob/three.js/blob/r160/examples/jsm/loaders/MMDLoader.js) | VMD 动画、插值、坐标及镜头实现参考。 |
 | [three.js r160 — MMDAnimationHelper](https://github.com/mrdoob/three.js/blob/r160/examples/jsm/animation/MMDAnimationHelper.js) | MMD 动画求值与镜头行为参考。 |
-| [mmdparser（three.js r160 内附版本）](https://github.com/mrdoob/three.js/blob/r160/examples/jsm/libs/mmdparser.module.js) | VMD 文件结构及数据读取参考；历史 PMD 读取路径已移除。 |
+| [mmdparser（three.js r160 内附版本）](https://github.com/mrdoob/three.js/blob/r160/examples/jsm/libs/mmdparser.module.js) | VMD 文件结构及数据读取参考。 |
 | [blender_mmd_tools 单位说明](https://github.com/powroupi/blender_mmd_tools/wiki/1-MMD-unit-in-real-world-units) | 核对 MMD 单位到米的 0.08 换算约定；运行插件不需要 Blender。 |
 
 上述项目用于算法、格式或行为参考。本插件保留自己的 C# VMD 求解流程；游戏骨架生成、后台准备、骨架缓存、碰撞控制器接入、取消逻辑、转盘与设置联动在本仓库中实现。
 
 UnityVMDPlayer 的参考版本及 MIT 许可说明见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。其他参考项目及玩家自行添加的素材仍适用各自许可；插件代码的许可不代表可以重新配布动作、镜头、模型或音乐。
 
+### Unity 动画包参考
+
+[AnimReplacer](https://f95zone.to/threads/secret-flasher-manaka-anim-replacer.299100/)：本插件的 Unity 动画包导入参考此项目，并参考作者提供的源码实现动画替换与独立姿势播放。本插件将其接入原版转盘与设置页，不包含原插件的窗口或快捷键系统。作者与 MIT 许可原文见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。
+
 ### 运行基础
 
 - [BepInEx](https://github.com/BepInEx/BepInEx)：插件加载与配置。
 - [Il2CppInterop](https://github.com/BepInEx/Il2CppInterop)：IL2CPP 互操作。
 - [HarmonyX](https://github.com/BepInEx/HarmonyX)：游戏方法补丁。
-
-## 从源码构建
-
-构建插件需要支持 .NET 6 目标框架的 SDK，以及目标游戏已经生成的 `BepInEx/core` 和 `BepInEx/interop`。游戏和 Unity 程序集由使用者本地提供，不包含在本仓库中。
-
-在仓库根目录运行：
-
-```powershell
-$gameDir = "D:\Games\SecretFlasherManaka"
-
-# 同时构建 MMD 及其依赖的更多动作
-dotnet build ./vmd-validation/Plugin/VmdProbe.csproj -c Release "-p:GameDir=$gameDir"
-
-# 构建可独立安装的 NPC 围观插件
-dotnet build ./npc-spectators/Plugin/Seleka2.NpcSpectators.csproj -c Release "-p:GameDir=$gameDir"
-```
-
-DLL 输出到各插件项目的 `bin/Release/net6.0`。只需要更多动作时，可以单独构建 `more-actions/Plugin/MoreActions.csproj`。
-
-仓库中的验证项目用于离线测试解析、播放规则、表情、缓存、事件和围观逻辑。它们使用模拟的 Unity/游戏边界，不能代替原游戏中的实际画面、导航和碰撞测试。

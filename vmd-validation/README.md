@@ -1,13 +1,8 @@
-# MMD 1.0.0
+# MMD 动作
 
-安装、导入与常用设置见 [仓库首页](../README.md)，完整参数见 [中文使用说明](README.zh-CN.md)。
+直接导入 VMD，支持配套音乐、镜头、走位和基础模型的标准表情。需要同时安装更多动作插件，无需 Unity 编辑器、Blender 或配套模型。
 
-- Plugin：运行时 VMD 求解、配套镜头、后台准备和骨架缓存。
-- ImportValidation：配置导入、默认值与资源路径验证。
-- SkeletonValidation：绑定姿势、根位移、表情及缓存验证。
-- CameraValidation：镜头采样、坐标与安装接口验证。
-- docs：实现说明及历史演进，各文档标注的版本用于区分当时与当前行为。
-
-公开仓库不附带本地测试动作、配套模型、音乐或 Unity 转换工程。无需安装 Unity 编辑器或转换动画包即可使用 VMD。
-
-实现资料：[生成骨架](docs/游戏骨架默认路径.md)、[异步准备](docs/异步加载与骨架复用.md)、[重绑定](docs/重绑定与分帧重建.md)、[走位控制器](docs/根位移与角色控制器.md)。开源参考及许可见 [THIRD_PARTY_NOTICES](../THIRD_PARTY_NOTICES.md)。
+- 安装与快速开始：[仓库首页](../README.md)。
+- 导入、播放和完整 JSON 参数：[中文使用说明](README.zh-CN.md)。
+- 音效、脚步及围观事件：[动作事件说明](../shared/动作事件说明.zh-CN.md)。
+- 开源参考与许可：[THIRD_PARTY_NOTICES](../THIRD_PARTY_NOTICES.md)。
