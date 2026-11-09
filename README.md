@@ -1,5 +1,7 @@
 # SecretFlasherManaka More Actions
 
+简体中文 | [English](README.en.md)
+
 为《Secret Flasher Manaka》提供自定义动作、Unity 动画包导入、MMD 播放和可选的 NPC 围观，适用于 **BepInEx 6 IL2CPP**。
 
 ## 插件组成

@@ -1,5 +1,7 @@
 # SFM NPC Spectators 1.0.0
 
+简体中文 | [English](README.en.md)
+
 为 BepInEx 6 IL2CPP 提供可独立安装的 NPC 围观功能，DLL 为 `SFM.NpcSpectators.dll`。
 插件调度当前场景里的 NPC，动画播放由对应动作模块负责；单独安装时使用原版动作或手动触发。游戏源码与原版存档保持原样。
 

@@ -1,5 +1,7 @@
 # 更多动作使用说明
 
+简体中文 | [English](README.en.md)
+
 为《Secret Flasher Manaka》提供转盘动作、Unity 动画包导入、原动作替换、音乐、表情叠加、动作事件、属性变化与姿势任务。安装方式与插件组合见[仓库首页](../README.md)。
 
 ## 快速开始
