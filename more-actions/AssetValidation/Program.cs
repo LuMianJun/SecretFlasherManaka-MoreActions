@@ -48,7 +48,55 @@ try
     Reject(()=>ActionAssets.TryGet(broken,out _),"Invalid audio reports a stable failure instead of retrying every frame");
     var silent=Definition("silent",""); silent.AudioFile=""; ActionRegistry.Set(silent); ActionAssets.Tick(); Check(ActionAssets.TryGet(silent,out var quiet)&&quiet.Audio==null,"Silent runtime actions need no decoder");
     Reject(()=>Task.Run(()=>WaveAudio.Decode(bad)).GetAwaiter().GetResult(),"Malformed WAV is rejected on the worker");
-    Console.WriteLine($"PASS {count} assertions: production worker decode, exact PCM16/float32 mono/stereo upload, bounded frames, cache reuse, priority, bad-pack isolation and cleanup");
+    // Exercise the actual native job and cache integration without a native engine.
+    string mp3Path=Path.Combine(root,"中文 音乐#1.MP3");File.WriteAllText(mp3Path,"decoder fixture");
+    var mp3=Definition("mp3",mp3Path);
+    var request=new UnityEngine.Networking.UnityWebRequest{Clip=AudioClip.Create("decoded",44100,2,44100,false)};
+    UnityEngine.Networking.UnityWebRequestMultimedia.Factory=_=>request;
+    ActionRegistry.Set(mp3);ActionAssets.Tick();
+    Check(request.Sent&&!request.Disposed&&!ActionAssets.TryGet(mp3,out _),"MP3 preparation is asynchronous and does not expose an incomplete clip");
+    var nativeCall=UnityEngine.Networking.UnityWebRequestMultimedia.Calls.Last();
+    Check(nativeCall.Type==AudioType.MPEG&&new Uri(nativeCall.Uri).LocalPath==mp3Path&&nativeCall.Uri.Contains("%23"),"MP3 uses the native MPEG decoder and safely encoded local Unicode/file URLs");
+    request.isDone=true;request.result=UnityEngine.Networking.UnityWebRequest.Result.Success;
+    ActionAssets.Tick();Check(ActionAssets.TryGet(mp3,out var mp3Ready)&&mp3Ready.Audio==request.Clip&&request.Disposed,"Completed MP3 ownership transfers to the existing asset cache");
+    File.Delete(mp3Path);Check(ActionAssets.TryGet(mp3,out var mp3Again)&&ReferenceEquals(mp3Again,mp3Ready),"Repeated MP3 playback reuses decoded audio");
+    ActionRegistry.Set();ActionAssets.Tick();Check(request.Clip.Destroyed,"Removing MP3 provider destroys its cached clip");
+
+    var pending=Definition("pending-mp3",Path.Combine(root,"pending.mp3"));
+    var interrupted=new UnityEngine.Networking.UnityWebRequest();
+    UnityEngine.Networking.UnityWebRequestMultimedia.Factory=_=>interrupted;
+    ActionRegistry.Set(pending);ActionAssets.Tick();ActionAssets.Clear();
+    Check(interrupted.Aborted&&interrupted.Disposed,"Clearing a pending MP3 aborts and disposes the native request");
+
+    var failed=Definition("failed-mp3",Path.Combine(root,"failed.mp3"));
+    var failedRequest=new UnityEngine.Networking.UnityWebRequest();
+    UnityEngine.Networking.UnityWebRequestMultimedia.Factory=_=>failedRequest;
+    ActionRegistry.Set(failed);ActionAssets.Tick();
+    failedRequest.isDone=true;failedRequest.result=UnityEngine.Networking.UnityWebRequest.Result.DataProcessingError;failedRequest.error="invalid MPEG";
+    ActionAssets.Tick();Reject(()=>ActionAssets.TryGet(failed,out _),"Invalid MP3 reports a stable decoding failure");
+    int attempts=UnityEngine.Networking.UnityWebRequestMultimedia.Calls.Count;ActionAssets.Tick();
+    Check(failedRequest.Disposed&&UnityEngine.Networking.UnityWebRequestMultimedia.Calls.Count==attempts,"Failed MP3 requests are disposed without per-frame retries");
+
+    var loading=Definition("loading-mp3",Path.Combine(root,"loading.mp3"));
+    var loadingRequest=new UnityEngine.Networking.UnityWebRequest{Clip=AudioClip.Create("loading",44100,1,44100,false)};
+    UnityEngine.Networking.UnityWebRequestMultimedia.Factory=_=>loadingRequest;
+    ActionRegistry.Set(loading);ActionAssets.Tick();loadingRequest.isDone=true;loadingRequest.result=UnityEngine.Networking.UnityWebRequest.Result.Success;
+    loadingRequest.Clip.loadState=AudioDataLoadState.Loading;ActionAssets.Tick();
+    Check(!ActionAssets.TryGet(loading,out _),"Native request completion still waits for playable audio data");
+    loadingRequest.Clip.loadState=AudioDataLoadState.Loaded;ActionAssets.Tick();
+    Check(ActionAssets.TryGet(loading,out _),"Native loading completion publishes the prepared clip");
+    var empty=Definition("empty-mp3",Path.Combine(root,"empty.mp3"));
+    var emptyRequest=new UnityEngine.Networking.UnityWebRequest{Clip=AudioClip.Create("empty",1,1,44100,false),isDone=true,result=UnityEngine.Networking.UnityWebRequest.Result.Success};emptyRequest.Clip.length=0;
+    UnityEngine.Networking.UnityWebRequestMultimedia.Factory=_=>emptyRequest;ActionRegistry.Set(empty);ActionAssets.Tick();ActionAssets.Tick();
+    Reject(()=>ActionAssets.TryGet(empty,out _),"Empty decoded MP3 is never published");
+    Check(emptyRequest.Disposed&&emptyRequest.Clip.Destroyed,"Invalid decoded MP3 releases the owned clip and request");
+    var held=Definition("held-mp3",Path.Combine(root,"held.mp3"));
+    var heldRequest=new UnityEngine.Networking.UnityWebRequest{Clip=AudioClip.Create("held",44100,1,44100,false)};
+    UnityEngine.Networking.UnityWebRequestMultimedia.Factory=_=>heldRequest;ActionRegistry.Set(held);ActionAssets.Tick();
+    heldRequest.isDone=true;heldRequest.result=UnityEngine.Networking.UnityWebRequest.Result.Success;heldRequest.Clip.loadState=AudioDataLoadState.Loading;ActionAssets.Tick();ActionAssets.Clear();
+    Check(heldRequest.Disposed&&heldRequest.Clip.Destroyed,"Cancellation after content creation releases unpublished MP3 data");
+    Check(NativeAudioLoad.Supports("UPPER.MP3")&&!NativeAudioLoad.Supports("BGM.wav"),"MP3 routing is case-insensitive and leaves the WAV decoder unchanged");
+    Console.WriteLine($"PASS {count} assertions: WAV worker decode/upload, native MP3 async preparation, cache reuse, failure isolation and cleanup");
 }
 finally {ActionAssets.Clear();Directory.Delete(root,true);}
 
@@ -63,10 +111,10 @@ namespace UnityEngine
     public sealed class GameObject {}
     public struct Vector3 { public float x,y,z; }
     public enum HideFlags { HideAndDontSave }
-    public enum AudioDataLoadState { Loaded,Loading,Failed }
+    public enum AudioDataLoadState { Loaded,Loading,Failed,Unloaded }
     public sealed class AudioClip : Object
     {
-        public float[] Data; public int Channels,MaxTransfer; public float length; public HideFlags hideFlags; public AudioDataLoadState loadState=AudioDataLoadState.Loaded;
+        public string name; public float[] Data; public int Channels,MaxTransfer; public float length; public HideFlags hideFlags; public AudioDataLoadState loadState=AudioDataLoadState.Loaded;
         public static AudioClip Create(string name,int frames,int channels,int rate,bool stream){Boundary.UnityCall();return new(){Data=new float[frames*channels],Channels=channels,length=frames/(float)rate};}
         public bool SetData(float[] data,int frameOffset){Boundary.UnityCall();MaxTransfer=Math.Max(MaxTransfer,data.Length);Array.Copy(data,0,Data,frameOffset*Channels,data.Length);return true;}
         public bool LoadAudioData()=>true;

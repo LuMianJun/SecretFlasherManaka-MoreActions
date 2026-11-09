@@ -40,7 +40,8 @@ internal static class MmdActionPacks
         if (!TryField(root, "id", out _)) action.Id = label;
         if (!TryField(root, "displayName", out _)) action.DisplayName = label;
         if (!TryField(root, "audioFile", out _))
-            action.AudioFile = File.Exists(Path.Combine(directory, "BGM.wav")) ? "BGM.wav" : "";
+            action.AudioFile = File.Exists(Path.Combine(directory, "BGM.wav")) ? "BGM.wav"
+                : File.Exists(Path.Combine(directory, "BGM.mp3")) ? "BGM.mp3" : "";
         if (!string.IsNullOrEmpty(action.AudioFile)) PackFile(directory, action.AudioFile);
         string motion = TryField(root, "vmdFile", out var vmd) ? vmd.GetString() : "motion.vmd";
         var referencePose = MmdReferencePose.A;

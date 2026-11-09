@@ -15,6 +15,7 @@ internal static class ActionAssets
         internal LoadedAction Assets;
         internal Task<WaveAudio.Decoded> Decode;
         internal WaveAudio.Upload Upload;
+        internal NativeAudioLoad NativeAudio;
         internal Exception Error;
         internal bool Ready;
         internal long MaxUploadMs;
@@ -22,6 +23,7 @@ internal static class ActionAssets
         internal void Dispose()
         {
             Upload?.Dispose(); Upload = null; Decode = null;
+            NativeAudio?.Dispose(); NativeAudio = null;
             if (Assets?.Audio != null) UnityEngine.Object.Destroy(Assets.Audio);
             if (Assets?.Clip != null) UnityEngine.Object.Destroy(Assets.Clip);
             Assets = null;
@@ -67,35 +69,45 @@ internal static class ActionAssets
             if (entry.Assets == null) entry.Assets = LoadBundleAssets(definition);
             if (!string.IsNullOrEmpty(definition.AudioPath) && entry.Assets.Audio == null)
             {
-                if (entry.Decode == null && entry.Upload == null)
+                if (NativeAudioLoad.Supports(definition.AudioPath))
                 {
-                    string path = definition.AudioPath;
-                    entry.Decode = Task.Run(async () =>
+                    entry.NativeAudio ??= new NativeAudioLoad(definition.AudioPath);
+                    if (!entry.NativeAudio.Step()) return;
+                    entry.Assets.Audio = entry.NativeAudio.TakeClip();
+                    entry.NativeAudio.Dispose(); entry.NativeAudio = null;
+                }
+                else
+                {
+                    if (entry.Decode == null && entry.Upload == null)
                     {
-                        await decodeGate.WaitAsync().ConfigureAwait(false);
-                        try { return WaveAudio.Decode(path); }
-                        finally { decodeGate.Release(); }
-                    });
-                    return;
+                        string path = definition.AudioPath;
+                        entry.Decode = Task.Run(async () =>
+                        {
+                            await decodeGate.WaitAsync().ConfigureAwait(false);
+                            try { return WaveAudio.Decode(path); }
+                            finally { decodeGate.Release(); }
+                        });
+                        return;
+                    }
+                    if (entry.Upload == null)
+                    {
+                        if (!entry.Decode.IsCompleted) return;
+                        entry.Upload = new WaveAudio.Upload(entry.Decode.GetAwaiter().GetResult());
+                        entry.Decode = null;
+                    }
+                    var uploadTimer = System.Diagnostics.Stopwatch.StartNew();
+                    bool uploaded = entry.Upload.Step();
+                    entry.MaxUploadMs = Math.Max(entry.MaxUploadMs, uploadTimer.ElapsedMilliseconds);
+                    if (!uploaded) return;
+                    entry.Assets.Audio = entry.Upload.Clip;
+                    entry.Upload = null; // Clip ownership passes to the ready entry.
                 }
-                if (entry.Upload == null)
-                {
-                    if (!entry.Decode.IsCompleted) return;
-                    entry.Upload = new WaveAudio.Upload(entry.Decode.GetAwaiter().GetResult());
-                    entry.Decode = null;
-                }
-                var uploadTimer = System.Diagnostics.Stopwatch.StartNew();
-                bool uploaded = entry.Upload.Step();
-                entry.MaxUploadMs = Math.Max(entry.MaxUploadMs, uploadTimer.ElapsedMilliseconds);
-                if (!uploaded) return;
-                entry.Assets.Audio = entry.Upload.Clip;
-                entry.Upload = null; // Clip ownership passes to the ready entry.
             }
             if (entry.Assets.Audio != null && entry.Assets.Audio.loadState == AudioDataLoadState.Failed) throw new Exception("Audio data failed to load");
             if (entry.Assets.Audio != null && entry.Assets.Audio.loadState != AudioDataLoadState.Loaded) return;
             entry.Ready = true; ReadyRevision++;
             if (requested == definition.Id) requested = null;
-            Plugin.LogSource.LogInfo("ACTION_ASSETS_READY id=" + definition.Id + " motion=" + entry.Assets.Duration + " audio=" + (entry.Assets.Audio == null ? 0 : entry.Assets.Audio.length) + " prepareMs=" + entry.Timer.ElapsedMilliseconds + " uploadStepMaxMs=" + entry.MaxUploadMs);
+            Plugin.LogSource.LogInfo("ACTION_ASSETS_READY id=" + definition.Id + " motion=" + entry.Assets.Duration + " audio=" + (entry.Assets.Audio == null ? 0 : entry.Assets.Audio.length) + " prepareMs=" + entry.Timer.ElapsedMilliseconds + " uploadStepMaxMs=" + entry.MaxUploadMs + " audioFormat=" + (entry.Assets.Audio == null ? "none" : string.IsNullOrEmpty(definition.AudioPath) ? "bundle" : NativeAudioLoad.Supports(definition.AudioPath) ? "mp3" : "wav"));
         }
         catch (Exception e)
         {

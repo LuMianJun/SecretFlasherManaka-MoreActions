@@ -34,6 +34,7 @@
   <!-- Preserve the existing Harmony patch declaration order when adding files. -->
   <ItemGroup>
     <Compile Include="Import/ActionAssets.cs" />
+    <Compile Include="Import/NativeAudioLoad.cs" />
     <Compile Include="Rig/ActionPose.cs" />
     <Compile Include="Rig/ActionBodyPoseLease.cs" />
     <Compile Include="Import/ActionBundleImport.cs" />

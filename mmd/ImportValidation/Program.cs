@@ -15,6 +15,12 @@ void Register(MmdActionPack pack) => ActionRegistry.RegisterRuntime(pack.Action,
 try
 {
     File.WriteAllText(Path.Combine(folder, "motion.vmd"), "motion");
+    File.WriteAllText(Path.Combine(folder,"BGM.mp3"),"decoder fixture");
+    Check(Read().Action.AudioFile=="BGM.mp3","MMD discovers MP3 when the default WAV is absent");
+    Json("{\"audioFile\":\"\"}");Check(Read().Action.AudioFile=="","Explicit empty audio disables discovered MP3");
+    Json("{\"audioFile\":\"missing.mp3\"}");Reject(()=>Read(),"Missing explicit audio does not fall back to default MP3");File.Delete(manifest);
+    File.WriteAllText(Path.Combine(folder,"BGM.wav"),"decoder fixture");Check(Read().Action.AudioFile=="BGM.wav","WAV keeps priority when both default names are present");
+    File.Delete(Path.Combine(folder,"BGM.wav"));File.Delete(Path.Combine(folder,"BGM.mp3"));
     Check(Read().ReferencePose==MmdReferencePose.A,"Omitted reference pose defaults to A");
     Json("{\"referencePose\":\"T\"}"); Check(Read().ReferencePose==MmdReferencePose.T,"Action JSON can explicitly select T");
     Json("{\"REFERENCEPOSE\":\"a\"}"); Check(Read().ReferencePose==MmdReferencePose.A,"Reference pose field and value are case insensitive");

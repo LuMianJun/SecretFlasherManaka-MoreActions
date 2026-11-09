@@ -5,6 +5,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
   </PropertyGroup>
   <ItemGroup>
+    <Compile Include="../Plugin/Import/NativeAudioLoad.cs" Link="NativeAudioLoad.cs" />
     <Compile Include="../Plugin/Import/ActionAssets.cs" Link="ActionAssets.cs" />
     <Compile Include="../Plugin/Import/WaveAudio.cs" Link="WaveAudio.cs" />
     <Compile Include="../Plugin/Import/LoadedAction.cs" Link="LoadedAction.cs" />
