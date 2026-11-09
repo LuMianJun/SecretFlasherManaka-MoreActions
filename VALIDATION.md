@@ -75,3 +75,5 @@ StatsValidation 验证属性参数、原生输入、按帧去重、角色归属�
 ```powershell
 dotnet run --project more-actions/AnimatorValidation -c Release -- --stats-interop $gameDir more-actions/Plugin/bin/Release/net6.0/SFM.MoreActions.dll
 ```
+
+AssetValidation 另覆盖 MP3 原生请求的异步准备、Unicode 本地路径、缓存、失败隔离、请求取消与音频所有权；这些是原生边界夹具，真实解码和游戏内播放需分别验证。

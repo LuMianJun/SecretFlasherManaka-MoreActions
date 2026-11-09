@@ -36,7 +36,7 @@ more-actions/Plugin/
 - ActionDefinitionValidation 在注册时检查动作规则和资源路径；ActionRegistry 保存动作快照、提供查询、别名与提供者移除通知。
 - ActionRegistry.LoadPacks 保留为公共兼容入口，转交 ActionPackLoader；插件内部直接调用导入器。
 - ActionEventSchema.ValidateJson 保留公共调用方式，转交公共配置校验；事件校验本身只处理事件字段。
-- ActionBundleImport 负责自动导入 Unity 片段；ActionAssets 负责动作媒体资源缓存与准备调度，LoadedAction 表示可播放资源。WaveAudio 分离音频解码和分帧上传。
+- ActionBundleImport 负责自动导入 Unity 片段；ActionAssets 负责动作媒体资源缓存与准备调度，LoadedAction 表示可播放资源。WaveAudio 分离 WAV 解码和分帧上传；NativeAudioLoad 使用 Unity 原生接口异步准备 MP3，在缓存接管前持有并清理请求与未发布的音频。
 
 注册表和资源缓存属于插件生命周期。单次播放只借用资源，不在停止时销毁其他动作的缓存。
 
@@ -109,3 +109,5 @@ CrowdDriver 持有一轮聚集的固定中心、站位、招募与重试状态�
 - 三个生产项目显式列出编译文件，并保留既有补丁类型的相对顺序；新增补丁时应核对同一原生方法的执行顺序。
 - 验证项目直接链接相应生产文件，夹具仅提供明确的游戏/Unity 边界；改变文件位置后必须同步这些链接。
 - 验证项目中的简化模型不代表生产实现；JSON 验证、骨架数学、原生接口、安装器和实际游戏效果分别验证。
+
+普通 `.anim` 直接导入等延期事项见[更多动作待办](more-actions/docs/待办.md)。
