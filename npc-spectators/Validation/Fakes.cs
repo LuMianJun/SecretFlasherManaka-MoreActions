@@ -49,8 +49,14 @@ namespace UnityEngine
     public enum QueryTriggerInteraction { UseGlobal, Ignore, Collide }
     public static class LayerMask
     {
-        public static int GetMask(params string[] names)
-        { int mask=0;foreach(var name in names)mask|=name switch {"Ignore Raycast"=>1<<2,"Player"=>1<<6,"PlayerFace"=>1<<7,"Npc"=>1<<12,"NpcSightArea"=>1<<13,_=>0};return mask; }
+        public static int NameToLayer(string name) => name switch
+        {
+            "Ignore Raycast" => 2,
+            "Player" => 6,
+            "PlayerFace" => 7,
+            "Npc" => 12,
+            _ => -1
+        };
     }
     public static class Physics
     {

@@ -145,6 +145,9 @@ Physics.Cast=(_,_,_)=>new[]{new RaycastHit{collider=playerCollider},new RaycastH
 Check(CrowdVisibility.IsClear(Vector3.zero,new(3,0,0),actorRoots),"Actors and triggers must not occlude gathering");
 Physics.Cast=(_,_,_)=>new[]{new RaycastHit{collider=playerCollider},new RaycastHit{collider=wall}};
 Check(!CrowdVisibility.IsClear(Vector3.zero,new(3,0,0),actorRoots),"A wall behind a player hit must still be tested");
+wall.gameObject.layer=31;
+Check(!CrowdVisibility.IsClear(Vector3.zero,new(3,0,0),actorRoots),"A missing ignored layer must not make layer 31 invisible");
+wall.gameObject.layer=0;
 RaycastHit[] WallAtX(Vector3 origin,Vector3 direction,float distance,float halfWidth=float.PositiveInfinity)
 {
     if(Math.Abs(direction.x)<1e-6f)return [];

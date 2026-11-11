@@ -25,6 +25,10 @@ internal static class InstalledContract
         {
             ["Physics"]=new[]{"RaycastAll"},["Collider"]=new[]{"get_isTrigger"}
         });
+        CheckApi(Path.Combine(gameDirectory,"BepInEx","interop","UnityEngine.CoreModule.dll"),new()
+        {
+            ["LayerMask"]=new[]{"NameToLayer"}
+        });
         CheckApi(motionDll,new(){["MotionPlaybackApi"]=new[]{"get_IsPlaying","get_CurrentMotionId","add_PlaybackChanged","remove_PlaybackChanged"}});
         using var crowd=new PEReader(File.OpenRead(crowdDll));var cm=crowd.GetMetadataReader();
         using var motion=new PEReader(File.OpenRead(motionDll));var mm=motion.GetMetadataReader();
@@ -36,6 +40,7 @@ internal static class InstalledContract
         {
             var member=cm.GetMemberReference(handle);if(member.Parent.Kind!=HandleKind.TypeReference)continue;
             string owner=cm.GetString(cm.GetTypeReference((TypeReferenceHandle)member.Parent).Name),name=cm.GetString(member.Name);
+            if(owner=="LayerMask"&&name=="GetMask")throw new Exception("Spectator visibility still uses LayerMask.GetMask");
             if(owner=="NpcLocomotion"&&name=="SimpleUpdateFromOtherState")nativeApproach=true;
             if(owner=="NpcLocomotion"&&name=="set_moveV"||owner=="NavMeshAgent"&&(name=="Raycast"||name=="SetPath"||name=="set_updatePosition"||name=="set_updateRotation"))
                 throw new Exception("Custom spectator movement owner still compiled: "+owner+"."+name);
