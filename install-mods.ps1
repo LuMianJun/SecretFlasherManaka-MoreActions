@@ -13,6 +13,7 @@ foreach ($folder in @('SFMMoreActions','SFMVmdProbe')) {
     foreach ($name in @('动作事件说明.zh-CN.md','原版音效名称.txt')) { $allowed += "BepInEx/plugins/$folder/$name" }
 }
 $allowed += @('BepInEx/plugins/SFMMoreActions/README.zh-CN.md','BepInEx/plugins/SFMNpcSpectators/README.zh-CN.md')
+$allowed += @('BepInEx/plugins/SFMMoreActions/README.en.md','BepInEx/plugins/SFMVmdProbe/README.en.md','BepInEx/plugins/SFMNpcSpectators/README.en.md')
 if (@($manifest.file | Sort-Object -Unique).Count -ne $manifest.Count) { throw 'Duplicate package target.' }
 foreach ($name in $required) { if ($name -notin $manifest.file) { throw "Missing plugin: $name" } }
 $backupRoot = Join-Path $gameRoot ('BepInEx/unified-vmd-backups/' + [DateTime]::Now.ToString('yyyyMMdd-HHmmss-fff'))
