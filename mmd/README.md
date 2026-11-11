@@ -7,7 +7,7 @@
 ## 快速开始
 
 1. 按[仓库首页](../README.md#安装)从 Release 安装“更多动作 + MMD”。
-2. 在 `BepInEx/plugins/SFMVmdProbe/Motions/` 下为每个动作建一个文件夹，放入 `motion.vmd`；配套镜头命名为 `camera.vmd`，配乐命名为 `BGM.wav` 或 `BGM.mp3`。
+2. 在 `BepInEx/plugins/SFMVmdProbe/Motions/` 下为每个动作建一个文件夹，放入 `motion.vmd`。配套镜头命名为 `camera.vmd`，配乐命名为 `BGM.wav` 或 `BGM.mp3`。需要显示歌词时，在同一文件夹放入 UTF-8 编码的 `lyrics.lrc`。
 3. 重启游戏并进入场景，站立不动，按住数字键 **1–8** 打开转盘，用 **Z / X** 切页，鼠标指向动作后松开数字键播放。移动或再次选择同一动作可停止。
 4. 音乐、表情和镜头在 **设置 → 更多动作** 中调整。
 

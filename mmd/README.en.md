@@ -24,7 +24,7 @@ Install **More Actions + MMD** from a Release as described on the [repository ho
 | `BGM.wav` or `BGM.mp3` | Accompanying music | No |
 | `lyrics.lrc` | Line-timed lyrics for the music | No |
 
-Save UTF-8 lyrics as `lyrics.lrc` in the motion folder. The current lyric appears at the bottom of the screen during music playback, using timestamps such as `[00:17.90]`.
+Save UTF-8 lyrics as `lyrics.lrc` beside `motion.vmd`, including when you use a custom music filename. A timestamp such as `[00:17.90]` shows that line at the bottom of the screen 17.90 seconds after the music starts. Lyrics pause and resume with the music and clear when it ends.
 
 Example:
 
@@ -34,6 +34,7 @@ Motions/
     motion.vmd
     camera.vmd
     BGM.wav
+    lyrics.lrc
 ```
 
 ### Play from the radial menu
@@ -370,6 +371,7 @@ More Actions supplies global music volume, expression overlay, and face-camera s
 - **Action missing:** check the motion.vmd filename, folder, and JSON. Wait for preparation and reopen the radial menu. Restart after file changes.
 - **Specified file does not load:** check paths relative to action.json. A missing explicit file does not fall back to the default; vmdFile cannot be empty.
 - **No music:** check BGM.wav, BGM.mp3, or audioFile, plus game and plugin volumes.
+- If lyrics do not appear, check that the motion folder contains UTF-8 `lyrics.lrc` with timed lines and that the motion is playing music. Restart the game after editing files.
 - **No supplied camera:** check camera.vmd and enable **Use supplied camera**.
 - **Expressions still overlay or do not move:** check keepGameExpressions, writeFaceMorphs, and whether the VMD contains supported expression tracks.
 - **Playback stops without input:** some actions can stop early at certain shopping-mall locations, a known issue.

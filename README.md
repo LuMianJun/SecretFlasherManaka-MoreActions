@@ -29,12 +29,14 @@ Motions/
 └─ 我的舞蹈/
    ├─ motion.vmd
    ├─ camera.vmd
-   └─ BGM.wav
+   ├─ BGM.wav
+   └─ lyrics.lrc
 ```
 
 - `motion.vmd`：角色动作，必需。
 - `camera.vmd`：配套镜头，可选。
 - `BGM.wav` 或 `BGM.mp3`：配套音乐，可选。
+- 可选的 `lyrics.lrc` 使用 UTF-8，配乐播放时自动显示在画面底部。
 
 每个动作使用不同的文件夹名，放好资源后重启游戏。
 

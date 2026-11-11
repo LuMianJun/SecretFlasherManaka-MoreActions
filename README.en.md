@@ -29,12 +29,14 @@ Motions/
 └─ MyDance/
    ├─ motion.vmd
    ├─ camera.vmd
-   └─ BGM.wav
+   ├─ BGM.wav
+   └─ lyrics.lrc
 ```
 
 - `motion.vmd`: character motion, required.
 - `camera.vmd`: supplied camera track, optional.
 - `BGM.wav` or `BGM.mp3`: accompanying music, optional.
+- An optional UTF-8 `lyrics.lrc` displays timed lyrics at the bottom of the screen during music playback.
 
 Use a different folder name for each motion. Restart the game after adding files.
 
