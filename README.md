@@ -42,7 +42,7 @@ Motions/
 
 ## 导入 Unity 动画包
 
-将 AnimReplacer 风格的 Unity AssetBundle 放入 `BepInEx/plugins/SFMMoreActions/Actions/`，不同资源包可各建一个子文件夹：
+将包含动画片段的 Unity AssetBundle 放入 `BepInEx/plugins/SFMMoreActions/Actions/`，不同资源包可各建一个子文件夹：
 
 ```text
 Actions/
@@ -53,7 +53,7 @@ Actions/
    └─ pose.bundle
 ```
 
-本插件直接导入 bundle，原 AnimReplacer 插件可省略。普通 `.anim` 或 FBX 文件需先打成动画包，再按上述目录导入。
+插件读取包内的 AnimationClip（.anim）资源，也兼容 AnimReplacer 提供的动画资源包；不读取资源包附带的控制器模板。普通 `.anim` 或 FBX 文件需先打成动画包，再按上述目录导入。
 
 - CatPose、V-sign 等新增动作从转盘播放，自动导入时默认循环。
 - 与原版片段同名的动作作为替换资源，只出现在替换管理页。

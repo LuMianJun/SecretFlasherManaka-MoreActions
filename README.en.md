@@ -42,7 +42,7 @@ Use a different folder name for each motion. Restart the game after adding files
 
 ## Import Unity animation bundles
 
-Place AnimReplacer-style Unity AssetBundles under `BepInEx/plugins/SFMMoreActions/Actions/`. You can organize packs in separate subfolders:
+Place Unity AssetBundles containing animation clips under `BepInEx/plugins/SFMMoreActions/Actions/`. You can organize packs in separate subfolders:
 
 ```text
 Actions/
@@ -53,7 +53,7 @@ Actions/
    └─ pose.bundle
 ```
 
-The plugin imports bundles directly; the original AnimReplacer plugin is optional. Ordinary `.anim` or FBX files must first be built into animation bundles.
+The plugin reads AnimationClip (.anim) assets inside bundles, including animation bundles supplied for AnimReplacer. Bundled controller templates are not read. Ordinary `.anim` or FBX files must first be built into animation bundles.
 
 - New actions such as CatPose and V-sign are played from the radial menu. Automatically imported actions loop by default.
 - Clips whose names match native clips are replacement resources and appear only in the replacement manager.

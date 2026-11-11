@@ -91,7 +91,7 @@ Expression overlay preserves the character's customized face shape and returns e
 
 Use subdirectories to keep packs separate; identically named files in different directories are imported independently.
 
-Place AnimReplacer-style Unity AssetBundles in the action directory and restart to import their clips automatically. Only the bundles are needed; the original AnimReplacer DLL, hotkey configuration, and OverrideController template are optional. Ordinary `.anim` or FBX files must first be bundled for the game's skeleton.
+Place Unity AssetBundles containing AnimationClip (.anim) assets in the action directory and restart to import their clips automatically. Animation bundles supplied for AnimReplacer are compatible. Bundled controllers and OverrideController templates are not imported; only the animation bundles are needed. The original AnimReplacer DLL and hotkey configuration are optional. Ordinary `.anim` or FBX files must first be bundled for the game's skeleton.
 
 Humanoid animations play through the game character's Avatar. Generic animations match game bone paths. Skeletons, expressions, and animation events each have compatibility requirements; successful import still requires checking the resulting playback.
 

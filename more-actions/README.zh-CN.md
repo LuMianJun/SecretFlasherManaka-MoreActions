@@ -91,7 +91,7 @@ Actions/
 
 不同资源包可各建子目录，同名文件在不同目录中分别导入。
 
-放入 AnimReplacer 风格的 Unity AssetBundle 并重启游戏，包内动画会自动导入。只需复制动画包，原 AnimReplacer DLL、快捷键配置和 OverrideController 模板均可省略。普通 `.anim`、FBX 文件需先打成匹配游戏骨架的动画包。
+放入包含 AnimationClip（.anim）资源的 Unity AssetBundle 并重启游戏，包内动画会自动导入。兼容 AnimReplacer 的动画资源包；包内控制器或 OverrideController 模板不参与导入，只需复制动画资源包。原 AnimReplacer DLL 和快捷键配置均可省略。普通 `.anim`、FBX 文件需先打成匹配游戏骨架的动画包。
 
 Humanoid 动画通过游戏角色的 Avatar 播放；Generic 动画按游戏骨骼路径匹配。骨骼、表情和动画事件各有兼容要求，导入成功后仍需检查实际播放效果。
 
