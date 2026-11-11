@@ -405,6 +405,15 @@ try
         }
         if(name=="c-camera-invalid")File.WriteAllText(Path.Combine(folder,"camera.vmd"),"invalid");
         if(name=="c-camera-invalid")File.WriteAllText(Path.Combine(folder,"action.json"),"{\"referencePose\":\"T\"}");
+        File.WriteAllBytes(Path.Combine(folder,"BGM.wav"),Array.Empty<byte>());
+        if(name=="a-good")
+        {
+            File.WriteAllText(Path.Combine(folder,"BGM.lrc"),"[00:00.00]Ignored");
+            Check(MmdLyricTrack.Read(folder)==null,"Only lyrics.lrc is discovered");
+            File.WriteAllText(Path.Combine(folder,"lyrics.lrc"),
+                "{\"tx\":\"作词\"}\n[00:20.21]第二句\n[00:17.90][00:25.900]第一句\n[00:26.25]");
+        }
+        else File.WriteAllBytes(Path.Combine(folder,"lyrics.lrc"),new byte[]{0xff});
     }
     var prep=new MmdPackPreparation(IntPtr.Zero); int queued=prep.Configure(asyncRoot);
     Check(queued==3 && ActionRegistry.Registered.Count==0,"Configure queues parsing without waiting or registering on workers");
@@ -416,6 +425,12 @@ try
     }
     Check(ActionRegistry.Registered.Count==2,"A malformed VMD does not prevent other packs from finishing");
     Check(ActionRegistry.Registered.ContainsKey("c-camera-invalid"),"A malformed camera does not reject its valid motion");
+    var track=MmdPackPreparation.GetLyrics("a-good");
+    Check(track!=null&&track.LineAt(17.89)==null&&track.LineAt(17.90)=="第一句"&&track.LineAt(20.21)=="第二句"
+        &&track.LineAt(25.90)=="第一句"&&track.LineAt(26.25)=="","Async lyrics loading handles metadata, ordering, repeated timestamps and blank cues");
+    Check(MmdPackPreparation.GetLyrics("c-camera-invalid")==null
+        &&global::Plugin.LogSource.Messages.Any(m=>m.Contains("MMD_LYRICS_REJECTED id=c-camera-invalid")),
+        "Invalid lyrics do not reject a valid motion");
     MmdRigCache.Clear();var pumpAvatar=Avatar();var pump=new MmdRigPreparation(IntPtr.Zero);
     ActionTargetApi.Target=pumpAvatar.avatar;ActionTargetApi.IsReady=true;
     var provider=(RuntimeVmdSource)ActionRegistry.Registered.Values.First().RuntimeSource;

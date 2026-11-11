@@ -295,9 +295,11 @@ try
     Start(menuMotion,audioLength:5);Frame(.4);var menuAudio=AudioSource.Created.Last();
     var menuPose=loaded.LastPose;InGameUiManager.Instance.IsOpenSomeCancelInputUi=true;Time.timeScale=0;Frame(.5);
     float frozenPose=menuPose.Samples.Last();double frozenTime=ActionPlaybackApi.PlaybackPositionSeconds;
+    var frozenAudioTime=ActionPlaybackApi.AudioPositionSeconds;
     InputManager.Down.Add(InputManager.InputType.Cancel);InputManager.Down.Add(InputManager.InputType.Crouch);InputManager.Move=new Vector3(1,0,0);Frame(10);
     Check(driver.Playing&&!menuPose.Disposed&&!calls.Contains("menu-cancel")&&menuPose.Samples.Last()==frozenPose&&ActionPlaybackApi.PlaybackPositionSeconds==frozenTime,"Pause menu preserves the action and freezes pose/shared camera time despite UI navigation inputs");
     Check(menuAudio.Pauses==1&&menuAudio.Resumes==0&&menuAudio.Scheduled.Count==1&&!calls.Contains("menu-later"),"Already playing music pauses exactly once while future action events remain frozen");
+    Check(frozenAudioTime.HasValue&&ActionPlaybackApi.AudioPositionSeconds==frozenAudioTime,"Published music position freezes with the paused audio");
     InputManager.Down.Clear();InputManager.Move=default;InGameUiManager.Instance.IsOpenSomeCancelInputUi=false;Time.timeScale=1;Frame(10.5);
     Check(driver.Playing&&Math.Abs(menuPose.Samples.Last()-frozenPose)<1e-5&&menuAudio.Resumes==1&&menuAudio.Scheduled.Count==1,"Closing the pause menu resumes the same music channel and motion position");
     Frame(10.9);Check(calls.Count(c=>c=="menu-start")==1&&calls.Count(c=>c=="menu-later")==1&&!calls.Contains("menu-cancel"),"Resume fires future events once without replaying start/cancel callbacks");
@@ -308,6 +310,14 @@ try
     Check(driver.Playing&&delayedAudio.Stops==stopsBeforeMenu+1&&delayedAudio.Pauses==0,"Pending delayed BGM is unscheduled so it cannot start while the game is paused");
     InGameUiManager.Instance.IsOpenSomeCancelInputUi=false;Time.timeScale=1;Frame(10.5);
     Check(delayedAudio.Scheduled.Count==2&&Math.Abs(delayedAudio.Scheduled.Last()-originalAudioSchedule-10)<1e-5&&delayedAudio.Resumes==0,"Delayed BGM is rescheduled with its original remaining delay after resume");
+    Check(ActionPlaybackApi.AudioPositionSeconds==null,"Scheduled music has no position before it starts");
+    Frame(delayedAudio.Scheduled.Last()+.5);
+    Check(Math.Abs(ActionPlaybackApi.AudioPositionSeconds.GetValueOrDefault(-1)-.5)<1e-5,"Music position excludes delay and pause even after the pose reaches its final frame");
+    driver.Stop("lyrics fixture stop");
+    Check(ActionPlaybackApi.AudioPositionSeconds==null,"Stopping clears the published music position");
+
+    Start(Definition(),audioLength:.25f);Frame(.45);
+    Check(driver.Playing&&ActionPlaybackApi.AudioPositionSeconds==null,"Music position clears when music ends before the action");
 
     calls.Clear();var earlyMenu=Definition();earlyMenu.OnStart=new[]{E(null,"early-start")};Start(earlyMenu,audioLength:2);
     var earlyPose=loaded.LastPose;InGameUiManager.Instance.IsOpenSomeCancelInputUi=true;Time.timeScale=0;Frame(.05);Frame(10);

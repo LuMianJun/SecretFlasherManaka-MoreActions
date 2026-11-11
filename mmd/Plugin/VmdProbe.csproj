@@ -11,6 +11,8 @@
     <Compile Include="Camera/MmdCameraPacks.cs" />
     <Compile Include="Import/MmdActionPacks.cs" />
     <Compile Include="Camera/MmdCameraDriver.cs" />
+    <Compile Include="Lyrics/MmdLyricTrack.cs" />
+    <Compile Include="Lyrics/MmdLyricsView.cs" />
     <Compile Include="Motion/MmdMotion.cs" />
     <Compile Include="Motion/MmdSkeleton.cs" />
     <Compile Include="Rig/GameMmdSkeleton.cs" />

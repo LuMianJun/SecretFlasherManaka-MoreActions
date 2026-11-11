@@ -22,6 +22,9 @@ Install **More Actions + MMD** from a Release as described on the [repository ho
 | `motion.vmd` | Character motion | Yes |
 | `camera.vmd` | Supplied camera track | No |
 | `BGM.wav` or `BGM.mp3` | Accompanying music | No |
+| `lyrics.lrc` | Line-timed lyrics for the music | No |
+
+Save UTF-8 lyrics as `lyrics.lrc` in the motion folder. The current lyric appears at the bottom of the screen during music playback, using timestamps such as `[00:17.90]`.
 
 Example:
 

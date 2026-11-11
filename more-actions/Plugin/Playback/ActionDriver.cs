@@ -366,9 +366,10 @@ public sealed class ActionDriver : MonoBehaviour
         var ui = InGameUiManager.Instance;
         string reason = Reason(Definition, Owner, ui != null && ui.IsOpenSomeUi);
         if (reason != null || (Owner.transform.position - session.ExpectedPosition).sqrMagnitude > 0.0004f) { StopWithDiagnostics("before pose", reason ?? "external displacement"); return; }
-        double eventTime = session.Clock.Elapsed(AudioSettings.dspTime);
+        double now = AudioSettings.dspTime;
+        double eventTime = session.Clock.Elapsed(now);
         float time = (float)eventTime;
-        if (!session.Clock.HasStarted(AudioSettings.dspTime)) return;
+        if (!session.Clock.HasStarted(now)) return;
         int revision = session.Revision;
         float duration = session.Clock.Duration(session.Action.Duration, session.Action.Audio == null ? 0 : session.Action.Audio.length);
         bool finished = !session.Clock.Paused && !Definition.Loop && eventTime >= duration;
@@ -398,7 +399,10 @@ public sealed class ActionDriver : MonoBehaviour
         if (Plugin.FollowCamera.Value && Definition.FollowFaceCamera)
             try { session.FaceCamera.RefreshAfterPose(); } catch (Exception e) { try { session.FaceCamera.End(); } catch { } Plugin.LogSource.LogWarning("ACTION_CAMERA_FAILED " + e.Message); }
         else session.FaceCamera.End();
-        ActionPlaybackApi.PublishPose(Definition.Id, Definition.Loop ? poseTime : eventTime);
+        double audioTime = eventTime - (session.Clock.AudioStartDsp - session.Clock.MotionStartDsp);
+        var audio = session.Action.Audio;
+        double? audioPosition = audio != null && audioTime >= 0 && audioTime < audio.length ? audioTime : null;
+        ActionPlaybackApi.PublishPose(Definition.Id, Definition.Loop ? poseTime : eventTime, audioPosition);
         if (revision == session.Revision && Playing && finished) Stop("finished", true);
     }
 

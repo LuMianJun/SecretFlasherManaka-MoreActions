@@ -30,6 +30,7 @@ public sealed class Plugin : BasePlugin
         AddComponent<MmdRigPreparation>();
         ActionPlaybackApi.PlaybackChanged += ForwardCompatibilityEvent;
         var cameraDriver = AddComponent<MmdCameraDriver>(); cameraDriver.Bind();
+        AddComponent<MmdLyricsView>().Bind();
         new Harmony(Guid).PatchAll(typeof(Plugin).Assembly);
         Log.LogInfo("MMD_ACTIONS_LOADING version=" + Version + " queued=" + count + " directVmd=true cameraDistribution=true settings=true base=" + SFM.Actions.Plugin.Guid);
     }

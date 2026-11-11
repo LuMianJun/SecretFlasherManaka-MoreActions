@@ -13,6 +13,7 @@
     <Compile Include="../Plugin/Rig/GameMmdSkeleton.cs" Link="GameMmdSkeleton.cs" />
     <Compile Include="../Plugin/Rig/MmdTargetSnapshot.cs" Link="MmdTargetSnapshot.cs" />
     <Compile Include="../Plugin/Import/MmdPackPreparation.cs" Link="MmdPackPreparation.cs" />
+    <Compile Include="../Plugin/Lyrics/MmdLyricTrack.cs" Link="MmdLyricTrack.cs" />
     <Compile Include="../Plugin/Rig/MmdRigPreparation.cs" Link="MmdRigPreparation.cs" />
     <Compile Include="../Plugin/Import/MmdActionPacks.cs" Link="MmdActionPacks.cs" />
     <Compile Include="../Plugin/Camera/MmdCameraPacks.cs" Link="MmdCameraPacks.cs" />
