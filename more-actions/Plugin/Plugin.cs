@@ -12,7 +12,7 @@ namespace SFM.Actions;
 [BepInPlugin(Guid, "SFM More Actions", Version)]
 public sealed class Plugin : BasePlugin
 {
-    internal const string Version = "1.6.0";
+    internal const string Version = "1.6.1";
     public const string Guid = "local.sfm.moreactions";
     internal static ManualLogSource LogSource;
     internal static ConfigEntry<float> Volume;

@@ -8,8 +8,8 @@ Custom actions, Unity animation bundle import, MMD playback, and optional NPC sp
 
 | Plugin | Version | Purpose |
 | --- | --- | --- |
-| More Actions | 1.6.0 | Radial-menu playback, Unity animation bundle import, native animation replacements, and in-game settings. |
-| MMD | 1.3.0 | Direct VMD playback with optional music and camera tracks. Requires More Actions. |
+| More Actions | 1.6.1 | Radial-menu playback, Unity animation bundle import, native animation replacements, and in-game settings. |
+| MMD | 1.3.1 | Direct VMD playback with optional music, camera tracks, and timed lyrics. Requires More Actions. |
 | NPC Spectators | 1.0.0 | Lets eligible ordinary pedestrians approach and watch. Can be used independently. |
 
 Install **More Actions + MMD** for MMD playback. Add NPC Spectators if you want an audience. Public packages contain plugins and documentation; supply your own game assemblies, motions, models, cameras, and music, and follow their authors' terms.
