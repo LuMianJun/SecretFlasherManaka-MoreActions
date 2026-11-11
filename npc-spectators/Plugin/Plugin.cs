@@ -13,7 +13,7 @@ namespace SFM.NpcSpectators;
 [BepInDependency("local.sfm.moreactions", BepInDependency.DependencyFlags.SoftDependency)]
 public sealed class Plugin : BasePlugin
 {
-    internal const string Version = "1.0.0";
+    internal const string Version = "1.0.1";
     internal static ManualLogSource Logger;
     internal static ConfigEntry<bool> Enabled, FollowMmd, FollowNative, FollowAllMmd;
     internal static ConfigEntry<string> NativeActions, MmdActions;

@@ -1,4 +1,4 @@
-# SFM NPC Spectators 1.0.0
+# SFM NPC Spectators 1.0.1
 
 [简体中文](README.md) | English
 

@@ -63,7 +63,7 @@ dotnet run --project mmd/CameraValidation -c Release -- --package "D:/Games/Secr
 生成安装包后运行：
 
 ```powershell
-./tests/InstallerValidation.ps1 -PackageDir "./releases/SFM-MoreActions-v1.6.1"
+./tests/InstallerValidation.ps1 -PackageDir "./releases/SFM-MoreActions-v1.6.2"
 ```
 
 此验证在临时目录生成模拟文件，不修改实际游戏。覆盖首次安装、重复升级、Seleka2 到 SFM 的动作/配置迁移、新数据优先、占用检查与中途失败回滚。模拟标记不作为运行时程序集加载；原游戏接口检查仍独立执行。
