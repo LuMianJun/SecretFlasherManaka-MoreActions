@@ -37,12 +37,3 @@ static class NativeHeadPosePatch
     static void Prefix(out IDisposable __state) => __state=ActionDriver.Current?.PreserveNativeCorrection(ActionBoneCorrection.LookAt);
     static Exception Finalizer(Exception __exception, IDisposable __state) { __state?.Dispose(); return __exception; }
 }
-[HarmonyPatch(typeof(PlayerKneeAdjuster), "get_KneeOffsetY")]
-static class NativeKneeOffsetPatch
-{
-    static bool Prefix(ref float __result)
-    {
-        if(!(ActionDriver.Current?.SuppressKneeOffset??false))return true;
-        __result=0;return false;
-    }
-}

@@ -260,7 +260,12 @@ if(args.Length>0)
     foreach(var folder in Directory.GetDirectories(resources).Order())
     {
         string vmd=Path.Combine(folder,"motion.vmd"); if(!File.Exists(vmd)) continue;
-        var source=Task.Run(()=>new RuntimeVmdSource(vmd)).GetAwaiter().GetResult();
+        var source=Task.Run(()=>
+        {
+            var pack=MmdActionPacks.Read(folder);
+            return new RuntimeVmdSource(pack.MotionPath,pack.ReferencePose,
+                MmdPackPreparation.ReadFace(folder,pack.Json),MmdPackPreparation.ReadLip(folder,pack.Json));
+        }).GetAwaiter().GetResult();
         using(var pose=source.CreatePose(fixture.avatar,definition))
         {
             foreach(float t in new[]{0f,source.Duration*.25f,source.Duration*.5f,source.Duration*.75f,source.Duration})
@@ -389,10 +394,46 @@ if(args.Length>0)
         Console.WriteLine($"PASS {Path.GetFileName(folder)}: mode=game-bind-pose duration={source.Duration} retained={source.RetainedTracks} ignored={source.IgnoredTracks}");
     }
 }
+var layeredMain=Motion();layeredMain.morphs["ウィンク２"]=[new(0,80)];layeredMain.morphs["あ"]=[new(0,40)];
+var layeredFace=new MmdMotion();layeredFace.morphs["ｳｨﾝｸ２"]=[new(0,0)];layeredFace.morphs["あ"]=[new(0,60)];
+var layeredLip=new MmdMotion();layeredLip.morphs["あ"]=[new(0,0)];layeredLip.morphs["ｳｨﾝｸ２"]=[new(0,99)];
+var layered=MmdMorphBindings.Compose(layeredMain,layeredFace,layeredLip);
+Check(!layered.morphs.ContainsKey("ウィンク２")&&layered.Morph("ｳｨﾝｸ２",0)==0,
+    "Normalized expression aliases replace the lower track, including explicit zero; lip eye data is ignored");
+Check(layered.Morph("あ",0)==0&&layeredMain.Morph("あ",0)==40&&layeredFace.Morph("あ",0)==60,
+    "Zero-valued lip track overrides both predecessors without mutating shared source keys");
 string asyncRoot=Path.Combine(Path.GetTempPath(),"mmd-async-"+Guid.NewGuid().ToString("N")); Directory.CreateDirectory(asyncRoot);
 try
 {
-    foreach(string name in new[]{"a-good","b-invalid","c-camera-invalid"})
+    void WriteFace(string path, uint endFrame, bool bones = false, bool mouth = true)
+    {
+        using var w = new BinaryWriter(File.Create(path));
+        void Text(string text,int length) {var bytes=new byte[length];Encoding.GetEncoding(932).GetBytes(text).CopyTo(bytes,0);w.Write(bytes);}
+        Text("Vocaloid Motion Data 0002",30);Text("face fixture",20);w.Write(bones ? 2u : 0u);
+        if (bones) foreach(uint frame in new[]{0u,300u})
+        {
+            Text("センター",15);w.Write(frame);w.Write(100f);w.Write(100f);w.Write(100f);
+            w.Write(0f);w.Write(0f);w.Write(0f);w.Write(1f);w.Write(new byte[64]);
+        }
+        w.Write(mouth ? 4u : 3u);
+        Text("まばたき",15);w.Write(0u);w.Write(.1f);
+        Text("まばたき",15);w.Write(endFrame);w.Write(.7f);
+        Text("にこり",15);w.Write(0u);w.Write(.15f);
+        if(mouth){Text("あ",15);w.Write(0u);w.Write(.6f);}
+    }
+    void WriteLip(string path, uint endFrame = 90)
+    {
+        using var w=new BinaryWriter(File.Create(path));
+        void Text(string text,int length){var bytes=new byte[length];Encoding.GetEncoding(932).GetBytes(text).CopyTo(bytes,0);w.Write(bytes);}
+        Text("Vocaloid Motion Data 0002",30);Text("lip fixture",20);w.Write(1u);
+        Text("センター",15);w.Write(300u);w.Write(100f);w.Write(100f);w.Write(100f);
+        w.Write(0f);w.Write(0f);w.Write(0f);w.Write(1f);w.Write(new byte[64]);
+        w.Write(4u);
+        Text("あ",15);w.Write(0u);w.Write(.1f);Text("あ",15);w.Write(endFrame);w.Write(.7f);
+        Text("まばたき",15);w.Write(0u);w.Write(.99f);Text("にこり",15);w.Write(0u);w.Write(.99f);
+    }
+    foreach(string name in new[]{"a-good","b-invalid","c-camera-invalid","d-face-missing","e-face-empty","f-face-disabled","g-face-custom","h-face-short",
+        "i-lip-default","j-lip-custom","k-lip-invalid","l-lip-disabled","m-lip-missing","n-lip-nonmouth","o-face-invalid-lip-good"})
     {
         string folder=Path.Combine(asyncRoot,name); Directory.CreateDirectory(folder);
         if(name=="b-invalid") { File.WriteAllText(Path.Combine(folder,"motion.vmd"),"invalid");continue; }
@@ -401,10 +442,45 @@ try
             void Text(string text,int length) {var bytes=new byte[length];Encoding.GetEncoding(932).GetBytes(text).CopyTo(bytes,0);w.Write(bytes);}
             Text("Vocaloid Motion Data 0002",30);Text("fixture",20);w.Write(2u);
             foreach(uint frame in new[]{0u,30u}) {Text("上半身",15);w.Write(frame);w.Write(0f);w.Write(0f);w.Write(0f);w.Write(0f);w.Write(0f);w.Write(0f);w.Write(1f);w.Write(new byte[64]);}
-            w.Write(0u);
+            w.Write(3u);
+            Text("まばたき",15);w.Write(0u);w.Write(.25f);
+            Text("笑い",15);w.Write(0u);w.Write(.7f);
+            Text("あ",15);w.Write(0u);w.Write(.4f);
         }
         if(name=="c-camera-invalid")File.WriteAllText(Path.Combine(folder,"camera.vmd"),"invalid");
         if(name=="c-camera-invalid")File.WriteAllText(Path.Combine(folder,"action.json"),"{\"referencePose\":\"T\"}");
+        if(name=="a-good" || name=="f-face-disabled")WriteFace(Path.Combine(folder,"face.vmd"),90);
+        if(name=="c-camera-invalid")File.WriteAllText(Path.Combine(folder,"face.vmd"),"invalid");
+        if(name=="d-face-missing")File.WriteAllText(Path.Combine(folder,"action.json"),"{\"faceVmdFile\":\"missing.vmd\"}");
+        if(name=="e-face-empty")
+        {
+            using var w=new BinaryWriter(File.Create(Path.Combine(folder,"face.vmd")));
+            var header=new byte[30];Encoding.ASCII.GetBytes("Vocaloid Motion Data 0002").CopyTo(header,0);
+            w.Write(header);w.Write(new byte[20]);w.Write(0u);w.Write(0u);
+        }
+        if(name=="f-face-disabled")File.WriteAllText(Path.Combine(folder,"action.json"),"{\"faceVmdFile\":\"\",\"lyricsFile\":\"\"}");
+        if(name=="g-face-custom")
+        {
+            Directory.CreateDirectory(Path.Combine(folder,"附件"));
+            WriteFace(Path.Combine(folder,"附件","表情.vmd"),90,true);
+            WriteFace(Path.Combine(folder,"face.vmd"),15);
+            File.WriteAllText(Path.Combine(folder,"字幕.lrc"),"[00:00.00]自定义歌词");
+            File.WriteAllText(Path.Combine(folder,"action.json"),"{\"FACEVMDFILE\":\"附件/表情.vmd\",\"LYRICSFILE\":\"字幕.lrc\"}");
+        }
+        if(name=="h-face-short")WriteFace(Path.Combine(folder,"face.vmd"),15);
+        if(name[0]>='i')WriteFace(Path.Combine(folder,"face.vmd"),90);
+        if(name is "i-lip-default" or "l-lip-disabled" or "o-face-invalid-lip-good")WriteLip(Path.Combine(folder,"lip.vmd"));
+        if(name=="j-lip-custom")
+        {
+            Directory.CreateDirectory(Path.Combine(folder,"附件"));WriteLip(Path.Combine(folder,"附件","口型.vmd"),15);
+            File.WriteAllText(Path.Combine(folder,"lip.vmd"),"invalid default must not be used");
+            File.WriteAllText(Path.Combine(folder,"action.json"),"{\"LIPVMDFILE\":\"附件/口型.vmd\"}");
+        }
+        if(name=="k-lip-invalid")File.WriteAllText(Path.Combine(folder,"lip.vmd"),"invalid");
+        if(name=="l-lip-disabled")File.WriteAllText(Path.Combine(folder,"action.json"),"{\"lipVmdFile\":\"\"}");
+        if(name=="m-lip-missing")File.WriteAllText(Path.Combine(folder,"action.json"),"{\"lipVmdFile\":\"missing.vmd\"}");
+        if(name=="n-lip-nonmouth")WriteFace(Path.Combine(folder,"lip.vmd"),90,false,false);
+        if(name=="o-face-invalid-lip-good")File.WriteAllText(Path.Combine(folder,"face.vmd"),"invalid");
         File.WriteAllBytes(Path.Combine(folder,"BGM.wav"),Array.Empty<byte>());
         if(name=="a-good")
         {
@@ -416,14 +492,14 @@ try
         else File.WriteAllBytes(Path.Combine(folder,"lyrics.lrc"),new byte[]{0xff});
     }
     var prep=new MmdPackPreparation(IntPtr.Zero); int queued=prep.Configure(asyncRoot);
-    Check(queued==3 && ActionRegistry.Registered.Count==0,"Configure queues parsing without waiting or registering on workers");
+    Check(queued==15 && ActionRegistry.Registered.Count==0,"Configure queues parsing without waiting or registering on workers");
     var timeout=System.Diagnostics.Stopwatch.StartNew();
     while(!global::Plugin.LogSource.Messages.Any(m=>m.Contains("MMD_ACTIONS_READY")))
     {
         int before=ActionRegistry.Registered.Count;prep.Update();Check(ActionRegistry.Registered.Count-before<=1,"At most one pack is registered per frame");
         if(timeout.Elapsed.TotalSeconds>10)throw new Exception("Async pack pump timed out");Thread.Sleep(1);
     }
-    Check(ActionRegistry.Registered.Count==2,"A malformed VMD does not prevent other packs from finishing");
+    Check(ActionRegistry.Registered.Count==14,"Malformed or missing companions do not reject valid body motion packs");
     Check(ActionRegistry.Registered.ContainsKey("c-camera-invalid"),"A malformed camera does not reject its valid motion");
     var track=MmdPackPreparation.GetLyrics("a-good");
     Check(track!=null&&track.LineAt(17.89)==null&&track.LineAt(17.90)=="第一句"&&track.LineAt(20.21)=="第二句"
@@ -431,6 +507,63 @@ try
     Check(MmdPackPreparation.GetLyrics("c-camera-invalid")==null
         &&global::Plugin.LogSource.Messages.Any(m=>m.Contains("MMD_LYRICS_REJECTED id=c-camera-invalid")),
         "Invalid lyrics do not reject a valid motion");
+    Check(MmdPackPreparation.GetLyrics("g-face-custom")?.LineAt(0)=="自定义歌词"
+        &&MmdPackPreparation.GetLyrics("f-face-disabled")==null,"Custom Unicode lyrics override defaults and empty string disables lyrics");
+    foreach(string name in new[]{"c-camera-invalid","d-face-missing","e-face-empty","o-face-invalid-lip-good"})
+        Check(global::Plugin.LogSource.Messages.Any(m=>m.Contains("MMD_FACE_REJECTED id="+name)&&m.Contains("fallback=motion")),
+            "Face error is reported with its fallback: "+name);
+    foreach(string name in new[]{"k-lip-invalid","m-lip-missing","n-lip-nonmouth"})
+        Check(global::Plugin.LogSource.Messages.Any(m=>m.Contains("MMD_LIP_REJECTED id="+name)&&m.Contains("fallback=previous")),
+            "Lip error retains the motion/expression layer: "+name);
+    foreach(string name in new[]{"a-good","c-camera-invalid","d-face-missing","e-face-empty","f-face-disabled","g-face-custom","h-face-short",
+        "i-lip-default","j-lip-custom","k-lip-invalid","l-lip-disabled","m-lip-missing","n-lip-nonmouth","o-face-invalid-lip-good"})
+    {
+        var source=(RuntimeVmdSource)ActionRegistry.Registered[name].RuntimeSource;
+        Check(source.Duration==1&&source.RetainedTracks==1,"Face length and embedded bones never change main duration or bone tracks: "+name);
+        var actor=Avatar();actor.renderer.SetBlendShapeWeight(425,13);
+        using(var pose=source.CreatePose(actor.avatar,new ActionDefinition{KeepGameExpressions=false}))
+        {
+            pose.Apply(.5f);
+            bool attached=name is "a-good" or "g-face-custom" or "h-face-short" || (name[0]>='i'&&name[0]<='n');
+            bool lipAttached=name is "i-lip-default" or "j-lip-custom" or "o-face-invalid-lip-good";
+            float expected=name=="h-face-short"?70:attached?20:25;
+            Check(Math.Abs(actor.renderer.GetBlendShapeWeight(425)-expected)<.001,"Production source selects attached or fallback face: "+name);
+            Check(actor.renderer.GetBlendShapeWeight(426)==70,"Expression/lip layers retain unmentioned main morphs: "+name);
+            Check(Math.Abs(actor.renderer.GetBlendShapeWeight(443)-(lipAttached?(name=="j-lip-custom"?70:20):attached?60:40))<.001,
+                "Lip overrides face overrides main, and a failed/disabled layer retains its predecessor: "+name);
+            if(lipAttached)
+            {
+                Check(Math.Abs(actor.renderer.GetBlendShapeWeight(465)-(attached?15:0))<.001,"Lip file cannot override brows: "+name);
+                Check(((IActionRootMotionPose)pose).RootDisplacement.sqrMagnitude==0,"Lip file cannot drive body bones: "+name);
+                pose.Apply(2);Check(Math.Abs(actor.renderer.GetBlendShapeWeight(443)-(name=="j-lip-custom"?70:30))<.001,
+                    "Long lip clamps to main time and short lip holds its final value: "+name);
+                pose.Apply(0);Check(Math.Abs(actor.renderer.GetBlendShapeWeight(443)-10)<.001,"Lip rewinds with main time: "+name);
+                pose.Apply(.5f);
+            }
+            if(attached)
+            {
+                Check(Math.Abs(actor.renderer.GetBlendShapeWeight(465)-15)<.001,"Attached-only brow channel is bound: "+name);
+                Check(((IActionRootMotionPose)pose).RootDisplacement.sqrMagnitude==0,"Attached VMD bones never drive root motion: "+name);
+                pose.Apply(2);
+                Check(Math.Abs(actor.renderer.GetBlendShapeWeight(425)-(name=="h-face-short"?70:30))<.001,
+                    "Short face holds its last value and long face clamps to main duration: "+name);
+                pose.Apply(0);
+                Check(Math.Abs(actor.renderer.GetBlendShapeWeight(425)-10)<.001,"Rewinding/looping face follows main time back to zero: "+name);
+                pose.Apply(0);
+                Check(Math.Abs(actor.renderer.GetBlendShapeWeight(425)-10)<.001,"Paused/repeated sampling does not accumulate: "+name);
+            }
+        }
+        Check(actor.renderer.GetBlendShapeWeight(425)==13,"Stopping attached or fallback face restores native state: "+name);
+    }
+    string companionFolder=Path.Combine(asyncRoot,"a-good");
+    foreach(string badPath in new[]{"../outside.vmd",Path.Combine(companionFolder,"face.vmd")," "})
+        Reject(()=>MmdPackPreparation.ReadFace(companionFolder,System.Text.Json.JsonSerializer.Serialize(new{faceVmdFile=badPath})),
+            "Face paths remain inside the action pack: "+badPath);
+    Reject(()=>MmdLyricTrack.Read(companionFolder,"{\"lyricsFile\":\"../outside.lrc\"}"),"Custom lyrics cannot escape action pack");
+    Reject(()=>MmdLyricTrack.Read(companionFolder,"{\"lyricsFile\":\"missing.lrc\"}"),"Explicit missing lyrics are reported, not replaced by defaults");
+    foreach(string badPath in new[]{"../outside.vmd",Path.Combine(companionFolder,"face.vmd")," "})
+        Reject(()=>MmdPackPreparation.ReadLip(companionFolder,System.Text.Json.JsonSerializer.Serialize(new{lipVmdFile=badPath})),
+            "Lip paths remain inside the action pack: "+badPath);
     MmdRigCache.Clear();var pumpAvatar=Avatar();var pump=new MmdRigPreparation(IntPtr.Zero);
     ActionTargetApi.Target=pumpAvatar.avatar;ActionTargetApi.IsReady=true;
     var provider=(RuntimeVmdSource)ActionRegistry.Registered.Values.First().RuntimeSource;
@@ -533,7 +666,7 @@ using(var pose=new RuntimeVmdPose(ownedFixture.avatar,new ActionDefinition(),Mot
         using(pose.PreserveNativeCorrection(ActionBoneCorrection.Knee))ownedKnee.localPosition+=new Vector3(.05f,.02f,0);
         Check(Vector3.Distance(ownedKnee.localPosition,nativeKnee)<1e-5,"Native knee slide writes are isolated");
         using(pose.PreserveNativeCorrection(ActionBoneCorrection.LookAt))ownedHead.localRotation=Quaternion.AngleAxis(70,Vector3.up);
-        Check(pose.SuppressKneeOffset,"Owned knee does not contribute native knee-height correction");
+        Check(pose.SuppressKneeOffset,"Legacy pose interface reports left-knee ownership during the native pass");
         // Native customization still applies once: no fake deformation reset to
         // default-sized bind positions and no cumulative multiply/add drift.
         ownedKnee.localPosition*=1.25f;ownedFoot.localPosition*=.85f;

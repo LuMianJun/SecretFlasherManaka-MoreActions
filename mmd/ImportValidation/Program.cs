@@ -74,6 +74,30 @@ try
     var camera = MmdCameraPacks.Get("partial");
     Check(partial.Action.DisplayName == "特别版" && partial.Action.Id == discovered.Action.Id && partial.Action.AudioFile == "BGM.wav" && partial.ReferencePose == MmdReferencePose.A, "Partial JSON keeps folder, audio and reference-pose defaults");
     Check(camera.Options.VmdFile == "camera.vmd" && camera.Options.Scale == .08f && camera.Options.HeightOffset == .1f, "Nested camera overrides retain filename and scale");
+    string attachments = Path.Combine(folder, "附件"); Directory.CreateDirectory(attachments);
+    File.Copy(Path.Combine(folder, "camera.vmd"), Path.Combine(attachments, "镜头.vmd"));
+    Json("{\"faceVmdFile\":\"表情.vmd\",\"lipVmdFile\":\"口型.vmd\",\"cameraVmdFile\":\"附件/镜头.vmd\",\"lyricsFile\":\"歌词.lrc\",\"camera\":{\"heightOffset\":0.2}}");
+    var files = Read();
+    var newCamera = MmdCameraPacks.Read(folder, files.Json);
+    Check(newCamera.Options.VmdFile == "附件/镜头.vmd" && newCamera.Options.HeightOffset == .2f,
+        "Top-level companion fields are accepted and camera parameters stay nested");
+    Json("{\"camera\":{\"vmdFile\":\"附件/镜头.vmd\"}}");
+    Check(MmdCameraPacks.Read(folder, Read().Json).Options.VmdFile == "附件/镜头.vmd", "Legacy nested camera filename remains supported");
+    string fileWarning = null;
+    Json("{\"cameraVmdFile\":\"附件/镜头.vmd\",\"camera\":{\"vmdFile\":\"missing.vmd\",\"heightOffset\":0.3}}");
+    newCamera = MmdCameraPacks.Read(folder, Read().Json, message => fileWarning = message);
+    Check(newCamera.Options.VmdFile == "附件/镜头.vmd" && newCamera.Options.HeightOffset == .3f && fileWarning?.Contains("overrides") == true,
+        "Top-level camera wins over missing legacy filename and emits a conflict warning");
+    Json("{\"cameraVmdFile\":\"\",\"camera\":{\"vmdFile\":\"missing.vmd\"}}");
+    Check(MmdCameraPacks.Read(folder, Read().Json) == null, "Empty top-level camera disables discovery and legacy path");
+    Json("{\"cameraVmdFile\":\"missing.vmd\",\"camera\":{\"enabled\":false}}");
+    Check(MmdCameraPacks.Read(folder, Read().Json) == null, "Legacy camera enabled=false still disables the camera");
+    foreach (var badCamera in new[] { "missing.vmd", "../outside.vmd", Path.Combine(folder, "camera.vmd") })
+    {
+        Json(System.Text.Json.JsonSerializer.Serialize(new { cameraVmdFile = badCamera }));
+        var pack = Read();
+        Reject(() => MmdCameraPacks.Read(folder, pack.Json), "New camera filenames preserve path restrictions: " + badCamera);
+    }
     Json("{\"audioFile\":\"\",\"volume\":0,\"requiresStanding\":false,\"showInRing\":false,\"camera\":{\"enabled\":false,\"vmdFile\":\"missing.vmd\"}}");
     var disabled = Read(); Register(disabled); MmdCameraPacks.Register("disabled", folder, disabled.Json);
     Check(disabled.Action.AudioFile == "" && disabled.Action.Volume == 0 && !disabled.Action.RequiresStanding && !disabled.Action.ShowInRing && MmdCameraPacks.Get("disabled") == null, "Explicit empty, zero and false override defaults");

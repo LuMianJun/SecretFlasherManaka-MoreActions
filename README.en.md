@@ -8,9 +8,11 @@ Custom actions, Unity animation bundle import, MMD playback, and optional NPC sp
 
 | Plugin | Version | Purpose |
 | --- | --- | --- |
-| More Actions | 1.6.1 | Radial-menu playback, Unity animation bundle import, native animation replacements, and in-game settings. |
-| MMD | 1.3.1 | Direct VMD playback with optional music, camera tracks, and timed lyrics. Requires More Actions. |
+| More Actions | 1.6.2 | Radial-menu playback, Unity animation bundle import, native animation replacements, and in-game settings. |
+| MMD | 1.4.0 | Direct VMD playback with separate expressions, lips, music, camera tracks, and timed lyrics. Requires More Actions. |
 | NPC Spectators | 1.0.1 | Lets eligible ordinary pedestrians approach and watch. Can be used independently. |
+
+Separate expression and lip files require MMD 1.4.0 or later.
 
 Install **More Actions + MMD** for MMD playback. Add NPC Spectators if you want an audience. Public packages contain plugins and documentation; supply your own game assemblies, motions, models, cameras, and music, and follow their authors' terms.
 
@@ -28,17 +30,23 @@ Create a separate folder for each motion under `BepInEx/plugins/SFMVmdProbe/Moti
 Motions/
 └─ MyDance/
    ├─ motion.vmd
+   ├─ face.vmd
+   ├─ lip.vmd
    ├─ camera.vmd
    ├─ BGM.wav
    └─ lyrics.lrc
 ```
 
 - `motion.vmd`: character motion, required.
+- `face.vmd`: separate expressions, optional.
+- `lip.vmd`: separate lip motion, optional.
 - `camera.vmd`: supplied camera track, optional.
 - `BGM.wav` or `BGM.mp3`: accompanying music, optional.
 - An optional UTF-8 `lyrics.lrc` displays timed lyrics at the bottom of the screen during music playback.
 
 Use a different folder name for each motion. Restart the game after adding files.
+
+Expression layers apply in order: main motion → expressions → lips. Each later layer overrides only matching channels; the lip file only applies supported mouth channels. For custom filenames, use top-level `faceVmdFile`, `lipVmdFile`, `cameraVmdFile`, or `lyricsFile` in `action.json`. An empty string disables that companion. Legacy `camera.vmdFile` remains supported; see the [MMD configuration guide](mmd/README.en.md#advanced-use).
 
 ## Import Unity animation bundles
 

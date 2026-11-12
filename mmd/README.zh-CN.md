@@ -20,11 +20,17 @@
 | 文件名 | 用途 | 是否必需 |
 | --- | --- | --- |
 | `motion.vmd` | 角色动作 | 必需 |
+| `face.vmd` | 独立表情，覆盖主动作中的同名表情通道 | 可选 |
+| `lip.vmd` | 独立口型，最后覆盖同名嘴部通道 | 可选 |
 | `camera.vmd` | 配套镜头 | 可选 |
 | `BGM.wav` 或 `BGM.mp3` | 配套音乐 | 可选 |
 | `lyrics.lrc` | 随配乐显示的逐行歌词 | 可选 |
 
-把 UTF-8 歌词保存为 `lyrics.lrc`，放在 `motion.vmd` 所在的动作目录。配乐改名后，歌词文件名仍为 `lyrics.lrc`。时间标签如 `[00:17.90]`，表示配乐开始后 17.90 秒显示该行。歌词随配乐暂停和继续，配乐结束时清空。
+动作、表情、口型分开提供时，把表情命名为 `face.vmd`、口型命名为 `lip.vmd`，放在同一动作目录。按“主动作 → 附加表情 → 附加口型”的顺序处理，后面的文件覆盖前面同名的通道，没有涉及的通道保留。口型文件只应用嘴部表情；两个附加文件的身体、眼球骨骼和镜头数据均不应用。
+
+表情和口型从动作第 0 秒同步播放，较短时保持最后一帧，较长时按主动作时长截断。指定的附加文件缺失、损坏或没有可用轨道时，日志记录 `MMD_FACE_REJECTED` 或 `MMD_LIP_REJECTED`，保留前一层结果，其他有效层继续使用；未指定且没有默认文件时直接跳过。原游戏表情是否叠加仍由原有设置控制。
+
+把 UTF-8 歌词保存为 `lyrics.lrc`，放在 `motion.vmd` 所在的动作目录；也可用 `lyricsFile` 指定其他名字。时间标签如 `[00:17.90]`，表示配乐开始后 17.90 秒显示该行。歌词随配乐暂停和继续，配乐结束时清空。
 
 例如：
 
@@ -32,6 +38,8 @@
 Motions/
   我的舞蹈/
     motion.vmd
+    face.vmd
+    lip.vmd
     camera.vmd
     BGM.wav
     lyrics.lrc
@@ -111,15 +119,18 @@ Motions/
 
 ```json
 {
-  "vmdFile": "动作＋表情.vmd",
+  "vmdFile": "动作.vmd",
   "audioFile": "音乐.wav",
-  "camera": {
-    "vmdFile": "镜头.vmd"
-  }
+  "faceVmdFile": "表情.vmd",
+  "lipVmdFile": "口型.vmd",
+  "cameraVmdFile": "镜头.vmd",
+  "lyricsFile": "歌词.lrc"
 }
 ```
 
-资源与 action.json 放在同一目录，只填写实际使用的音乐和镜头文件。
+资源与 action.json 放在同一目录，只填写实际使用的文件。省略可选文件字段时查找上表中的默认文件名，填 `""` 则禁用该附加文件；禁用表情或口型文件后，该层不再覆盖前一层。
+
+新版仍支持旧的 `"camera": { "vmdFile": "镜头.vmd" }` 写法，无须修改已有 JSON。同时填写时以顶层 `cameraVmdFile` 为准，日志记录 `MMD_CAMERA_FILE_OVERRIDE`；`camera.enabled: false` 仍可关闭镜头。
 
 #### 使用其他文件名的 MP3
 
@@ -170,6 +181,10 @@ BGM.mp3 会自动识别；音乐使用其他名字时，填写这一项即可：
 | `description` | 空 | 动作备注文字，不影响播放；目前不会在游戏中显示说明。 |
 | `vmdFile` | `motion.vmd` | 动作文件，例如 `"vmdFile": "动作.vmd"`。此文件必须存在。 |
 | `audioFile` | 存在时使用 `BGM.wav`，否则使用 `BGM.mp3` | WAV 或 MP3 音乐文件，例如 `"audioFile": "音乐.mp3"`。填写空字符串 `""` 可禁用音乐；省略则按上述顺序查找，指定缺失文件时不会回退。 |
+| `faceVmdFile` | 存在时使用 `face.vmd` | 独立表情 VMD，例如 `"faceVmdFile": "表情.vmd"`。支持纯表情文件，覆盖主动作中的同名表情通道；空字符串禁用该层。文件缺失、损坏或无表情轨道时警告并保留主动作表情，仍可使用有效的独立口型。 |
+| `lipVmdFile` | 存在时使用 `lip.vmd` | 独立口型 VMD，例如 `"lipVmdFile": "口型.vmd"`。仅应用已支持的嘴部通道，最后覆盖主动作和附加表情中的同名通道；空字符串禁用该层。文件出错或无可用嘴部轨道时警告并保留前一层结果。 |
+| `cameraVmdFile` | 存在时使用 `camera.vmd` | 配套镜头 VMD，例如 `"cameraVmdFile": "镜头.vmd"`。空字符串禁用配套镜头；文件出错时警告并跳过镜头，动作和音乐继续。优先于旧的 `camera.vmdFile`。 |
+| `lyricsFile` | 存在时使用 `lyrics.lrc` | UTF-8 歌词，例如 `"lyricsFile": "歌词.lrc"`。空字符串禁用歌词；仅随配乐加载。文件出错时警告并跳过歌词。 |
 | `referencePose` | `"A"` | 游戏生成骨架的参考姿势；`"A"` 采用约 30° 上臂下垂校准，`"T"` 沿用原游戏绑定参考。字段和值不区分大小写，只接受 A/T 字符串。参考姿势只影响虚拟骨架，不修改游戏角色的网格绑定数据。 |
 
 资源路径相对于 action.json 所在文件夹，可用 `"音乐/BGM.wav"` 这样的子目录路径；范围限于当前动作文件夹及其子目录。
@@ -221,7 +236,7 @@ BGM.mp3 会自动识别；音乐使用其他名字时，填写这一项即可：
 
 | 参数 | 默认值 | 用途与示例 |
 | --- | --- | --- |
-| `camera.vmdFile` | 存在时使用 `camera.vmd` | 配套镜头文件，例如 `"vmdFile": "镜头.vmd"`。没有默认文件时跳过配套镜头。 |
+| `camera.vmdFile` | 存在时使用 `camera.vmd` | 保留的旧版镜头文件字段，写在 `camera` 对象中；建议新配置使用顶层 `cameraVmdFile`。同时填写时顶层字段优先。 |
 | `camera.enabled` | `true` | 是否使用这个动作的配套镜头。设置页的 MMD 镜头总开关也需要开启。 |
 | `camera.timeOffsetSeconds` | `0` | 镜头相对于动作的时间偏移。正数让镜头晚开始，负数从镜头较后的位置开始；与音乐延迟独立。 |
 | `camera.scale` | `0.08` | 镜头位置和距离的比例。调整不合适的镜头取景时使用，通常保持默认。必须大于 0，最大为 100。 |
@@ -240,7 +255,7 @@ BGM.mp3 会自动识别；音乐使用其他名字时，填写这一项即可：
 }
 ```
 
-表中的 `camera.vmdFile` 在 JSON 中应写入 camera 对象，格式见上例。schemaVersion、bundle、clipAsset、audioAsset 和 showInTab 属于当前 MMD 配置范围之外的字段，填写后会被校验拒绝。
+新版继续读取旧 JSON；新增的 `faceVmdFile`、`lipVmdFile`、`cameraVmdFile`、`lyricsFile` 字段供新版使用。schemaVersion、bundle、clipAsset、audioAsset 和 showInTab 属于当前 MMD 配置范围之外的字段，填写后会被校验拒绝。
 
 ### 动作事件
 
@@ -369,9 +384,9 @@ motion.vmd 是唯一必需文件，其余按需添加。省略音乐时静音，
 ### 常见问题
 
 - **列表里没有动作：** 检查 `motion.vmd` 的名字、文件夹和 JSON 格式；等待准备完成后重新打开转盘，修改文件后重启游戏。
-- **指定了文件却未加载：** 检查相对于 `action.json` 的路径。显式指定的文件不存在时不会退回默认文件；`vmdFile` 不能留空。
+- **指定了文件却未加载：** 检查相对于 `action.json` 的路径。显式指定的文件不存在时不会改用默认文件；附加表情或口型会保留前一层结果，镜头和歌词会跳过，错误原因见日志。`vmdFile` 不能留空。
 - **没有音乐：** 检查 `BGM.wav`、`BGM.mp3` 或 `audioFile` 指定的文件，以及游戏和插件音量。
-- 歌词未显示时，确认动作目录中有 UTF-8 编码的 `lyrics.lrc`，歌词行带有时间标签，且动作正在播放配乐。修改文件后重启游戏。
+- 歌词未显示时，确认 `lyricsFile` 指定的文件或默认 `lyrics.lrc` 使用 UTF-8 编码，歌词行带有时间标签，且动作正在播放配乐。修改文件后重启游戏。
 - **没有配套镜头：** 检查 `camera.vmd`，并开启设置页的 MMD 配套镜头。
 - **表情仍然叠加或完全不动：** 检查 `keepGameExpressions`、`writeFaceMorphs` 和 VMD 中是否存在支持的表情轨道。
 - **没有操作却提前退出：** 在商场某些位置播放部分动作可能提前退出，属于已知问题。
@@ -380,6 +395,7 @@ motion.vmd 是唯一必需文件，其余按需添加。省略音乐时静音，
 
 ### 升级兼容
 
+- 独立表情、口型和新增顶层文件字段从 MMD 1.4.0 开始支持；该版本继续读取旧 JSON，旧版插件不支持新增字段。
 - 从 Seleka2 前缀版本升级时，请运行安装脚本迁移动作与配置。安装器会备份移走旧 DLL，保留已有 SFM 配置；手动升级需先移走旧 DLL，避免重复加载。
 - 更新时请同时安装配套的更多动作与 MMD DLL。
 - 使用过配套 PMD 模型配置的动作，请删除 `action.json` 中的 `modelFile`。`source.pmd` 不参与导入；已有模型文件无需用于本插件。

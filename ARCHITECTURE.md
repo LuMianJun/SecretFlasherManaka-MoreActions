@@ -82,6 +82,7 @@ mmd/Plugin/
 ```
 
 - MmdMotion 的关键帧数据由动作源共享；每个播放实例使用自己的姿势状态。
+- MmdPackPreparation 在后台独立读取主动作、表情和口型；附加文件失败只跳过对应层。MmdMorphBindings.Compose 在准备动作源时按“主动作 → 表情 → 口型”组合 morph 轨道，口型限定嘴部通道；RuntimeVmdPose 使用主动作时间轴采样，附加文件不参与身体或镜头求解。
 - MmdTargetSnapshot 收集当前角色的绑定与体型；GameMmdSkeleton 生成对应参考姿势数据。
 - MmdRigPreparation 负责后台数据计算和主线程分帧构建；MmdRigCache 管理骨架租借、体型匹配、跨场景重绑和淘汰。
 - RuntimeVmdRig 保存可复用采样对象；RuntimeVmdPose 负责当次动作应用、表情、走位以及结束时归还和恢复。

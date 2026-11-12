@@ -13,6 +13,7 @@ public sealed class RuntimeVmdPose : IActionPose, IActionRootMotionPose, IAction
     readonly RuntimeVmdRig rig;
     readonly ActionDefinition definition;
     readonly MmdMotion motion;
+    readonly MmdMotion faceMotion;
     readonly ActionBodyPoseLease body;
     readonly bool[] write;
     readonly ActionFaceMorphLayer face;
@@ -35,9 +36,12 @@ public sealed class RuntimeVmdPose : IActionPose, IActionRootMotionPose, IAction
     }
 
     public RuntimeVmdPose(GameObject target, ActionDefinition action, MmdMotion keys, MmdReferencePose referencePose = MmdReferencePose.A)
+        : this(target, action, keys, referencePose, null) { }
+    internal RuntimeVmdPose(GameObject target, ActionDefinition action, MmdMotion keys, MmdReferencePose referencePose, MmdMotion faceKeys)
     {
         rig = MmdRigCache.Rent(target, referencePose);
         definition = action; motion = keys;
+        faceMotion = faceKeys ?? keys;
         try
         {
             write = new bool[rig.bindings.Count];
@@ -55,12 +59,12 @@ public sealed class RuntimeVmdPose : IActionPose, IActionRootMotionPose, IAction
             if (action.WriteFaceMorphs)
             {
                 face = new ActionFaceMorphLayer(target, action);
-                morphs = MmdMorphBindings.Create(rig.faceRenderer, motion, face, out int ambiguous);
-                if (motion.morphs.Count > 0)
+                morphs = MmdMorphBindings.Create(rig.faceRenderer, faceMotion, face, out int ambiguous);
+                if (faceMotion.morphs.Count > 0)
                 {
                     var bound = morphs.Select(m=>m.Source).ToHashSet(StringComparer.Ordinal);
-                    var missing = motion.morphs.Keys.Where(n=>!bound.Contains(n)).ToArray();
-                    global::Plugin.LogSource?.LogInfo("MMD_MORPHS_BOUND id="+action.Id+" tracks="+motion.morphs.Count+" boundTracks="+bound.Count+" targets="+morphs.Count+" ambiguousTargets="+ambiguous+" unmapped="+string.Join(",",missing.Take(8)));
+                    var missing = faceMotion.morphs.Keys.Where(n=>!bound.Contains(n)).ToArray();
+                    global::Plugin.LogSource?.LogInfo("MMD_MORPHS_BOUND id="+action.Id+" tracks="+faceMotion.morphs.Count+" boundTracks="+bound.Count+" targets="+morphs.Count+" ambiguousTargets="+ambiguous+" unmapped="+string.Join(",",missing.Take(8)));
                 }
             }
             rootBasis = rig.liveRoot.rotation;
@@ -102,7 +106,7 @@ public sealed class RuntimeVmdPose : IActionPose, IActionRootMotionPose, IAction
         }
         face?.Begin();
         if (face != null) foreach (var m in morphs)
-            if (m.Renderer != null) face.Write(m.Renderer, m.Index, motion.Morph(m.Source, seconds));
+            if (m.Renderer != null) face.Write(m.Renderer, m.Index, faceMotion.Morph(m.Source, seconds));
         return true;
     }
 

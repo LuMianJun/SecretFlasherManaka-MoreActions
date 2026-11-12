@@ -5,6 +5,7 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using System.Text.RegularExpressions;
+using System.Text.Json;
 
 namespace SFM.Mmd;
 
@@ -17,10 +18,11 @@ internal sealed class MmdLyricTrack
 
     internal int Count => cues.Length;
 
-    internal static MmdLyricTrack Read(string directory)
+    internal static MmdLyricTrack Read(string directory, string json = "{}")
     {
-        string path = Path.Combine(directory, "lyrics.lrc");
-        if (!File.Exists(path)) return null;
+        using var document = JsonDocument.Parse(json);
+        string path = MmdActionPacks.OptionalFile(directory, document.RootElement, "lyricsFile", "lyrics.lrc");
+        if (path == null) return null;
 
         var cues = new List<(double Seconds, string Text)>();
         var times = new List<double>();

@@ -11,6 +11,7 @@ namespace SFM.Mmd;
 public sealed class RuntimeVmdSource : IActionSource, IPreparedActionSource
 {
     readonly MmdMotion motion;
+    readonly MmdMotion faceMotion;
     public float Duration => motion.lastFrame / 30f;
     public int RetainedTracks => motion.tracks.Count;
     public int IgnoredTracks { get; }
@@ -19,10 +20,13 @@ public sealed class RuntimeVmdSource : IActionSource, IPreparedActionSource
     internal void Prepare(GameObject target) => MmdRigCache.Prepare(target, ReferencePose);
     public bool IsPrepared(GameObject target) => MmdRigCache.IsPrepared(target, ReferencePose);
     public RuntimeVmdSource(string vmdPath, MmdReferencePose referencePose = MmdReferencePose.A)
+        : this(vmdPath, referencePose, null) { }
+    internal RuntimeVmdSource(string vmdPath, MmdReferencePose referencePose, MmdMotion faceMotion, MmdMotion lipMotion = null)
     {
         if (!Enum.IsDefined(typeof(MmdReferencePose), referencePose)) throw new ArgumentOutOfRangeException(nameof(referencePose));
         ReferencePose = referencePose;
         motion = MmdMotion.Read(vmdPath);
+        this.faceMotion = MmdMorphBindings.Compose(motion, faceMotion, lipMotion);
         if (motion.tracks.Count == 0 || Duration <= 0) throw new InvalidDataException("VMD contains no playable bone motion");
         {
             var names = new HashSet<string>(GameMmdSkeleton.SupportedNames());
@@ -32,5 +36,5 @@ public sealed class RuntimeVmdSource : IActionSource, IPreparedActionSource
             if (!motion.tracks.Keys.Any(n => n == "上半身" || n == "下半身" || n == "左腕" || n == "右腕")) throw new InvalidDataException("VMD has no supported standard body tracks");
         }
     }
-    public IActionPose CreatePose(GameObject target, ActionDefinition definition) => new RuntimeVmdPose(target, definition, motion, ReferencePose);
+    public IActionPose CreatePose(GameObject target, ActionDefinition definition) => new RuntimeVmdPose(target, definition, motion, ReferencePose, faceMotion);
 }

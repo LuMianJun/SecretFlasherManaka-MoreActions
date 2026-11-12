@@ -30,7 +30,7 @@ internal static class MmdActionPacks
         string json = File.Exists(manifest) ? File.ReadAllText(manifest) : "{}";
         using var document = JsonDocument.Parse(json);
         var root = document.RootElement;
-        CheckFields(root, "id", "displayName", "description", "vmdFile", "audioFile", "referencePose",
+        CheckFields(root, "id", "displayName", "description", "vmdFile", "audioFile", "faceVmdFile", "lipVmdFile", "cameraVmdFile", "lyricsFile", "referencePose",
             "audioDelaySeconds", "volume", "loop", "requiresHands", "requiresStanding", "bodyMask",
             "writeHipTranslation", "writeFaceMorphs", "keepGameExpressions", "followFaceCamera", "showInRing", "bonePaths", "camera",
             "events", "onStart", "onFinish", "onCancel", "useClipEvents", "nativeKind", "stats", "poseMission", "ecstasyPerSecond", "dokidokiAdd", "moisturePerSecond",
@@ -90,5 +90,18 @@ internal static class MmdActionPacks
         if (!path.StartsWith(root, StringComparison.OrdinalIgnoreCase)) throw new ArgumentException("MMD file escapes its pack directory");
         if (!File.Exists(path)) throw new FileNotFoundException("MMD pack file missing", path);
         return path;
+    }
+
+    // Missing defaults are optional; explicit paths are checked by the caller's
+    // isolated loader so a bad companion file cannot reject the body motion.
+    internal static string OptionalFile(string directory, JsonElement root, string field, string defaultName)
+    {
+        if (TryField(root, field, out var value))
+        {
+            if (value.ValueKind != JsonValueKind.String) throw new ArgumentException(field + " must be a string");
+            string relative = value.GetString();
+            return relative.Length == 0 ? null : PackFile(directory, relative);
+        }
+        return File.Exists(Path.Combine(directory, defaultName)) ? PackFile(directory, defaultName) : null;
     }
 }

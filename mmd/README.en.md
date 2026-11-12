@@ -20,11 +20,17 @@ Install **More Actions + MMD** from a Release as described on the [repository ho
 | Filename | Purpose | Required |
 | --- | --- | --- |
 | `motion.vmd` | Character motion | Yes |
+| `face.vmd` | Separate expressions, overriding matching main-motion channels | No |
+| `lip.vmd` | Separate lip motion, overriding matching mouth channels last | No |
 | `camera.vmd` | Supplied camera track | No |
 | `BGM.wav` or `BGM.mp3` | Accompanying music | No |
 | `lyrics.lrc` | Line-timed lyrics for the music | No |
 
-Save UTF-8 lyrics as `lyrics.lrc` beside `motion.vmd`, including when you use a custom music filename. A timestamp such as `[00:17.90]` shows that line at the bottom of the screen 17.90 seconds after the music starts. Lyrics pause and resume with the music and clear when it ends.
+When expressions and lips are supplied separately, name them `face.vmd` and `lip.vmd` and put them in the motion folder. Layers apply in order: main motion → separate expressions → separate lips. Each later layer overrides matching channels and retains unmentioned channels. The lip file only applies supported mouth morphs. Body bones, eye bones, and camera data in either companion file are ignored.
+
+Both companions start at motion time zero and share its timeline, holding their last frame if shorter and stopping at the main motion's duration if longer. Explicitly selected files that are missing, damaged, or unusable log `MMD_FACE_REJECTED` or `MMD_LIP_REJECTED` and retain the preceding layer; other valid layers still apply. An omitted field with no default file is skipped silently. The existing native expression overlay setting still applies.
+
+Save UTF-8 lyrics as `lyrics.lrc` beside `motion.vmd`, or use `lyricsFile` for a different filename. A timestamp such as `[00:17.90]` shows that line at the bottom of the screen 17.90 seconds after the music starts. Lyrics pause and resume with the music and clear when it ends.
 
 Example:
 
@@ -32,6 +38,8 @@ Example:
 Motions/
   MyDance/
     motion.vmd
+    face.vmd
+    lip.vmd
     camera.vmd
     BGM.wav
     lyrics.lrc
@@ -111,15 +119,18 @@ The default is 1; 0 mutes music. The in-game action music volume also applies.
 
 ```json
 {
-  "vmdFile": "动作＋表情.vmd",
+  "vmdFile": "动作.vmd",
   "audioFile": "音乐.wav",
-  "camera": {
-    "vmdFile": "镜头.vmd"
-  }
+  "faceVmdFile": "表情.vmd",
+  "lipVmdFile": "口型.vmd",
+  "cameraVmdFile": "镜头.vmd",
+  "lyricsFile": "歌词.lrc"
 }
 ```
 
-Place the resources beside action.json and specify only music and camera files you actually use.
+Place resources beside action.json and specify only files you use. Omitting an optional file field searches the default filenames above; `""` disables that companion file. A disabled expression or lip layer leaves the preceding layer's channels intact.
+
+Existing `"camera": { "vmdFile": "camera-custom.vmd" }` configurations remain supported. When both forms are present, top-level `cameraVmdFile` wins and logs `MMD_CAMERA_FILE_OVERRIDE`. `camera.enabled: false` still disables the camera.
 
 #### Use a differently named MP3
 
@@ -170,6 +181,10 @@ All fields have defaults; specify only what you need. Quote filenames and text w
 | `description` | Empty | Action note with no playback effect; currently not displayed in game. |
 | `vmdFile` | `motion.vmd` | Motion filename, such as `"vmdFile": "dance.vmd"`. The file must exist. |
 | `audioFile` | `BGM.wav` if present, otherwise `BGM.mp3` | WAV or MP3 music file, such as `"audioFile": "music.mp3"`. An empty string `""` disables music. Omission searches in the stated order; a missing explicitly specified file does not fall back. |
+| `faceVmdFile` | `face.vmd` if present | Separate expression VMD, such as `"faceVmdFile": "expressions.vmd"`. Supports expression-only files and overrides matching main-motion morph channels. Empty disables this layer. Missing, damaged, or expression-free files warn and retain the main expressions; a valid lip layer still applies. |
+| `lipVmdFile` | `lip.vmd` if present | Separate lip VMD, such as `"lipVmdFile": "lips.vmd"`. Only supported mouth channels apply, overriding matching main and expression channels last. Empty disables this layer. A file error or lack of supported mouth tracks warns and retains preceding layers. |
+| `cameraVmdFile` | `camera.vmd` if present | Supplied camera VMD, such as `"cameraVmdFile": "camera-custom.vmd"`. Empty disables it. File errors warn and skip the camera while motion and music continue. Takes priority over legacy `camera.vmdFile`. |
+| `lyricsFile` | `lyrics.lrc` if present | UTF-8 lyrics, such as `"lyricsFile": "song.lrc"`. Empty disables lyrics. Loaded only with music; file errors warn and skip lyrics. |
 | `referencePose` | `"A"` | Reference pose for the generated skeleton. `"A"` calibrates upper arms roughly 30° downward; `"T"` retains the game's bind reference. Field and value are case-insensitive; only A/T strings are accepted. Affects the virtual skeleton, not the game mesh's bind data. |
 
 Resource paths are relative to action.json and restricted to the motion folder and its subdirectories, such as `"music/BGM.wav"`.
@@ -221,7 +236,7 @@ Put camera settings inside a `"camera": { ... }` object. Specify changed fields 
 
 | Parameter | Default | Purpose and examples |
 | --- | --- | --- |
-| `camera.vmdFile` | `camera.vmd` if present | Supplied camera filename, such as `"vmdFile": "camera-custom.vmd"`. Without a default file, the supplied camera is skipped. |
+| `camera.vmdFile` | `camera.vmd` if present | Supported legacy filename inside `camera`. Prefer top-level `cameraVmdFile` for new configurations; the top-level field wins when both are supplied. |
 | `camera.enabled` | `true` | Uses this action's supplied camera. The global MMD camera switch must also be enabled. |
 | `camera.timeOffsetSeconds` | `0` | Camera timing relative to motion. Positive starts the camera later; negative starts further into its track. Independent of music delay. |
 | `camera.scale` | `0.08` | Camera position and distance scale. Use to adjust framing; normally leave unchanged. Must be greater than 0 and no greater than 100. |
@@ -240,7 +255,7 @@ For example, start the camera half a second later and raise it slightly:
 }
 ```
 
-The table's `camera.vmdFile` belongs inside the camera object, as illustrated above. schemaVersion, bundle, clipAsset, audioAsset, and showInTab are outside the supported MMD configuration and fail validation.
+The updated plugin continues to read old JSON. New `faceVmdFile`, `lipVmdFile`, `cameraVmdFile`, and `lyricsFile` fields are for the updated plugin. schemaVersion, bundle, clipAsset, audioAsset, and showInTab are outside the supported MMD configuration and fail validation.
 
 ### Action events
 
@@ -369,9 +384,9 @@ More Actions supplies global music volume, expression overlay, and face-camera s
 ### Troubleshooting
 
 - **Action missing:** check the motion.vmd filename, folder, and JSON. Wait for preparation and reopen the radial menu. Restart after file changes.
-- **Specified file does not load:** check paths relative to action.json. A missing explicit file does not fall back to the default; vmdFile cannot be empty.
+- **Specified file does not load:** check paths relative to action.json. A missing explicit file does not select the default file. Expression and lip layers retain preceding results; camera and lyrics are skipped. Check the log for the cause. vmdFile cannot be empty.
 - **No music:** check BGM.wav, BGM.mp3, or audioFile, plus game and plugin volumes.
-- If lyrics do not appear, check that the motion folder contains UTF-8 `lyrics.lrc` with timed lines and that the motion is playing music. Restart the game after editing files.
+- If lyrics do not appear, check that the `lyricsFile` path or default `lyrics.lrc` contains UTF-8 timed lines and that the motion is playing music. Restart the game after editing files.
 - **No supplied camera:** check camera.vmd and enable **Use supplied camera**.
 - **Expressions still overlay or do not move:** check keepGameExpressions, writeFaceMorphs, and whether the VMD contains supported expression tracks.
 - **Playback stops without input:** some actions can stop early at certain shopping-mall locations, a known issue.
@@ -380,6 +395,7 @@ Include `BepInEx/LogOutput.log`, the action name, and approximate playback time 
 
 ### Upgrade compatibility
 
+- Separate expressions, lips, and the new top-level file fields require MMD 1.4.0 or later. This version reads old JSON; older plugins do not accept the new fields.
 - When upgrading from Seleka2-prefixed versions, use the installer to migrate actions and settings. It backs up and moves legacy DLLs while preserving existing SFM configuration. For manual upgrades, move old DLLs out first to prevent duplicate loading.
 - Update More Actions and MMD DLLs together.
 - If an action used a companion PMD model configuration, remove modelFile from action.json. source.pmd is not imported; existing model files are not needed by this plugin.

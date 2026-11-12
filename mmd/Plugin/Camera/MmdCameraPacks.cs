@@ -24,15 +24,24 @@ internal static class MmdCameraPacks
     internal static void Register(string id, string directory, string json)
         => RegisterLoaded(id, Read(directory, json));
     internal static void RegisterLoaded(string id, CameraPack pack) { if (pack != null) packs.Add(id, pack); }
-    internal static CameraPack Read(string directory, string json)
+    internal static CameraPack Read(string directory, string json, Action<string> warning = null)
     {
         using var doc = JsonDocument.Parse(json);
         bool supplied = MmdActionPacks.TryField(doc.RootElement, "camera", out var camera);
         if (supplied) MmdActionPacks.CheckFields(camera, "vmdFile", "enabled", "timeOffsetSeconds", "scale", "heightOffset");
         var options = supplied ? JsonSerializer.Deserialize<CameraOptions>(camera.GetRawText(), new JsonSerializerOptions { PropertyNameCaseInsensitive = true }) : new CameraOptions();
-        if (!options.Enabled) return null;
+        bool topLevelFile = MmdActionPacks.TryField(doc.RootElement, "cameraVmdFile", out var file);
         bool specifiedFile = supplied && MmdActionPacks.TryField(camera, "vmdFile", out _);
-        if (!specifiedFile)
+        if (topLevelFile && specifiedFile)
+            warning?.Invoke("cameraVmdFile overrides legacy camera.vmdFile");
+        if (!options.Enabled) return null;
+        if (topLevelFile)
+        {
+            if (file.ValueKind != JsonValueKind.String) throw new ArgumentException("cameraVmdFile must be a string");
+            options.VmdFile = file.GetString();
+            if (options.VmdFile.Length == 0) return null;
+        }
+        else if (!specifiedFile)
         {
             if (!File.Exists(Path.Combine(directory, "camera.vmd"))) return null;
             options.VmdFile = "camera.vmd";

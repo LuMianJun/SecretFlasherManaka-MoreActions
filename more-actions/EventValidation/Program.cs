@@ -350,10 +350,8 @@ try
     object[] toeArgs={null};Hook(typeof(NativeToePosePatch),"Prefix",toeArgs);Hook(typeof(NativeToePosePatch),"Finalizer",new object[]{null,toeArgs[0]});
     object[] headArgs={null};Hook(typeof(NativeHeadPosePatch),"Prefix",headArgs);Hook(typeof(NativeHeadPosePatch),"Finalizer",new object[]{null,headArgs[0]});
     Check(bodyPose.RestoredCorrections==3,"Actual native knee/toe/look hooks close all temporary transform scopes");
-    object[] offsetArgs={.2f};bool nativeOffset=(bool)Hook(typeof(NativeKneeOffsetPatch),"Prefix",offsetArgs);
-    Check(!nativeOffset&&(float)offsetArgs[0]==0,"Actual knee offset hook omits owned knee contribution only in the player pass");
     Hook(typeof(NativeBodyPassPatch),"Finalizer",new object[]{null,lateArgs[1]});
-    offsetArgs=new object[]{.2f};Check((bool)Hook(typeof(NativeKneeOffsetPatch),"Prefix",offsetArgs)&&!bodyPose.InNative,"Late-pass finalizer closes ownership before NPC dispatch");
+    Check(!bodyPose.InNative,"Late-pass finalizer closes ownership before NPC dispatch");
     driver.BeforeNativeUpdate(player);Check(bodyPose.RestoreUpdates>0,"Driver withdraws prior body output before native animation");
     Hook(typeof(NativeBodyPassPatch),"Prefix",lateArgs);var nativeFailure=new Exception("native boundary");
     Check(ReferenceEquals(Hook(typeof(NativeBodyPassPatch),"Finalizer",new object[]{nativeFailure,lateArgs[1]}),nativeFailure)&&!bodyPose.InNative&&!bodyPose.LastSuccess,"Native failure is propagated unchanged while ending body scope");

@@ -124,6 +124,9 @@ internal static class InstalledCameraContract
         VerifyWorkerMethods(mmdDll, "MmdSkeleton", new[] { "CopyData" });
         VerifyWorkerMethods(mmdDll, "GameMmdSkeleton", new[] { "CreateData" });
         VerifyWorkerMethods(mmdDll, "RuntimeVmdSource", new[] { ".ctor" });
+        VerifyWorkerMethods(mmdDll, "MmdPackPreparation", new[] { "ReadFace", "ReadLip", "ReadMorphFile" });
+        VerifyWorkerMethods(mmdDll, "MmdMorphBindings", new[] { "Compose", "IsMouthMorph" });
+        VerifyWorkerMethods(mmdDll, "MmdLyricTrack", new[] { "Read" });
         Check(baseDll, new() { ["ActionPlaybackApi"] = new[] { "get_PlaybackPositionSeconds", "add_PoseApplied", "remove_PoseApplied", "add_PlaybackChanged" },
             ["ActionDriver"] = new[] { "PrepareNativeIdle", "StopWithDiagnostics", "SyncPause" },
             ["ActionCancellationDiagnostics"] = new[] { "Record" },
@@ -135,7 +138,6 @@ internal static class InstalledCameraContract
             ["NativeKneePosePatch"] = new[] { "Prefix", "Finalizer" },
             ["NativeToePosePatch"] = new[] { "Prefix", "Finalizer" },
             ["NativeHeadPosePatch"] = new[] { "Prefix", "Finalizer" },
-            ["NativeKneeOffsetPatch"] = new[] { "Prefix" },
             ["ActionRootMotion"] = new[] { "Apply" }, ["IActionRootMotionPose"] = new[] { "get_RootDisplacement", "get_LoopRootDisplacement" },
             ["ActionEventRegistry"] = new[] { "Register" }, ["ActionEventRunner"] = new[] { "Advance", "Close" },
             ["NativeActionEvents"] = new[] { "Register" }, ["ClipActionEvents"] = new[] { "Read" } });
@@ -220,36 +222,40 @@ internal static class InstalledCameraContract
         var type = metadata.TypeDefinitions.Select(metadata.GetTypeDefinition).Single(t => metadata.GetString(t.Name) == typeName);
         foreach (string name in methodNames)
         {
-            var method = type.GetMethods().Select(metadata.GetMethodDefinition).Single(m => metadata.GetString(m.Name) == name);
-            var il = pe.GetMethodBody(method.RelativeVirtualAddress).GetILBytes()!;
-            for (int offset = 0; offset < il.Length;)
+            var methods = type.GetMethods().Select(metadata.GetMethodDefinition).Where(m => metadata.GetString(m.Name) == name).ToArray();
+            if (methods.Length == 0) throw new Exception("Missing worker method " + typeName + "." + name);
+            foreach (var method in methods)
             {
-                ushort code = il[offset++]; if (code == 0xfe) code = (ushort)(0xfe00 | il[offset++]);
-                var op = opcodes[code];
-                int size = op.OperandType switch
+                var il = pe.GetMethodBody(method.RelativeVirtualAddress).GetILBytes()!;
+                for (int offset = 0; offset < il.Length;)
                 {
-                    System.Reflection.Emit.OperandType.InlineNone => 0,
-                    System.Reflection.Emit.OperandType.ShortInlineBrTarget or System.Reflection.Emit.OperandType.ShortInlineI or System.Reflection.Emit.OperandType.ShortInlineVar => 1,
-                    System.Reflection.Emit.OperandType.InlineVar => 2,
-                    System.Reflection.Emit.OperandType.InlineI8 or System.Reflection.Emit.OperandType.InlineR => 8,
-                    System.Reflection.Emit.OperandType.InlineSwitch => 4 + BitConverter.ToInt32(il, offset) * 4,
-                    _ => 4
-                };
-                if (op.OperandType == System.Reflection.Emit.OperandType.InlineMethod)
-                {
-                    var handle = System.Reflection.Metadata.Ecma335.MetadataTokens.Handle(BitConverter.ToInt32(il, offset));
-                    if (handle.Kind == HandleKind.MemberReference)
+                    ushort code = il[offset++]; if (code == 0xfe) code = (ushort)(0xfe00 | il[offset++]);
+                    var op = opcodes[code];
+                    int size = op.OperandType switch
                     {
-                        var member = metadata.GetMemberReference((MemberReferenceHandle)handle);
-                        if (member.Parent.Kind == HandleKind.TypeReference)
+                        System.Reflection.Emit.OperandType.InlineNone => 0,
+                        System.Reflection.Emit.OperandType.ShortInlineBrTarget or System.Reflection.Emit.OperandType.ShortInlineI or System.Reflection.Emit.OperandType.ShortInlineVar => 1,
+                        System.Reflection.Emit.OperandType.InlineVar => 2,
+                        System.Reflection.Emit.OperandType.InlineI8 or System.Reflection.Emit.OperandType.InlineR => 8,
+                        System.Reflection.Emit.OperandType.InlineSwitch => 4 + BitConverter.ToInt32(il, offset) * 4,
+                        _ => 4
+                    };
+                    if (op.OperandType == System.Reflection.Emit.OperandType.InlineMethod)
+                    {
+                        var handle = System.Reflection.Metadata.Ecma335.MetadataTokens.Handle(BitConverter.ToInt32(il, offset));
+                        if (handle.Kind == HandleKind.MemberReference)
                         {
-                            var owner = metadata.GetTypeReference((TypeReferenceHandle)member.Parent);
-                            if (metadata.GetString(owner.Namespace).StartsWith("UnityEngine", StringComparison.Ordinal))
-                                throw new Exception("Worker method calls Unity API: " + typeName + "." + name + " -> " + metadata.GetString(owner.Name) + "." + metadata.GetString(member.Name));
+                            var member = metadata.GetMemberReference((MemberReferenceHandle)handle);
+                            if (member.Parent.Kind == HandleKind.TypeReference)
+                            {
+                                var owner = metadata.GetTypeReference((TypeReferenceHandle)member.Parent);
+                                if (metadata.GetString(owner.Namespace).StartsWith("UnityEngine", StringComparison.Ordinal))
+                                    throw new Exception("Worker method calls Unity API: " + typeName + "." + name + " -> " + metadata.GetString(owner.Name) + "." + metadata.GetString(member.Name));
+                            }
                         }
                     }
+                    offset += size;
                 }
-                offset += size;
             }
         }
         Console.WriteLine("PASS worker IL has no Unity method calls: " + typeName + " / " + string.Join(",", methodNames));

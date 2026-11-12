@@ -420,8 +420,6 @@ public sealed class ActionDriver : MonoBehaviour
     internal IDisposable PreserveNativeCorrection(ActionBoneCorrection correction)
         => Playing ? (session.Pose as IActionBodyPose)?.PreserveNativeCorrection(correction) : null;
     [HideFromIl2Cpp]
-    internal bool SuppressKneeOffset => Playing && ((session.Pose as IActionBodyPose)?.SuppressKneeOffset ?? false);
-    [HideFromIl2Cpp]
     bool IsCurrentEventPlayback(int revision, LoadedAction action)
     {
         if (revision != session.Revision || session.Action != action || Owner == null || Owner != PlayerController.Instance || !Owner.gameObject.activeInHierarchy || Owner.Pca == null) return false;
