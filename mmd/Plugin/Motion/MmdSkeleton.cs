@@ -12,18 +12,37 @@ namespace SFM.Mmd;
 // applied to BOTH positions and quaternions, exactly once.
 public sealed class MmdSkeleton : IDisposable
 {
-    public sealed class Bone { public string name;public int parent,tail,type;public Vector3 rest;public Transform node;public int append=-1;public float appendRatio=1;public bool afterIk; }
-    public sealed class Ik { public int target,effector,iterations;public float limit;public int[] links;public bool limitKnee;public float kneeMax=180,kneeMin; }
+    public sealed class Bone { public string name;public int parent,tail,type;public Vector3 rest;public Transform node;public int append=-1;public float appendRatio=1;public bool afterIk;internal Vector3 localRest,twistAxis; }
+    public sealed class Ik { public int target,effector,iterations;public float limit;public int[] links;public bool limitKnee;public float kneeMax=180,kneeMin;internal bool supportedTarget; }
     public readonly List<Bone> bones=new List<Bone>();public readonly List<Ik> iks=new List<Ik>();
     public readonly Dictionary<string,Bone> byName=new Dictionary<string,Bone>();
     public GameObject root;public bool useIk;
+    sealed class PreparedMotion
+    {
+        internal MmdMotion Motion;
+        internal List<MmdMotion.Key>[] Keys;
+        internal bool[] IkTracks;
+    }
+    readonly Dictionary<MmdMotion,PreparedMotion> preparedMotions=new();
+    PreparedMotion prepared;
+    Quaternion[] authoredRotations;
+    MmdMotion sampledMotion;
+    float sampledFrame;
     internal void CreateTransforms() { foreach (var _ in CreateTransformSteps()) { } }
     internal IEnumerable<int> CreateTransformSteps()
     {
         root=new GameObject("MmdSourceSkeleton");root.hideFlags=HideFlags.HideAndDontSave;root.SetActive(false);
         UnityEngine.Object.DontDestroyOnLoad(root); yield return 0;
         foreach(var b in bones) { b.node=new GameObject(b.name).transform; b.node.SetParent(root.transform,false); yield return 0; }
-        foreach(var b in bones) { b.node.SetParent(b.parent<0?root.transform:bones[b.parent].node,false); b.node.localPosition=b.rest-(b.parent<0?Vector3.zero:bones[b.parent].rest); yield return 0; }
+        foreach(var b in bones)
+        {
+            b.node.SetParent(b.parent<0?root.transform:bones[b.parent].node,false);
+            b.localRest=b.rest-(b.parent<0?Vector3.zero:bones[b.parent].rest);
+            b.twistAxis=b.type==8&&b.tail>0&&b.tail<bones.Count?(bones[b.tail].rest-b.rest).normalized:Vector3.zero;
+            b.node.localPosition=b.localRest;yield return 0;
+        }
+        foreach(var ik in iks)ik.supportedTarget=bones[ik.target].name.Contains("足")||bones[ik.target].name.Contains("つま先");
+        authoredRotations=new Quaternion[bones.Count];prepared=null;sampledMotion=null;preparedMotions.Clear();
     }
     internal MmdSkeleton Instantiate()
     {
@@ -43,21 +62,28 @@ public sealed class MmdSkeleton : IDisposable
     }
     public void Evaluate(MmdMotion motion,float frame)
     {
-        foreach(var b in bones)
+        bool bound=prepared!=null&&ReferenceEquals(prepared.Motion,motion);
+        for(int index=0;index<bones.Count;index++)
         {
-            var key=SampleBone(motion,b.name,frame);var q=key.q;
+            var b=bones[index];
+            // Standard two-joint thumbs start at the game's proximal joint.
+            // Semi-standard motions explicitly include thumb 0 and retain 0/1/2.
+            var key=bound?MmdMotion.SampleValue(prepared.Keys[index],frame):SampleBoneValue(motion,b.name,frame);var q=key.q;
+            authoredRotations[index]=q;
             if(b.type==8&&b.tail>0&&b.tail<bones.Count)
             {
-                var axis=(bones[b.tail].rest-b.rest).normalized;var v=new Vector3(q.x,q.y,q.z);v=axis*Vector3.Dot(v,axis);
+                var axis=b.twistAxis;var v=new Vector3(q.x,q.y,q.z);v=axis*Vector3.Dot(v,axis);
                 q=new Quaternion(v.x,v.y,v.z,q.w).normalized;
             }
-            b.node.localRotation=q;b.node.localPosition=b.rest-(b.parent<0?Vector3.zero:bones[b.parent].rest)+key.p;
+            b.node.localRotation=q;b.node.localPosition=b.localRest+key.p;
             if(b.append>=0&&!b.afterIk)ApplyAppend(b);
         }
-        if(useIk)foreach(var ik in iks)
+        sampledMotion=motion;sampledFrame=frame;
+        if(useIk)for(int ikIndex=0;ikIndex<iks.Count;ikIndex++)
         {
-            if(!bones[ik.target].name.Contains("足")&&!bones[ik.target].name.Contains("つま先"))continue;
-            if(!motion.tracks.ContainsKey(bones[ik.target].name)||!motion.IkEnabled(bones[ik.target].name,(int)frame))continue;
+            var ik=iks[ikIndex];
+            if(!ik.supportedTarget)continue;
+            if(!(bound?prepared.IkTracks[ikIndex]:motion.tracks.ContainsKey(bones[ik.target].name))||!motion.IkEnabled(bones[ik.target].name,(int)frame))continue;
             var target=bones[ik.target].node;var effector=bones[ik.effector].node;
             if(ik.limitKnee) { SolveLeg(ik,target,effector); continue; }
             for(int iteration=0;iteration<Math.Min(ik.iterations,80);iteration++)
@@ -84,7 +110,21 @@ public sealed class MmdSkeleton : IDisposable
                 if(!moved||Vector3.Distance(effector.position,target.position)<0.001f)break;
             }
         }
+        // The deform D chain inherits the FINAL control-chain rotations,
+        // including knee and toe IK. It must never feed back into either solve.
         RefreshDeform(motion,frame);
+    }
+
+    internal void PrepareMotion(MmdMotion motion)
+    {
+        if(!motion.PreparedForPlayback){prepared=null;return;}
+        if(preparedMotions.TryGetValue(motion,out var cached)){prepared=cached;return;}
+        var value=new PreparedMotion{Motion=motion,Keys=new List<MmdMotion.Key>[bones.Count],IkTracks=new bool[iks.Count]};
+        for(int i=0;i<bones.Count;i++)motion.tracks.TryGetValue(TrackName(motion,bones[i].name),out value.Keys[i]);
+        for(int i=0;i<iks.Count;i++)value.IkTracks[i]=motion.tracks.ContainsKey(bones[iks[i].target].name);
+        prepared=value;
+        if(preparedMotions.Count>=16)preparedMotions.Remove(preparedMotions.Keys.First());
+        preparedMotions.Add(motion,value);
     }
 
     static string TrackName(MmdMotion motion,string track)
@@ -93,6 +133,9 @@ public sealed class MmdSkeleton : IDisposable
             return track[3]=='０'?track.Substring(0,3)+"１":track[3]=='１'?track.Substring(0,3)+"２":"";
         return track;
     }
+    static MmdMotion.BoneSample SampleBoneValue(MmdMotion motion,string track,float frame)
+        =>motion.SampleValue(TrackName(motion,track),frame);
+
     internal static MmdMotion.Key SampleBone(MmdMotion motion,string track,float frame)
     {
         return motion.Sample(TrackName(motion,track),frame);
@@ -100,11 +143,12 @@ public sealed class MmdSkeleton : IDisposable
 
     internal void RefreshDeform(MmdMotion motion,float frame)
     {
+        bool reuse=ReferenceEquals(sampledMotion,motion)&&sampledFrame==frame;
         for(int i=0;i<bones.Count;i++)
         {
             var b=bones[i];
             if(b.append<0||!b.afterIk)continue;
-            b.node.localRotation=SampleBone(motion,b.name,frame).q;ApplyAppend(b);
+            b.node.localRotation=reuse?authoredRotations[i]:SampleBoneValue(motion,b.name,frame).q;ApplyAppend(b);
         }
     }
 
@@ -213,7 +257,7 @@ public sealed class MmdSkeleton : IDisposable
         return Quaternion.AngleAxis((float)Math.Clamp(angle,minimum,maximum),new Vector3(1,0,0));
     }
 
-    public void Dispose(){if(root!=null)UnityEngine.Object.Destroy(root);}
+    public void Dispose(){if(root!=null)UnityEngine.Object.Destroy(root);prepared=null;sampledMotion=null;preparedMotions.Clear();}
 }
 
 static class QuaternionMagnitudeExtension

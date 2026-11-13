@@ -19,10 +19,19 @@ public sealed class MmdMotion
     readonly Dictionary<string,List<KeyValuePair<uint,bool>>> ikSwitches=new Dictionary<string,List<KeyValuePair<uint,bool>>>();
     public string modelName;public uint lastFrame;
     internal bool ExactBoneSamples;
+    // RuntimeVmdSource marks its fully parsed keys immutable for shared binding
+    // caches. Public/offline callers can continue editing their own motions.
+    internal bool PreparedForPlayback;
+    internal readonly struct BoneSample
+    {
+        internal readonly Vector3 p;
+        internal readonly Quaternion q;
+        internal BoneSample(Vector3 position,Quaternion rotation) { p=position;q=rotation; }
+    }
     internal readonly HashSet<string> ResolvedAliases=new(StringComparer.Ordinal);
     internal MmdMotion BindAliases(IEnumerable<KeyValuePair<string,string>> aliases)
     {
-        var result=new MmdMotion{modelName=modelName,lastFrame=lastFrame,ExactBoneSamples=ExactBoneSamples};
+        var result=new MmdMotion{modelName=modelName,lastFrame=lastFrame,ExactBoneSamples=ExactBoneSamples,PreparedForPlayback=PreparedForPlayback};
         foreach(var p in tracks)result.tracks.Add(p.Key,p.Value);
         foreach(var p in morphs)result.morphs.Add(p.Key,p.Value);
         foreach(var p in ikSwitches)result.ikSwitches.Add(p.Key,p.Value);
@@ -92,15 +101,35 @@ public sealed class MmdMotion
     }
     public bool IkEnabled(string name,int frame)
     {
-        bool enabled=true;if(ikSwitches.TryGetValue(name,out var switches))foreach(var item in switches)if(item.Key<=frame)enabled=item.Value;return enabled;
+        if(!ikSwitches.TryGetValue(name,out var switches)||switches.Count==0)return true;
+        int low=0,high=switches.Count;
+        while(low<high){int mid=low+(high-low)/2;if(switches[mid].Key<=frame)low=mid+1;else high=mid;}
+        return low==0||switches[low-1].Value;
     }
     public Key Sample(string name,float frame)
     {
         if(!tracks.TryGetValue(name,out var keys)||keys.Count==0)return new Key{q=Quaternion.identity};
         if(frame<=keys[0].frame)return keys[0];if(frame>=keys[keys.Count-1].frame)return keys[keys.Count-1];
         int low=0,high=keys.Count-1;while(high-low>1){int mid=(low+high)/2;if(keys[mid].frame<=frame)low=mid;else high=mid;}
-        var a=keys[low];var b=keys[high];var t=(frame-a.frame)/(b.frame-a.frame);
-        return new Key{p=new Vector3(Mathf.Lerp(a.p.x,b.p.x,Bezier(b.interpolation,0,t)),Mathf.Lerp(a.p.y,b.p.y,Bezier(b.interpolation,1,t)),Mathf.Lerp(a.p.z,b.p.z,Bezier(b.interpolation,2,t))),q=Quaternion.Slerp(a.q,b.q,Bezier(b.interpolation,3,t))};
+        var value=Interpolate(keys[low],keys[high],frame);
+        return new Key{p=value.p,q=value.q};
+    }
+    internal BoneSample SampleValue(string name,float frame)
+        =>SampleValue(tracks.TryGetValue(name,out var keys)?keys:null,frame);
+    internal static BoneSample SampleValue(List<Key> keys,float frame)
+    {
+        if(keys==null||keys.Count==0)return new BoneSample(Vector3.zero,Quaternion.identity);
+        if(frame<=keys[0].frame)return new BoneSample(keys[0].p,keys[0].q);
+        int last=keys.Count-1;
+        if(frame>=keys[last].frame)return new BoneSample(keys[last].p,keys[last].q);
+        int low=0,high=last;
+        while(high-low>1){int mid=low+(high-low)/2;if(keys[mid].frame<=frame)low=mid;else high=mid;}
+        return Interpolate(keys[low],keys[high],frame);
+    }
+    static BoneSample Interpolate(Key a,Key b,float frame)
+    {
+        var t=(frame-a.frame)/(b.frame-a.frame);
+        return new BoneSample(new Vector3(Mathf.Lerp(a.p.x,b.p.x,Bezier(b.interpolation,0,t)),Mathf.Lerp(a.p.y,b.p.y,Bezier(b.interpolation,1,t)),Mathf.Lerp(a.p.z,b.p.z,Bezier(b.interpolation,2,t))),Quaternion.Slerp(a.q,b.q,Bezier(b.interpolation,3,t)));
     }
     public static float Bezier(byte[] controls,int channel,float x)
     {

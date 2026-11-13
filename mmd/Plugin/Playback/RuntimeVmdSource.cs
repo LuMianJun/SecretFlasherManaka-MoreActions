@@ -28,6 +28,7 @@ public sealed class RuntimeVmdSource : IActionSource, IPreparedActionSource
         if (!Enum.IsDefined(typeof(MmdReferencePose), referencePose)) throw new ArgumentOutOfRangeException(nameof(referencePose));
         ReferencePose = referencePose;
         motion = MmdMotion.Read(vmdPath);
+        motion.PreparedForPlayback=true;
         this.faceMotion = MmdMorphBindings.Compose(motion, faceMotion, lipMotion);
         if (motion.tracks.Count == 0 || Duration <= 0) throw new InvalidDataException("VMD contains no playable bone motion");
         {

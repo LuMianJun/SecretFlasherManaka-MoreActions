@@ -36,6 +36,10 @@ internal sealed class RuntimeVmdRig
     internal bool Leased, Retired;
     internal MmdReferencePose ReferencePose;
     readonly List<(SkinnedMeshRenderer renderer, Mesh mesh)> meshes = new();
+    KeyValuePair<string,string>[] aliases=Array.Empty<KeyValuePair<string,string>>();
+    readonly Dictionary<MmdMotion,MmdMotion> boundMotions=new();
+    readonly Queue<MmdMotion> motionOrder=new();
+
     internal bool IsUsable => target != null && liveRoot != null && hip != null && proxy != null
         && source?.root != null && bindings.All(b => b.live != null)
         && meshes.All(m => m.renderer != null && m.renderer.sharedMesh == m.mesh);
@@ -118,12 +122,14 @@ internal sealed class RuntimeVmdRig
             float targetLength=(upper-knee).Length()+(knee-ankle).Length();
             if (sourceLength < 0.00001f || targetLength < 0.00001f) throw new Exception("Degenerate retarget skeleton");
             scale = targetLength / sourceLength;
+            aliases=CreateAliases().ToArray();
             yield return 0;
     }
 
     static Quaternion Align(Transform target, Vector3 targetDirection, Vector3 sourceDirection)
         => targetDirection.sqrMagnitude < 0.000001f || sourceDirection.sqrMagnitude < 0.000001f ? target.rotation : Quaternion.FromToRotation(targetDirection, sourceDirection) * target.rotation;
-    internal IEnumerable<KeyValuePair<string,string>> Aliases()
+    internal IEnumerable<KeyValuePair<string,string>> Aliases()=>aliases;
+    IEnumerable<KeyValuePair<string,string>> CreateAliases()
     {
         foreach(var b in bindings)yield return new(b.sample.name,b.source);
         // VMD's bone field is 15 Shift-JIS bytes. Resolve truncated native names
@@ -136,8 +142,18 @@ internal sealed class RuntimeVmdRig
         }
     }
 
+    internal MmdMotion BindMotion(MmdMotion keys)
+    {
+        if(!keys.PreparedForPlayback)return keys.BindAliases(aliases);
+        if(boundMotions.TryGetValue(keys,out var cached))return cached;
+        var bound=keys.BindAliases(aliases);
+        if(boundMotions.Count>=16)boundMotions.Remove(motionOrder.Dequeue());
+        boundMotions.Add(keys,bound);motionOrder.Enqueue(keys);return bound;
+    }
+
     internal void Destroy()
     {
+        boundMotions.Clear();motionOrder.Clear();aliases=Array.Empty<KeyValuePair<string,string>>();
         source?.Dispose(); source = null;
         if (proxy != null) UnityEngine.Object.Destroy(proxy); proxy = null;
     }

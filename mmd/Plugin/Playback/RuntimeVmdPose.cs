@@ -14,6 +14,7 @@ public sealed class RuntimeVmdPose : IActionPose, IActionRootMotionPose, IAction
     readonly MmdMotion motion;
     readonly MmdMotion faceMotion;
     readonly ActionBodyPoseLease body;
+    readonly MmdSkeleton.Bone sourceHip;
     readonly bool[] write;
     readonly ActionFaceMorphLayer face;
     readonly List<MmdMorphBindings.Binding> morphs = new();
@@ -42,7 +43,8 @@ public sealed class RuntimeVmdPose : IActionPose, IActionRootMotionPose, IAction
         faceMotion = faceKeys ?? keys;
         try
         {
-            motion=keys.BindAliases(rig.Aliases());
+            motion=rig.BindMotion(keys);
+            rig.source.PrepareMotion(motion);
             foreach(string path in action.BonePaths)
                 if(!rig.bindings.Any(b=>b.path==path))throw new InvalidDataException("MMD target bone missing: "+path);
             write = new bool[rig.bindings.Count];
@@ -72,15 +74,16 @@ public sealed class RuntimeVmdPose : IActionPose, IActionRootMotionPose, IAction
                 }
             }
             rootBasis = rig.liveRoot.rotation;
-            referenceHipHeight = rig.source.byName["下半身"].rest.y;
-            rig.source.Evaluate(motion, 0); originHip = rig.source.byName["下半身"].node.position;
+            sourceHip = rig.source.byName["下半身"];
+            referenceHipHeight = sourceHip.rest.y;
+            rig.source.Evaluate(motion, 0); originHip = sourceHip.node.position;
             if (writeHip)
                 global::Plugin.LogSource?.LogInfo("MMD_VERTICAL_BASELINE id="+action.Id+" mode=reference-rest firstOffsetM="+
                     ((originHip.y-referenceHipHeight)*rig.scale).ToString("F5",System.Globalization.CultureInfo.InvariantCulture));
             if (writeHip && action.Loop)
             {
                 rig.source.Evaluate(motion, motion.lastFrame);
-                LoopRootDisplacement = HorizontalWorld(rig.source.byName["下半身"].node.position - originHip);
+                LoopRootDisplacement = HorizontalWorld(sourceHip.node.position - originHip);
                 rig.source.Evaluate(motion, 0);
             }
         }
@@ -128,8 +131,8 @@ public sealed class RuntimeVmdPose : IActionPose, IActionRootMotionPose, IAction
             // following UnityVMDPlayer's displacement handling. Controller
             // locomotion anchors X/Z to the first frame. Y uses the reference
             // skeleton, preserving an authored first-frame crouch or jump.
-            RootDisplacement = HorizontalWorld(rig.source.byName["下半身"].node.position - originHip);
-            float vertical = (rig.source.byName["下半身"].node.position.y - referenceHipHeight) * rig.scale;
+            RootDisplacement = HorizontalWorld(sourceHip.node.position - originHip);
+            float vertical = (sourceHip.node.position.y - referenceHipHeight) * rig.scale;
             rig.hip.localPosition = rig.hip.localPosition + rig.hip.parent.InverseTransformVector(heading * Vector3.up * vertical);
         }
         face?.Begin();

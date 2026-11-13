@@ -71,7 +71,14 @@ internal static class BoneMappingRegression
             motion.tracks["上半身"]=[new(){q=Quaternion.identity,p=new(.15f,-.2f,.3f),interpolation=new byte[64]}];
             motion.tracks["左肩"]=[new(){q=Quaternion.identity,p=new(.1f,.2f,0),interpolation=new byte[64]}];
             var rig=MmdRigCache.Rent(actor.avatar,MmdReferencePose.T);MmdRigCache.Return(rig);
+            check(ReferenceEquals(rig.Aliases(),rig.Aliases()),"A reusable rig retains its precomputed native and truncated-name aliases");
             check(rig.bindings.All(b=>b.sourceBone==rig.source.byName[b.source]&&(b.parent==null||b.parentSourceBone==b.parent.sourceBone)),"Bindings retain direct references to their own source and parent source bones");
+            var preparedMotion=new MmdMotion{lastFrame=30,PreparedForPlayback=true};
+            preparedMotion.tracks["LeftEye"]=[new(){q=Quaternion.identity}];
+            check(ReferenceEquals(rig.BindMotion(preparedMotion),rig.BindMotion(preparedMotion)),"Prepared immutable motion reuses its alias binding within the rig");
+            var mutableMotion=new MmdMotion{lastFrame=30};mutableMotion.tracks["LeftEye"]=[new(){q=Quaternion.identity}];
+            var firstBinding=rig.BindMotion(mutableMotion);mutableMotion.tracks["Tang"]=[new(){q=Quaternion.identity}];
+            check(!ReferenceEquals(firstBinding,rig.BindMotion(mutableMotion))&&rig.BindMotion(mutableMotion).tracks.ContainsKey("Tang"),"Direct callers can change unprepared motion data before constructing another playback");
             using(var pose=new RuntimeVmdPose(actor.avatar,new ActionDefinition(),motion,MmdReferencePose.T))
             {
                 pose.Apply(0);
