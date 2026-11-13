@@ -12,6 +12,7 @@ public sealed class ActionBodyPoseLease : IActionBodyPose, IDisposable
     readonly Transform[] bones;
     readonly State[] raw, native;
     readonly Transform[][] correctionBones;
+    readonly List<CorrectionBuffer>[] correctionBuffers = { new(), new(), new() };
     readonly Animator animator;
     readonly AnimatorCullingMode savedCulling;
     bool nativePass, applied, disposed;
@@ -27,22 +28,36 @@ public sealed class ActionBodyPoseLease : IActionBodyPose, IDisposable
         { if (bone != null) { bone.localPosition=position; bone.localRotation=rotation; bone.localScale=scale; } }
     }
 
+    sealed class CorrectionBuffer
+    {
+        internal readonly State[] States;
+        internal bool InUse;
+        internal CorrectionBuffer(int count) { States = new State[count]; }
+    }
+
+    // Keep the lease token distinct: a caller may retain and dispose an old
+    // token again after a newer scope has reused its state buffer.
     sealed class Correction : IDisposable
     {
         readonly ActionBodyPoseLease owner;
         readonly Transform[] bones;
-        readonly State[] states;
+        readonly CorrectionBuffer buffer;
         bool restored;
-        internal Correction(ActionBodyPoseLease owner,Transform[] bones)
+        internal Correction(ActionBodyPoseLease owner,Transform[] bones,CorrectionBuffer buffer)
         {
-            this.owner=owner;this.bones=bones; states=new State[bones.Length];
-            for(int i=0;i<bones.Length;i++) states[i]=new State(bones[i]);
+            this.owner=owner;this.bones=bones;this.buffer=buffer;
+            for(int i=0;i<bones.Length;i++) buffer.States[i]=new State(bones[i]);
+            buffer.InUse=true;
         }
         public void Dispose()
         {
             if(restored)return; restored=true;
-            if(owner.disposed)return;
-            for(int i=0;i<bones.Length;i++)states[i].Restore(bones[i]);
+            try
+            {
+                if(owner.disposed)return;
+                for(int i=0;i<bones.Length;i++)buffer.States[i].Restore(bones[i]);
+            }
+            finally { buffer.InUse=false; }
         }
     }
 
@@ -89,7 +104,12 @@ public sealed class ActionBodyPoseLease : IActionBodyPose, IDisposable
     {
         if(disposed||!nativePass)return null;
         var selected=correctionBones[(int)correction];
-        return selected.Length==0?null:new Correction(this,selected);
+        if(selected.Length==0)return null;
+        var buffers=correctionBuffers[(int)correction];
+        CorrectionBuffer available=null;
+        foreach(var buffer in buffers)if(!buffer.InUse){available=buffer;break;}
+        if(available==null){available=new CorrectionBuffer(selected.Length);buffers.Add(available);}
+        return new Correction(this,selected,available);
     }
     public bool SuppressKneeOffset => !disposed&&nativePass&&ownsLeftKnee;
 

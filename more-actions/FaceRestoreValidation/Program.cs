@@ -218,6 +218,31 @@ Check(graphSetupFailed&&brokenSetupProxy.Destroyed&&brokenSetupTarget.GetCompone
 using(var entry=ActionSamplingRigPool.Acquire(brokenSetupTarget,true))Check(entry.Proxy!=brokenSetupProxy,"Playback after failed graph construction receives an independent fresh proxy");
 UnityEngine.Object.Destroy(brokenSetupTarget);ActionSamplingRigPool.Prune();
 
+var corrected=Avatar();var correctedHead=corrected.transform.Find(headPath);
+using(var lease=new ActionBodyPoseLease(corrected,new[]{correctedHead}))
+{
+    lease.BeginNativeBody();
+    var outer=lease.PreserveNativeCorrection(ActionBoneCorrection.LookAt);
+    correctedHead.localRotation=Quaternion.AngleAxis(20,Vector3.up);
+    var inner=lease.PreserveNativeCorrection(ActionBoneCorrection.LookAt);
+    correctedHead.localRotation=Quaternion.AngleAxis(30,Vector3.up);inner.Dispose();
+    Check(Rotation(correctedHead,20),"Nested correction scopes restore the immediately enclosing native state");
+    outer.Dispose();Check(Rotation(correctedHead,10),"The outer correction scope restores its independent snapshot");
+    correctedHead.localRotation=Quaternion.AngleAxis(44,Vector3.up);
+    var current=lease.PreserveNativeCorrection(ActionBoneCorrection.LookAt);
+    correctedHead.localRotation=Quaternion.AngleAxis(55,Vector3.up);outer.Dispose();
+    Check(Rotation(correctedHead,55),"An old token's second Dispose cannot finish a newer scope that reused its buffer");
+    current.Dispose();Check(Rotation(correctedHead,44),"A reused correction buffer captures the current native pose");
+    try{using var scope=lease.PreserveNativeCorrection(ActionBoneCorrection.LookAt);correctedHead.localRotation=Quaternion.AngleAxis(99,Vector3.up);throw new Exception("native fixture failure");}catch(Exception){}
+    Check(Rotation(correctedHead,44),"Exception unwinding still restores the correction snapshot");
+    long before=GC.GetAllocatedBytesForCurrentThread();
+    for(int i=0;i<1000;i++){var scope=lease.PreserveNativeCorrection(ActionBoneCorrection.LookAt);scope.Dispose();}
+    long allocated=GC.GetAllocatedBytesForCurrentThread()-before;
+    Check(allocated<80000,"Warm correction scopes reuse state buffers while retaining separate safe disposal tokens");
+    lease.EndNativeBody(true);
+}
+UnityEngine.Object.Destroy(corrected);
+
 var faceRoot=Avatar();var node=new GameObject("Body.001");node.transform.SetParent(faceRoot.transform,false);
 var face=node.AddComponent<SkinnedMeshRenderer>();face.sharedMesh=new Mesh{ShapeNames=Enumerable.Range(0,473).Select(i=>"shape"+i).ToArray()};
 face.sharedMesh.ShapeNames[0]="vrc.v_aa";face.sharedMesh.ShapeNames[19]="eye_close";
@@ -245,4 +270,4 @@ Check(face.GetBlendShapeWeight(19)==12&&face.GetBlendShapeWeight(145)==75,"Per-a
 var optout=new ActionFaceMorphLayer(faceRoot,new(){WriteFaceMorphs=false});optout.Begin();optout.Write(face,19,100);optout.RestoreNativeFace();
 Check(face.GetBlendShapeWeight(19)==12,"Face opt-out cannot write or reset expression channels");
 ActionSamplingRigPool.Clear();
-Console.WriteLine($"PASS {count} assertions: pooled full sampling trees, avatar/topology invalidation, independent consumers, fresh playback baselines, shared character preset, optional-bone ownership and expression cleanup; offline boundaries, not proof of rendered game behavior.");
+Console.WriteLine($"PASS {count} assertions: pooled full sampling trees, avatar/topology invalidation, independent consumers, fresh playback baselines, reentrant correction buffers, shared character preset, optional-bone ownership and expression cleanup; offline boundaries, not proof of rendered game behavior.");
