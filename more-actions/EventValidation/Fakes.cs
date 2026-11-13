@@ -225,6 +225,7 @@ namespace SFM.ModSettings
 }
 namespace SFM.Actions
 {
+    internal static class ActionSamplingRigPool { internal static void Prune(){} internal static void Clear(){} }
     internal static class CameraTransitionDiagnostics {internal static void Configure(BepInEx.Configuration.ConfigFile config){}internal static void BeginFrame(ExposureUnnoticed2.Object3D.Player.Scripts.PlayerController player){}internal static void EndFrame(){} }
     internal static class NativeAnimationReplacements { internal static void Configure(BepInEx.Configuration.ConfigFile config){}internal static void Tick(UnityEngine.Animator animator){}internal static void Release(){} }
     internal static class ActionSettingsApi

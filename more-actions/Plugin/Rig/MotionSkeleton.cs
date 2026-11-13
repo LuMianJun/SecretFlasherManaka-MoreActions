@@ -39,6 +39,10 @@ public static class MotionSkeleton
     }
 
     public static void CopyCanonicalTree(Transform source, Transform destination)
+        => CopyCanonicalTree(source, destination, null, null, "");
+
+    internal static void CopyCanonicalTree(Transform source, Transform destination,
+        List<(Transform live, Transform sample)> pairs, Dictionary<string, Transform> samples, string parentPath = "")
     {
         for (int i = 0; i < source.childCount; i++)
         {
@@ -49,7 +53,7 @@ public static class MotionSkeleton
                 // ancestors remain, so similarly named accessory bones cannot bind.
                 if (Quaternion.Angle(child.localRotation, Quaternion.identity) > 0.01f || child.localPosition.sqrMagnitude > 0.000001f)
                     throw new Exception("Unexpected body adjuster translation/rotation");
-                CopyCanonicalTree(child, destination);
+                CopyCanonicalTree(child, destination, pairs, samples, parentPath);
                 continue;
             }
             var copy = new GameObject(child.name).transform;
@@ -57,7 +61,10 @@ public static class MotionSkeleton
             copy.localPosition = child.localPosition;
             copy.localRotation = child.localRotation;
             copy.localScale = child.localScale;
-            CopyCanonicalTree(child, copy);
+            string path = parentPath.Length == 0 ? child.name : parentPath + "/" + child.name;
+            pairs?.Add((child, copy));
+            if (samples != null && !samples.TryAdd(path, copy) && MotionRig.IsSupportedPath(path)) throw new Exception("Ambiguous sampling node: " + path);
+            CopyCanonicalTree(child, copy, pairs, samples, path);
         }
     }
 }

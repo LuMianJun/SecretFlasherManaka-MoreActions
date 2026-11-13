@@ -42,7 +42,7 @@ public sealed class ActionDriver : MonoBehaviour
 
     public void Update()
     {
-
+        ActionSamplingRigPool.Prune();
         ActionAssets.Tick();
         ActionBundleImport.Tick();
         var animator = PlayerController.Instance?.Pca?.Animator;
@@ -455,5 +455,5 @@ public sealed class ActionDriver : MonoBehaviour
         finally { session.Stopping = false; }
     }
     public void OnDisable() { requests.Clear(); Stop("disabled"); NativeAnimationReplacements.Release(); }
-    public void OnDestroy() { requests.Clear(); Stop("destroyed"); if (session.Audio != null) UnityEngine.Object.Destroy(session.Audio); ActionAssets.Clear(); ActionBundleImport.Clear(); NativeAnimationReplacements.Release(); ActionTargetApi.Target = null; ActionTargetApi.IsReady = false; if (Current == this) Current = null; }
+    public void OnDestroy() { requests.Clear(); Stop("destroyed"); ActionSamplingRigPool.Clear(); if (session.Audio != null) UnityEngine.Object.Destroy(session.Audio); ActionAssets.Clear(); ActionBundleImport.Clear(); NativeAnimationReplacements.Release(); ActionTargetApi.Target = null; ActionTargetApi.IsReady = false; if (Current == this) Current = null; }
 }

@@ -26,7 +26,8 @@ internal sealed class AnimatorClipSampler : IDisposable
             if (original == null || original.avatar == null || !original.avatar.isValid)
                 throw new InvalidOperationException("Animator playback requires the player's valid Avatar");
             phase = "proxy animator";
-            var animator = proxy.AddComponent<Animator>();
+            var animator = proxy.GetComponent<Animator>() ?? proxy.AddComponent<Animator>();
+            animator.enabled = true;
             animator.avatar = original.avatar;
             animator.cullingMode = AnimatorCullingMode.AlwaysAnimate;
             animator.applyRootMotion = true; // Only the private sampling object moves.

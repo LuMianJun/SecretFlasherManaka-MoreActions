@@ -10,7 +10,7 @@ public class Object
     public int GetInstanceID() => id;
     public static void DontDestroyOnLoad(Object value) {}
     public bool Destroyed;
-    public static void Destroy(Object o) { if (ReferenceEquals(o,null)) return; o.Destroyed=true; if(o is GameObject g) { g.transform.Destroyed=true; foreach(var c in g.transform.Children.ToArray()) Destroy(c.gameObject); } }
+    public static void Destroy(Object o) { if (ReferenceEquals(o,null)) return; o.Destroyed=true; if(o is GameObject g) { g.transform.Destroyed=true; foreach(var component in g.Components.OfType<Object>())component.Destroyed=true; foreach(var c in g.transform.Children.ToArray()) Destroy(c.gameObject); } }
     public static bool operator ==(Object a,Object b) => (ReferenceEquals(a,null)||a.Destroyed) ? ReferenceEquals(b,null)||b.Destroyed : ReferenceEquals(a,b);
     public static bool operator !=(Object a,Object b) => !(a==b);
     public override bool Equals(object o) => ReferenceEquals(this,o); public override int GetHashCode()=>System.Runtime.CompilerServices.RuntimeHelpers.GetHashCode(this);
@@ -21,10 +21,12 @@ public sealed class GameObject : Object
 {
     public static int CreatedCount, RendererQueries;
     public string name; public HideFlags hideFlags; public readonly Transform transform; readonly List<object> components=[];
+    internal IEnumerable<object> Components=>components;
+    public bool activeSelf=true;
     public GameObject(string name) { CreatedCount++; this.name=name; transform=new Transform(this); }
-    public void SetActive(bool active) {}
+    public void SetActive(bool active) { activeSelf=active; }
     public T AddComponent<T>() where T:new() { var c=new T(); if(c is SkinnedMeshRenderer r) r.transform=transform; components.Add(c); return c; }
-    public T GetComponent<T>() where T:class => components.OfType<T>().FirstOrDefault();
+    public T GetComponent<T>() where T:class => components.OfType<T>().FirstOrDefault(c=>c is not Object o||!o.Destroyed);
     public T[] GetComponentsInChildren<T>(bool includeInactive)
     {
         if(typeof(T)==typeof(SkinnedMeshRenderer))RendererQueries++;
@@ -55,6 +57,8 @@ public sealed class Transform : Object
 public enum AnimatorCullingMode { AlwaysAnimate, CullUpdateTransforms, CullCompletely }
 public sealed class Animator : Object
 {
+    public Object avatar=new();
+    public bool enabled=true,applyRootMotion,fireEvents=true;
     public AnimatorCullingMode cullingMode=AnimatorCullingMode.CullUpdateTransforms;
     public static int StringToHash(string name)
     {
@@ -63,12 +67,12 @@ public sealed class Animator : Object
 }
 public sealed class Mesh : Object
 {
-    Matrix4x4[] binds=[]; public int BindReads,NameReads; public bool ThrowOnNameRead;
+    Matrix4x4[] binds=[]; public int BindReads,NameReads,IndexReads; public bool ThrowOnNameRead;
     public Matrix4x4[] bindposes {get{BindReads++;return binds;}set{binds=value;}}
     public string[] ShapeNames={"eye_close","vrc.v_aa","vrc.v_ih","vrc.v_ou","vrc.v_e","vrc.v_oh","mouth_a","custom_eye"};
     public int blendShapeCount=>ShapeNames.Length;
     public string GetBlendShapeName(int i){NameReads++;if(ThrowOnNameRead)throw new Exception("Unexpected morph discovery");return ShapeNames[i];}
-    public int GetBlendShapeIndex(string name)=>Array.IndexOf(ShapeNames,name);
+    public int GetBlendShapeIndex(string name){IndexReads++;return Array.IndexOf(ShapeNames,name);}
 }
 public sealed class SkinnedMeshRenderer : Object
 {

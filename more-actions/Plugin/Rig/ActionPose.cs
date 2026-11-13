@@ -4,13 +4,14 @@ using UnityEngine;
 
 namespace SFM.Actions;
 
-// Each playback instance owns its sampling skeleton and restoration.
+// Each playback instance owns its sampling lease and restoration.
 // Keep the native Animator enabled: native size controllers need its fresh pose.
 internal sealed class ActionPose : IActionPose, IActionFacePose, IActionBodyPose, IActionRootMotionPose
 {
     readonly LoadedAction action;
     readonly GameObject liveRoot;
     GameObject proxy;
+    ActionSamplingRigPool.Entry samplingRig;
     readonly List<(string path, Transform live, Transform sample)> bones = new();
     readonly List<(SkinnedMeshRenderer live, SkinnedMeshRenderer sample, int index)> morphs = new();
     Transform[] sampleNodes;
@@ -31,13 +32,12 @@ internal sealed class ActionPose : IActionPose, IActionFacePose, IActionBodyPose
 
     internal ActionPose(GameObject target, LoadedAction loaded, bool nativeAnimator = false)
     {
-        action = loaded; this.nativeAnimator = nativeAnimator; liveRoot = FindAvatar(target);
-        proxy = new GameObject("MoreActionsSamplingRig"); proxy.hideFlags = HideFlags.HideAndDontSave; proxy.SetActive(false);
+        action = loaded; this.nativeAnimator = nativeAnimator;
         try
         {
-            var resolved = MotionSkeleton.ResolveBones(liveRoot.transform);
-            if (nativeAnimator) proxy.transform.localScale = liveRoot.transform.lossyScale;
-            MotionSkeleton.CopyCanonicalTree(liveRoot.transform, proxy.transform);
+            samplingRig = ActionSamplingRigPool.Acquire(target, nativeAnimator);
+            liveRoot = samplingRig.Root; proxy = samplingRig.Proxy;
+            var resolved = samplingRig.Live;
             foreach (var path in action.Definition.BonePaths)
                 if (!MotionRig.IsSupportedPath(path) || !resolved.ContainsKey(path))
                     throw new Exception("Selected live body bone missing: " + path);
@@ -49,8 +49,7 @@ internal sealed class ActionPose : IActionPose, IActionFacePose, IActionBodyPose
                 // preset bones participate only when explicitly selected.
                 if (action.Definition.BonePaths.Length == 0 && !MotionRig.IsRequiredPath(path)) continue;
                 if (!resolved.TryGetValue(path, out var live)) continue;
-                var sample = proxy.transform.Find(path);
-                if (sample == null) throw new Exception("Selected sampling body bone missing: " + path);
+                if (!samplingRig.Sample.TryGetValue(path, out var sample)) throw new Exception("Selected sampling body bone missing: " + path);
                 bones.Add((path, live, sample));
             }
             if (bones.Count == 0) throw new Exception("Action has no writable bones");
@@ -62,48 +61,49 @@ internal sealed class ActionPose : IActionPose, IActionFacePose, IActionBodyPose
             // old head/neck pose captured only when playback began.
             body = new ActionBodyPoseLease(target, bones.ConvertAll(b => b.live));
             if (action.Definition.WriteFaceMorphs)
-                foreach (var renderer in liveRoot.GetComponentsInChildren<SkinnedMeshRenderer>(true))
+            {
+                var renderer = FixedModelFace.Find(liveRoot);
+                if (renderer != null && samplingRig.Sample.TryGetValue(FixedModelFace.FacePath, out var node))
                 {
-                    if (renderer.name != "Body.001" || renderer.sharedMesh == null) continue;
-                    var node = proxy.transform.Find(MotionSkeleton.CanonicalPath(renderer.transform, liveRoot.transform));
-                    if (node == null) continue;
-                    var sample = node.gameObject.AddComponent<SkinnedMeshRenderer>(); sample.enabled = false; sample.sharedMesh = renderer.sharedMesh;
-                    foreach (var shape in new[] { "eye_close", "vrc.v_aa", "vrc.v_ih", "vrc.v_ou", "vrc.v_e", "vrc.v_oh" })
+                    var sample = node.GetComponent<SkinnedMeshRenderer>() ?? node.gameObject.AddComponent<SkinnedMeshRenderer>(); sample.enabled = false; sample.sharedMesh = renderer.sharedMesh;
+                    foreach (int index in samplingRig.FaceIndices(renderer))
                     {
-                        int index = renderer.sharedMesh.GetBlendShapeIndex(shape);
                         if (index >= 0) morphs.Add((renderer, sample, index));
                     }
                 }
+            }
             if (action.Definition.WriteFaceMorphs) face = new ActionFaceMorphLayer(liveRoot, action.Definition);
-            var nodes = proxy.GetComponentsInChildren<Transform>(true); sampleNodes = new Transform[nodes.Length];
-            sampleNeutral = new Quaternion[nodes.Length]; samplePositions = new Vector3[nodes.Length];
-            for (int i = 0; i < nodes.Length; i++) { sampleNodes[i] = nodes[i]; sampleNeutral[i] = nodes[i].localRotation; samplePositions[i] = nodes[i].localPosition; }
+            sampleNodes = samplingRig.Nodes; sampleNeutral = samplingRig.Rotations;
+            samplePositions = samplingRig.Positions;
             if (nativeAnimator)
             {
                 rootBasis = liveRoot.transform.rotation;
-                sampler = new AnimatorClipSampler(proxy, target.GetComponent<Animator>(), action.Clip);
+                try { sampler = new AnimatorClipSampler(proxy, target.GetComponent<Animator>(), action.Clip); }
+                catch
+                {
+                    // A failed graph constructor can also have failed its own
+                    // cleanup before returning a sampler to this owner.
+                    samplingRig.Retired = true;
+                    throw;
+                }
             }
-            else proxy.AddComponent<Animator>();
-            Sample(0); hipOrigin = proxy.transform.Find("Armature/Hips").localPosition;
-            worldHipOrigin = proxy.transform.Find("Armature/Hips").position;
+            else
+            {
+                var animator = proxy.GetComponent<Animator>() ?? proxy.AddComponent<Animator>();
+                animator.avatar = null; animator.enabled = true; animator.applyRootMotion = false; animator.fireEvents = false;
+            }
+            var sampleHip = samplingRig.Sample["Armature/Hips"];
+            Sample(0); hipOrigin = sampleHip.localPosition;
+            worldHipOrigin = sampleHip.position;
             if (HasRootMotion && action.Definition.Loop)
             {
                 Sample(action.Duration);
-                var delta = rootBasis * (proxy.transform.Find("Armature/Hips").position - worldHipOrigin);
+                var delta = rootBasis * (sampleHip.position - worldHipOrigin);
                 delta.y = 0; LoopRootDisplacement = delta;
                 Sample(0);
             }
         }
         catch { Dispose(); throw; }
-    }
-
-    static GameObject FindAvatar(GameObject target)
-    {
-        if (target == null) throw new Exception("Animation target missing");
-        if (target.transform.Find("Armature/Hips") != null) return target;
-        foreach (var node in target.GetComponentsInChildren<Transform>(true))
-            if (node.Find("Armature/Hips") != null) return node.gameObject;
-        throw new Exception("Animation target lacks the canonical game skeleton");
     }
 
     void Sample(float time)
@@ -160,10 +160,16 @@ internal sealed class ActionPose : IActionPose, IActionFacePose, IActionBodyPose
     public void Dispose()
     {
         try { sampler?.Dispose(); }
+        catch { if (samplingRig != null) samplingRig.Retired = true; throw; }
         finally
         {
             try { if (body != null) { body.Dispose(); face?.RestoreNativeFace(); } else Restore(); }
-            finally { if (proxy != null) UnityEngine.Object.Destroy(proxy); proxy = null; }
+            catch { if (samplingRig != null) samplingRig.Retired = true; throw; }
+            finally
+            {
+                var released = samplingRig; samplingRig = null; proxy = null;
+                released?.Dispose();
+            }
         }
     }
 }

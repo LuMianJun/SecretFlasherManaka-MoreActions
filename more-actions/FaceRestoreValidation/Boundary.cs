@@ -26,10 +26,12 @@ namespace SFM.Actions
     // supplies pose samples so real ActionPose transfer/restore code is tested.
     internal sealed class AnimatorClipSampler : IDisposable
     {
+        internal static bool FailConstruction,FailDisposal;
+        internal static UnityEngine.GameObject LastProxy;
         readonly UnityEngine.GameObject proxy;readonly UnityEngine.AnimationClip clip;
-        internal AnimatorClipSampler(UnityEngine.GameObject target,UnityEngine.Animator animator,UnityEngine.AnimationClip clip){proxy=target;this.clip=clip;}
+        internal AnimatorClipSampler(UnityEngine.GameObject target,UnityEngine.Animator animator,UnityEngine.AnimationClip clip){proxy=target;this.clip=clip;LastProxy=target;if(FailConstruction)throw new InvalidOperationException("fixture graph setup/cleanup failure");}
         internal void Sample(float seconds)=>clip.SampleAnimation(proxy,seconds);
-        public void Dispose(){}
+        public void Dispose(){if(FailDisposal)throw new InvalidOperationException("fixture graph disposal failure");}
     }
     public sealed class Logger {public void LogWarning(string value){} }
     public static class Plugin {public static Logger LogSource=new();}

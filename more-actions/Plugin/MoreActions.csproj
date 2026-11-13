@@ -36,6 +36,7 @@
     <Compile Include="Import/ActionAssets.cs" />
     <Compile Include="Import/NativeAudioLoad.cs" />
     <Compile Include="Rig/ActionPose.cs" />
+    <Compile Include="Rig/ActionSamplingRigPool.cs" />
     <Compile Include="Rig/ActionBodyPoseLease.cs" />
     <Compile Include="Import/ActionBundleImport.cs" />
     <Compile Include="Diagnostics/ActionCancellationDiagnostics.cs" />

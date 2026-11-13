@@ -137,10 +137,96 @@ try { _=new ActionPose(failing,new LoadedAction{Definition=new(){WriteFaceMorphs
 catch(Exception){failed=true;}
 Check(failed&&Rotation(failHead,10)&&failAnimator.cullingMode==AnimatorCullingMode.CullUpdateTransforms,"Failed construction releases body ownership and restores native culling without leaving a partial head pose");
 
+ActionSamplingRigPool.Clear();
+foreach(bool native in new[]{false,true})
+{
+    var pooled=Avatar();var head=pooled.transform.Find(headPath);var hip=pooled.transform.Find(hipPath);
+    GameObject firstProxy=null,secondProxy=null;
+    var first=new ActionPose(pooled,new LoadedAction{Definition=new(){WriteFaceMorphs=false},Clip=new(){Evaluate=(proxy,time)=>{
+        firstProxy=proxy;proxy.transform.Find(headPath).localScale=new(3,3,3);proxy.transform.Find(headPath).gameObject.SetActive(false);
+        proxy.transform.Find(hipPath).localPosition+=new Vector3(0,time*.1f,0);
+    }}},native);
+    first.Apply(1);first.Dispose();
+    Check(!firstProxy.Destroyed&&!firstProxy.activeSelf,"Stopping returns the complete private sampling tree as an inactive pooled proxy");
+    int created=GameObject.CreatedCount;
+    head.localRotation=Quaternion.AngleAxis(27,Vector3.up);head.localScale=new(1.2f,1.1f,1);
+    hip.localPosition=new(0,1.4f,0);pooled.transform.rotation=Quaternion.AngleAxis(65,Vector3.up);
+    using(var second=new ActionPose(pooled,new LoadedAction{Definition=new(){WriteFaceMorphs=false},Clip=new(){Evaluate=(proxy,_)=>secondProxy=proxy}},native))
+    {
+        Check(ReferenceEquals(firstProxy,secondProxy)&&GameObject.CreatedCount==created,"Repeated playback on one avatar reuses its full tree without creating GameObjects");
+        second.Apply(0);
+        Check(Rotation(head,27)&&Vector3.Distance(hip.localPosition,new(0,1.4f,0))<.0001f,"Reused sampling trees refresh the current pose and hip baseline instead of freezing first-play values");
+        Check(Vector3.Distance(secondProxy.transform.Find(headPath).localScale,new(1.2f,1.1f,1))<.0001f&&secondProxy.transform.Find(headPath).gameObject.activeSelf,"A previous clip's sampled scale or activation cannot leak into the next playback");
+        Check(second.RootDisplacement.sqrMagnitude<.000001f&&second.LoopRootDisplacement.sqrMagnitude<.000001f,"A reused proxy does not reuse a previous playback's root displacement");
+        first.Dispose();
+        using var independent=ActionSamplingRigPool.Acquire(pooled,native);
+        Check(independent.Proxy!=secondProxy,"Repeated disposal of an old pose cannot release a proxy now leased by a newer pose");
+    }
+    UnityEngine.Object.Destroy(pooled);ActionSamplingRigPool.Prune();
+    Check(firstProxy.Destroyed,"Destroyed targets release cached sampling proxies on the next lifetime sweep");
+}
+
+var pooledTarget=Avatar();
+using(var first=ActionSamplingRigPool.Acquire(pooledTarget,false))
+using(var second=ActionSamplingRigPool.Acquire(pooledTarget,false))
+{
+    Check(first.Proxy!=second.Proxy,"Concurrent consumers of the same avatar receive independent private trees");
+    first.Sample[headPath].localRotation=Quaternion.AngleAxis(72,Vector3.up);
+    Check(Rotation(second.Sample[headPath],10),"One sampling consumer cannot mutate another consumer's tree");
+}
+GameObject topologyProxy;
+using(var entry=ActionSamplingRigPool.Acquire(pooledTarget,false))topologyProxy=entry.Proxy;
+var accessory=new GameObject("NewAccessory");accessory.transform.SetParent(pooledTarget.transform,false);
+using(var entry=ActionSamplingRigPool.Acquire(pooledTarget,false))
+{
+    Check(entry.Proxy!=topologyProxy&&topologyProxy.Destroyed,"A changed avatar topology invalidates the cached tree");
+    Check(entry.Proxy.transform.Find("NewAccessory")!=null,"A rebuilt tree keeps accessory nodes rather than pruning to the controlled core bones");
+    topologyProxy=entry.Proxy;
+}
+pooledTarget.GetComponent<Animator>().avatar=new UnityEngine.Object();
+using(var entry=ActionSamplingRigPool.Acquire(pooledTarget,false))
+    Check(entry.Proxy!=topologyProxy&&topologyProxy.Destroyed,"Changing the Animator Avatar invalidates the cached model binding");
+UnityEngine.Object.Destroy(pooledTarget);ActionSamplingRigPool.Prune();
+
+var activeTarget=Avatar();var activeEntry=ActionSamplingRigPool.Acquire(activeTarget,false);var activeProxy=activeEntry.Proxy;
+UnityEngine.Object.Destroy(activeTarget);ActionSamplingRigPool.Prune();activeEntry.Dispose();activeEntry.Dispose();
+Check(activeProxy.Destroyed,"The lifetime sweep also releases a destroyed target's currently leased proxy, with safe later return");
+
+var recoverTarget=Avatar();GameObject failedProxy=null,recoveredProxy=null;
+try{_ = new ActionPose(recoverTarget,new LoadedAction{Definition=new(){WriteFaceMorphs=false},Clip=new(){Evaluate=(proxy,_)=>{
+    failedProxy=proxy;proxy.transform.Find(headPath).localScale=new(4,4,4);throw new Exception("sampling fixture failure");
+}}});}catch(Exception){}
+Check(recoverTarget.GetComponent<Animator>().cullingMode==AnimatorCullingMode.CullUpdateTransforms,"A failed initial sample releases native Animator ownership before returning its tree");
+using(var pose=new ActionPose(recoverTarget,new LoadedAction{Definition=new(){WriteFaceMorphs=false},Clip=new(){Evaluate=(proxy,_)=>recoveredProxy=proxy}}))
+{
+    pose.Apply(0);
+    Check(ReferenceEquals(failedProxy,recoveredProxy)&&Rotation(recoverTarget.transform.Find(headPath),10)&&Vector3.Distance(recoveredProxy.transform.Find(headPath).localScale,Vector3.one)<.0001f,"A returned tree can recover from construction failure using a fresh native baseline");
+}
+UnityEngine.Object.Destroy(recoverTarget);ActionSamplingRigPool.Prune();
+
+var brokenGraphTarget=Avatar();var graphPose=new ActionPose(brokenGraphTarget,Motion(new(){WriteFaceMorphs=false}),true);
+var brokenGraphProxy=AnimatorClipSampler.LastProxy;AnimatorClipSampler.FailDisposal=true;bool graphCleanupFailed=false;
+try{graphPose.Dispose();}catch(InvalidOperationException){graphCleanupFailed=true;}finally{AnimatorClipSampler.FailDisposal=false;}
+Check(graphCleanupFailed&&brokenGraphProxy.Destroyed&&brokenGraphTarget.GetComponent<Animator>().cullingMode==AnimatorCullingMode.CullUpdateTransforms,"A graph disposal failure restores native ownership and evicts the possibly contaminated proxy");
+using(var entry=ActionSamplingRigPool.Acquire(brokenGraphTarget,true))Check(entry.Proxy!=brokenGraphProxy,"A graph cleanup failure cannot return a healthy-looking entry to the pool");
+UnityEngine.Object.Destroy(brokenGraphTarget);ActionSamplingRigPool.Prune();
+
+var brokenSetupTarget=Avatar();AnimatorClipSampler.FailConstruction=true;bool graphSetupFailed=false;
+try{_ = new ActionPose(brokenSetupTarget,Motion(new(){WriteFaceMorphs=false}),true);}catch(InvalidOperationException){graphSetupFailed=true;}finally{AnimatorClipSampler.FailConstruction=false;}
+var brokenSetupProxy=AnimatorClipSampler.LastProxy;
+Check(graphSetupFailed&&brokenSetupProxy.Destroyed&&brokenSetupTarget.GetComponent<Animator>().cullingMode==AnimatorCullingMode.CullUpdateTransforms,"A sampler constructor failure evicts its proxy even when internal graph cleanup could not complete");
+using(var entry=ActionSamplingRigPool.Acquire(brokenSetupTarget,true))Check(entry.Proxy!=brokenSetupProxy,"Playback after failed graph construction receives an independent fresh proxy");
+UnityEngine.Object.Destroy(brokenSetupTarget);ActionSamplingRigPool.Prune();
+
 var faceRoot=Avatar();var node=new GameObject("Body.001");node.transform.SetParent(faceRoot.transform,false);
 var face=node.AddComponent<SkinnedMeshRenderer>();face.sharedMesh=new Mesh{ShapeNames=Enumerable.Range(0,473).Select(i=>"shape"+i).ToArray()};
 face.sharedMesh.ShapeNames[0]="vrc.v_aa";face.sharedMesh.ShapeNames[19]="eye_close";
 foreach(var slot in FixedModelFace.MmdMorphs)face.sharedMesh.ShapeNames[slot.Index]=slot.Name;
+int rendererQueries=GameObject.RendererQueries;
+using(var pose=new ActionPose(faceRoot,new LoadedAction{Definition=new(),Clip=new()}))pose.Apply(0);
+int indexReads=face.sharedMesh.IndexReads;
+using(var pose=new ActionPose(faceRoot,new LoadedAction{Definition=new(),Clip=new()}))pose.Apply(0);
+Check(GameObject.RendererQueries==rendererQueries&&face.sharedMesh.IndexReads==indexReads,"Fixed face bindings avoid renderer-tree discovery and repeated named morph lookups on warm playback");
 face.SetBlendShapeWeight(19,30);face.SetBlendShapeWeight(0,5);face.SetBlendShapeWeight(145,75);
 var overlay=new ActionFaceMorphLayer(faceRoot,new());
 Check(!overlay.BindMorph(face,145),"Imported channels cannot bind protected facial-customization slots");
@@ -158,4 +244,5 @@ var veto=new ActionFaceMorphLayer(faceRoot,new(){KeepGameExpressions=false});vet
 Check(face.GetBlendShapeWeight(19)==12&&face.GetBlendShapeWeight(145)==75,"Per-action no-overlay veto remains reversible");
 var optout=new ActionFaceMorphLayer(faceRoot,new(){WriteFaceMorphs=false});optout.Begin();optout.Write(face,19,100);optout.RestoreNativeFace();
 Check(face.GetBlendShapeWeight(19)==12,"Face opt-out cannot write or reset expression channels");
-Console.WriteLine($"PASS {count} assertions: production head/neck/hip pose restoration, latest native baseline, customization, partial ownership and expression cleanup; offline boundaries, not proof of the unreported face symptom.");
+ActionSamplingRigPool.Clear();
+Console.WriteLine($"PASS {count} assertions: pooled full sampling trees, avatar/topology invalidation, independent consumers, fresh playback baselines, shared character preset, optional-bone ownership and expression cleanup; offline boundaries, not proof of rendered game behavior.");

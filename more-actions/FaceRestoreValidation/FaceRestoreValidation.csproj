@@ -6,6 +6,7 @@
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="../Plugin/Rig/ActionPose.cs" Link="ActionPose.cs" />
+    <Compile Include="../Plugin/Rig/ActionSamplingRigPool.cs" Link="ActionSamplingRigPool.cs" />
     <Compile Include="../Plugin/Rig/ActionBodyPoseLease.cs" Link="ActionBodyPoseLease.cs" />
     <Compile Include="../Plugin/Rig/ActionFaceMorphLayer.cs" Link="ActionFaceMorphLayer.cs" />
     <Compile Include="../Plugin/Rig/FixedModelFace.cs" Link="FixedModelFace.cs" />
