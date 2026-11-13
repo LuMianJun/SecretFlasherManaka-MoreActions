@@ -829,6 +829,7 @@ protectedLayer.Begin();protectedLayer.Write(protectedFace.renderer,55,100);prote
 Check(protectedFace.renderer.GetBlendShapeWeight(55)==71&&protectedFace.renderer.GetBlendShapeWeight(145)==72&&protectedFace.renderer.GetBlendShapeWeight(373)==73,"Eye/lash customization remains intact");
 protectedLayer.RestoreNativeFace();ActionFaceSettings.KeepGameExpressions=true;MmdRigCache.Clear();
 
+LegSolverRegression.Run(Check,positions,args.Length>0?Path.GetFullPath(args[0]):null);
 Console.WriteLine($"PASS {checks} assertions: production topology/parser/retargeter/cache/async pump; synthetic scene math boundary, not rendered game verification");
 
 }

@@ -123,7 +123,7 @@ internal static class GameMmdSkeleton
             // Bind poses can already contain several degrees of knee bend.
             // Reserve that angle so the physical chain stays below 180 degrees.
             var upper=knee-leg;var lower=foot-knee;
-            float restBend=(float)(System.Math.Atan2(NVector.Cross(upper,lower).X,NVector.Dot(upper,lower))*180/System.Math.PI);
+            float restBend=(float)(System.Math.Atan2(NVector.Cross(upper,lower).X,(double)upper.Y*lower.Y+(double)upper.Z*lower.Z)*180/System.Math.PI);
             float kneeMinimum=(float)System.Math.Clamp(.1-restBend,-179.9,179.8);
             float kneeMaximum=(float)System.Math.Clamp(179.9-restBend,1,179.9);
             rig.iks.Add(new MmdSkeleton.Ik { target = Index(side + "足ＩＫ"), effector = Index(side + "足首"), links = new[] { Index(side + "ひざ"), Index(side + "足") }, iterations = 40, limit = 45f, limitKnee = true, kneeMax = kneeMaximum, kneeMin = kneeMinimum });

@@ -58,8 +58,7 @@ public sealed class MmdSkeleton : IDisposable
             if(!bones[ik.target].name.Contains("足")&&!bones[ik.target].name.Contains("つま先"))continue;
             if(!motion.tracks.ContainsKey(bones[ik.target].name)||!motion.IkEnabled(bones[ik.target].name,(int)frame))continue;
             var target=bones[ik.target].node;var effector=bones[ik.effector].node;
-            if(ik.limitKnee)foreach(var index in ik.links)
-                if(bones[index].name.Contains("ひざ"))bones[index].node.localRotation=LimitKnee(bones[index].node.localRotation,Quaternion.identity,ik.kneeMax,ik.kneeMin);
+            if(ik.limitKnee) { SolveLeg(ik,target,effector); continue; }
             for(int iteration=0;iteration<Math.Min(ik.iterations,80);iteration++)
             {
                 bool moved=false;
@@ -67,7 +66,10 @@ public sealed class MmdSkeleton : IDisposable
                 {
                     var link=bones[index].node;var inv=Quaternion.Inverse(link.rotation);
                     var a=(inv*(effector.position-link.position)).normalized;var b=(inv*(target.position-link.position)).normalized;
-                    var angle=Vector3.Angle(a,b);if(angle<0.001f)continue;var axis=Vector3.Cross(a,b).normalized;if(axis.sqrMagnitude<0.001f)continue;
+                    var cross=Vector3.Cross(a,b);var sine=cross.magnitude;
+                    var angle=(float)(Math.Atan2(sine,Vector3.Dot(a,b))*180/Math.PI);
+                    if(angle<0.001f)continue;
+                    var axis=sine>1e-8f?cross/sine:Perpendicular(a,new Vector3(1,0,0));
                     var previous=link.localRotation;
                     var candidate=(previous*Quaternion.AngleAxis(Math.Min(angle,ik.limit),axis)).normalized;
                     if(bones[index].name.Contains("ひざ"))
@@ -81,6 +83,82 @@ public sealed class MmdSkeleton : IDisposable
                 if(!moved||Vector3.Distance(effector.position,target.position)<0.001f)break;
             }
         }
+    }
+
+    // Solve the hinge analytically from this frame's sampled geometry. Limited
+    // CCD can stop near a straight knee when acos(dot) rounds a small step to
+    // zero; starting each frame from FK then selects inconsistent branches.
+    // The X components are retained, so an oblique bind segment is not silently
+    // treated as a planar triangle. No positions, scales or targets are changed.
+    void SolveLeg(Ik ik,Transform target,Transform effector)
+    {
+        if(ik.links.Length!=2)throw new InvalidOperationException("Leg IK needs two links");
+        var knee=bones[ik.links[0]].node;var thigh=bones[ik.links[1]].node;
+        if(knee.parent!=thigh||effector.parent!=knee)throw new InvalidOperationException("Leg IK hierarchy mismatch");
+        var upper=knee.localPosition;var lower=effector.localPosition;
+        var delta=target.position-thigh.position;
+        double requested=delta.magnitude;
+        double a=(double)upper.y*lower.y+(double)upper.z*lower.z;
+        double b=(double)upper.z*lower.y-(double)upper.y*lower.z;
+        double radius=Math.Sqrt(a*a+b*b);
+        double constant=(double)upper.x*upper.x+(double)upper.y*upper.y+(double)upper.z*upper.z
+            +(double)lower.x*lower.x+(double)lower.y*lower.y+(double)lower.z*lower.z+2d*upper.x*lower.x;
+        double phase=Math.Atan2(b,a);
+        double minimum=ik.kneeMin*Math.PI/180,maximum=ik.kneeMax*Math.PI/180;
+        double authored=2*Math.Atan2(knee.localRotation.x,knee.localRotation.w);
+        authored=Math.Clamp(Math.IEEERemainder(authored,2*Math.PI),minimum,maximum);
+        double best=authored,bestError=double.PositiveInfinity,bestChange=double.PositiveInfinity;
+        void Candidate(double angle)
+        {
+            angle=Math.Clamp(angle,minimum,maximum);
+            double length=Math.Sqrt(Math.Max(0,constant+2*(a*Math.Cos(angle)+b*Math.Sin(angle))));
+            double error=Math.Abs(length-requested),change=Math.Abs(angle-authored);
+            if(error<bestError-1e-10||Math.Abs(error-bestError)<=1e-10&&change<bestChange)
+            { best=angle;bestError=error;bestChange=change; }
+        }
+        Candidate(minimum);Candidate(maximum);Candidate(authored);
+        if(radius>1e-12)
+        {
+            double bend=Math.Acos(Math.Clamp((requested*requested-constant)/(2*radius),-1,1));
+            // Include extrema for limits crossing a turning point, not just
+            // the usual forward-bending branch. The nearest radius is reachable.
+            for(int turn=-2;turn<=2;turn++)
+            {
+                Candidate(phase+bend+turn*2*Math.PI);Candidate(phase-bend+turn*2*Math.PI);
+                double extremum=phase+turn*Math.PI;
+                if(extremum>=minimum&&extremum<=maximum)Candidate(extremum);
+            }
+        }
+        var hint=thigh.rotation*new Vector3(1,0,0);
+        knee.localRotation=Quaternion.AngleAxis((float)(best*180/Math.PI),new Vector3(1,0,0));
+        var current=effector.position-thigh.position;
+        if(current.sqrMagnitude>1e-16f&&delta.sqrMagnitude>1e-16f)
+            thigh.rotation=(Aim(current,delta,hint)*thigh.rotation).normalized;
+    }
+
+    static Vector3 Perpendicular(Vector3 direction,Vector3 hint)
+    {
+        var axis=hint-direction*Vector3.Dot(hint,direction);
+        if(axis.sqrMagnitude<1e-10f)
+        {
+            var alternate=Math.Abs(direction.y)<.9f?Vector3.up:new Vector3(0,0,1);
+            axis=alternate-direction*Vector3.Dot(alternate,direction);
+        }
+        return axis/axis.magnitude;
+    }
+
+    static Quaternion Aim(Vector3 from,Vector3 to,Vector3 hinge)
+    {
+        from/=from.magnitude;to/=to.magnitude;
+        var cross=Vector3.Cross(from,to);float sine=cross.magnitude;
+        float dot=Vector3.Dot(from,to);
+        // Carry the sampled thigh and knee plane by the shortest swing. An
+        // extra twist to restore the original projected hinge can reverse the
+        // knee while leaving the ankle exactly on its goal (large leg turns).
+        // A true half turn has no unique shortest axis: use the sampled hinge
+        // only in that degenerate case, without imposing it on ordinary poses.
+        return sine>1e-8f?Quaternion.AngleAxis((float)(Math.Atan2(sine,dot)*180/Math.PI),cross/sine)
+            :dot<0?Quaternion.AngleAxis(180,Perpendicular(from,hinge)):Quaternion.identity;
     }
 
     // Project onto the actual hinge and unwrap around the previous CCD step.
