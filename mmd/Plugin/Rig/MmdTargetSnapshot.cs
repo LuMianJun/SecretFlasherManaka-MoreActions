@@ -14,6 +14,7 @@ internal sealed class MmdTargetSnapshot
     internal Transform Root, Armature;
     internal readonly Dictionary<string, Transform> Bones = new();
     internal readonly Dictionary<string, Matrix4x4> Rest = new();
+    internal readonly Dictionary<string, Vector3> ReferencePositions = new();
     internal readonly List<(SkinnedMeshRenderer renderer, Mesh mesh)> Meshes = new();
     internal SkinnedMeshRenderer Face;
     internal readonly Dictionary<string, NVector> Positions = new();
@@ -25,10 +26,13 @@ internal sealed class MmdTargetSnapshot
     internal Vector3 MetricX, MetricY, MetricZ;
     internal Quaternion ArmatureRotation;
     internal MmdTargetSnapshot(GameObject target) { Target = target; }
+    static readonly string[] presetPaths = MotionRig.BonePaths().OrderBy(p=>p.Count(c=>c=='/')).ThenBy(p=>p,StringComparer.Ordinal).ToArray();
+    static readonly HashSet<string> requiredPaths = MotionRig.RequiredBonePaths().ToHashSet(StringComparer.Ordinal);
 
     sealed class BindLayout
     {
         internal Mesh Mesh;
+        internal string[] Slots=Array.Empty<string>();
         internal readonly List<(string Path,int Index,Matrix4x4 Matrix)> Bones=new();
     }
     static readonly Dictionary<int,BindLayout> bindLayouts=new();
@@ -46,11 +50,10 @@ internal sealed class MmdTargetSnapshot
         MetricZ=inverseHeading*(Vector3)rootWorld.GetColumn(2);
         var resolved = new Dictionary<string, Transform> { ["Armature"] = Armature };
         var scopes = new Dictionary<int, Dictionary<string, List<Transform>>>();
-        var scales = new List<float>();
-        var paths = MotionRig.BonePaths().Concat(new[] { "Armature/Hips/UpperLeg_L/LowerLeg_L/Foot_L/Toe_L", "Armature/Hips/UpperLeg_R/LowerLeg_R/Foot_R/Toe_R" }).OrderBy(p => p.Count(c => c == '/')).ThenBy(p => p, StringComparer.Ordinal);
-        foreach (var path in paths)
+        foreach (var path in presetPaths)
         {
-            int slash = path.LastIndexOf('/'); var parent = resolved[path.Substring(0, slash)];
+            int slash = path.LastIndexOf('/');
+            if(!resolved.TryGetValue(path.Substring(0,slash),out var parent))continue;
             int id = parent.GetInstanceID();
             if (!scopes.TryGetValue(id, out var children))
             {
@@ -81,20 +84,14 @@ internal sealed class MmdTargetSnapshot
             string name = path.Substring(slash + 1);
             if (!children.TryGetValue(name, out var matches))
             {
-                if (name.StartsWith("Toe", StringComparison.Ordinal)) continue;
+                if (!requiredPaths.Contains(path))continue;
                 throw new ArgumentException("Required live body bone missing: " + path);
             }
             if (matches.Count != 1) throw new ArgumentException("Ambiguous body bone: " + path);
-            var selected = matches[0]; var bodyScale = Vector3.one;
-            for (var wrapper = selected.parent; wrapper != parent; wrapper = wrapper.parent)
-            {
-                if (wrapper == null || wrapper.name != "PlayerBoneScaleAdjuster") throw new ArgumentException("Unexpected body bone ancestor: " + path);
-                var s = wrapper.localScale; bodyScale = new Vector3 { x = bodyScale.x * s.x, y = bodyScale.y * s.y, z = bodyScale.z * s.z };
-            }
-            scales.Add(bodyScale.x); scales.Add(bodyScale.y); scales.Add(bodyScale.z);
+            var selected = matches[0];
             Bones.Add(path, selected); resolved.Add(path, selected); yield return 0;
         }
-        var byId = Bones.ToDictionary(p => p.Value.GetInstanceID(), p => p.Key);
+        var byId=Bones.ToDictionary(p=>p.Value.GetInstanceID(),p=>p.Key);
         // The two original model paths supply bind poses. Never walk clothing,
         // physics bones or other meshes to discover renderers / morph names.
         foreach(string meshPath in new[]{"Body.001","Selestia_body"})
@@ -104,23 +101,30 @@ internal sealed class MmdTargetSnapshot
             var mesh=renderer.sharedMesh;Meshes.Add((renderer,mesh));
             var bones=renderer.bones;
             if(bones==null)continue;
+            // Validate the complete path/index layout, including previously
+            // unmapped slots. A later optional binding must not be hidden by
+            // a cache entry that only recorded its old supported subset.
+            var slots=new string[bones.Length];
+            for(int i=0;i<bones.Length;i++)
+            {
+                var bone=bones[i];
+                if(bone!=null&&byId.TryGetValue(bone.GetInstanceID(),out var path))slots[i]=path;
+                if(i%8==0)yield return 0;
+            }
             int id=mesh.GetInstanceID();
-            bool cached=bindLayouts.TryGetValue(id,out var layout)&&layout.Mesh==mesh;
-            if(cached)foreach(var entry in layout.Bones)
-                if(entry.Index>=bones.Length||!Bones.TryGetValue(entry.Path,out var live)||bones[entry.Index]!=live){cached=false;break;}
+            bool cached=bindLayouts.TryGetValue(id,out var layout)&&layout.Mesh==mesh&&layout.Slots.SequenceEqual(slots);
             if(!cached)
             {
                 var bind=mesh.bindposes;
                 if(bind==null||bones.Length!=bind.Length)continue;
-                layout=new BindLayout{Mesh=mesh};
+                layout=new BindLayout{Mesh=mesh,Slots=slots};
                 for(int i=0;i<bones.Length;i++)
                 {
-                    var bone=bones[i];
-                    if(bone!=null&&byId.TryGetValue(bone.GetInstanceID(),out var path))layout.Bones.Add((path,i,bind[i].inverse));
+                    if(slots[i]!=null)layout.Bones.Add((slots[i],i,bind[i].inverse));
                     if(i%8==0)yield return 0;
                 }
-                if(bindLayouts.Count>16)
-                    foreach(int dead in bindLayouts.Where(p=>p.Value.Mesh==null).Select(p=>p.Key).ToArray())bindLayouts.Remove(dead);
+                foreach(int dead in bindLayouts.Where(p=>p.Value.Mesh==null).Select(p=>p.Key).ToArray())bindLayouts.Remove(dead);
+                if(bindLayouts.Count>=16)bindLayouts.Remove(bindLayouts.Keys.First());
                 bindLayouts[id]=layout;
             }
             var rootToMesh=Matrix4x4.TRS(node.localPosition,node.localRotation,node.localScale);
@@ -128,18 +132,19 @@ internal sealed class MmdTargetSnapshot
                 if(!Rest.ContainsKey(entry.Path))Rest.Add(entry.Path,rootToMesh*entry.Matrix);
             yield return 0;
         }
-        foreach (var path in MotionRig.BonePaths()) if (!Rest.ContainsKey(path)) throw new ArgumentException("Target bind pose missing: " + path);
+        foreach (var path in requiredPaths) if (!Rest.ContainsKey(path)) throw new ArgumentException("Target bind pose missing: " + path);
         var values = new List<float>();
-        foreach (var pair in Rest.OrderBy(p => p.Key, StringComparer.Ordinal))
+        foreach(var path in presetPaths)
         {
-            for (int c = 0; c < 4; c++) { Vector3 v = pair.Value.GetColumn(c); values.Add(v.x); values.Add(v.y); values.Add(v.z); }
-            Vector3 local = pair.Value.GetColumn(3);
+            if(!Rest.TryGetValue(path,out var matrix))continue;
+            for(int c=0;c<4;c++){Vector3 v=matrix.GetColumn(c);values.Add(v.x);values.Add(v.y);values.Add(v.z);}
+            Vector3 local=matrix.GetColumn(3);
+            ReferencePositions.Add(path,local);
             Vector3 p=MetricX*local.x+MetricY*local.y+MetricZ*local.z;
-            Positions.Add(pair.Key, new NVector(p.x, p.y, p.z)); yield return 0;
+            Positions.Add(path, new NVector(p.x, p.y, p.z)); yield return 0;
         }
         values.AddRange(new[] { ArmaturePosition.x, ArmaturePosition.y, ArmaturePosition.z, ArmatureRotation.x, ArmatureRotation.y, ArmatureRotation.z, ArmatureRotation.w, ArmatureScale.x, ArmatureScale.y, ArmatureScale.z });
         values.AddRange(new[] { MetricX.x,MetricX.y,MetricX.z,MetricY.x,MetricY.y,MetricY.z,MetricZ.x,MetricZ.y,MetricZ.z });
-        values.AddRange(scales);
         if (values.Any(v => !float.IsFinite(v))) throw new ArgumentException("Nonfinite target shape");
         Shape = values.ToArray(); ShapePaths = string.Join("|", Rest.Keys.OrderBy(p => p, StringComparer.Ordinal));
     }

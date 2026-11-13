@@ -1,0 +1,421 @@
+{
+  "Schema": 1,
+  "Bones": [
+    {
+      "Path": "Armature/Hips",
+      "Required": true,
+      "Source": "下半身"
+    },
+    {
+      "Path": "Armature/Hips/Spine",
+      "Required": true,
+      "Source": "上半身"
+    },
+    {
+      "Path": "Armature/Hips/Spine/Chest",
+      "Required": true,
+      "Source": "上半身3"
+    },
+    {
+      "Path": "Armature/Hips/Spine/Chest/Neck",
+      "Required": true,
+      "Source": "首"
+    },
+    {
+      "Path": "Armature/Hips/Spine/Chest/Neck/Head",
+      "Required": true,
+      "Source": "頭"
+    },
+    {
+      "Path": "Armature/Hips/Spine/Chest/Shoulder_L",
+      "Required": true,
+      "Source": "左肩"
+    },
+    {
+      "Path": "Armature/Hips/Spine/Chest/Shoulder_L/UpperArm_L",
+      "Required": true,
+      "Source": "左腕",
+      "Fallback": {
+        "WhenMissing": "Armature/Hips/Spine/Chest/Shoulder_L/UpperArm_L/UpperArm_twist_L",
+        "Source": "左腕捩"
+      }
+    },
+    {
+      "Path": "Armature/Hips/Spine/Chest/Shoulder_L/UpperArm_L/LowerArm_L",
+      "Required": true,
+      "Source": "左ひじ",
+      "Fallback": {
+        "WhenMissing": "Armature/Hips/Spine/Chest/Shoulder_L/UpperArm_L/LowerArm_L/LowerArm_twist_L",
+        "Source": "左手捩"
+      }
+    },
+    {
+      "Path": "Armature/Hips/Spine/Chest/Shoulder_L/UpperArm_L/LowerArm_L/Hand_L",
+      "Required": true,
+      "Source": "左手首"
+    },
+    {
+      "Path": "Armature/Hips/UpperLeg_L",
+      "Required": true,
+      "Source": "左足D"
+    },
+    {
+      "Path": "Armature/Hips/UpperLeg_L/LowerLeg_L",
+      "Required": true,
+      "Source": "左ひざD"
+    },
+    {
+      "Path": "Armature/Hips/UpperLeg_L/LowerLeg_L/Foot_L",
+      "Required": true,
+      "Source": "左足首D"
+    },
+    {
+      "Path": "Armature/Hips/Spine/Chest/Shoulder_L/UpperArm_L/LowerArm_L/Hand_L/ThumbProximal_L",
+      "Required": true,
+      "Source": "左親指０"
+    },
+    {
+      "Path": "Armature/Hips/Spine/Chest/Shoulder_L/UpperArm_L/LowerArm_L/Hand_L/ThumbProximal_L/ThumbIntermediate_L",
+      "Required": true,
+      "Source": "左親指１"
+    },
+    {
+      "Path": "Armature/Hips/Spine/Chest/Shoulder_L/UpperArm_L/LowerArm_L/Hand_L/ThumbProximal_L/ThumbIntermediate_L/ThumbDistal_L",
+      "Required": true,
+      "Source": "左親指２"
+    },
+    {
+      "Path": "Armature/Hips/Spine/Chest/Shoulder_L/UpperArm_L/LowerArm_L/Hand_L/IndexProximal_L",
+      "Required": true,
+      "Source": "左人指１"
+    },
+    {
+      "Path": "Armature/Hips/Spine/Chest/Shoulder_L/UpperArm_L/LowerArm_L/Hand_L/IndexProximal_L/IndexIntermediate_L",
+      "Required": true,
+      "Source": "左人指２"
+    },
+    {
+      "Path": "Armature/Hips/Spine/Chest/Shoulder_L/UpperArm_L/LowerArm_L/Hand_L/IndexProximal_L/IndexIntermediate_L/IndexDistal_L",
+      "Required": true,
+      "Source": "左人指３"
+    },
+    {
+      "Path": "Armature/Hips/Spine/Chest/Shoulder_L/UpperArm_L/LowerArm_L/Hand_L/MiddleProximal_L",
+      "Required": true,
+      "Source": "左中指１"
+    },
+    {
+      "Path": "Armature/Hips/Spine/Chest/Shoulder_L/UpperArm_L/LowerArm_L/Hand_L/MiddleProximal_L/MiddleIntermediate_L",
+      "Required": true,
+      "Source": "左中指２"
+    },
+    {
+      "Path": "Armature/Hips/Spine/Chest/Shoulder_L/UpperArm_L/LowerArm_L/Hand_L/MiddleProximal_L/MiddleIntermediate_L/MiddleDistal_L",
+      "Required": true,
+      "Source": "左中指３"
+    },
+    {
+      "Path": "Armature/Hips/Spine/Chest/Shoulder_L/UpperArm_L/LowerArm_L/Hand_L/RingProximal_L",
+      "Required": true,
+      "Source": "左薬指１"
+    },
+    {
+      "Path": "Armature/Hips/Spine/Chest/Shoulder_L/UpperArm_L/LowerArm_L/Hand_L/RingProximal_L/RingIntermediate_L",
+      "Required": true,
+      "Source": "左薬指２"
+    },
+    {
+      "Path": "Armature/Hips/Spine/Chest/Shoulder_L/UpperArm_L/LowerArm_L/Hand_L/RingProximal_L/RingIntermediate_L/RingDistal_L",
+      "Required": true,
+      "Source": "左薬指３"
+    },
+    {
+      "Path": "Armature/Hips/Spine/Chest/Shoulder_L/UpperArm_L/LowerArm_L/Hand_L/LittleProximal_L",
+      "Required": true,
+      "Source": "左小指１"
+    },
+    {
+      "Path": "Armature/Hips/Spine/Chest/Shoulder_L/UpperArm_L/LowerArm_L/Hand_L/LittleProximal_L/LittleIntermediate_L",
+      "Required": true,
+      "Source": "左小指２"
+    },
+    {
+      "Path": "Armature/Hips/Spine/Chest/Shoulder_L/UpperArm_L/LowerArm_L/Hand_L/LittleProximal_L/LittleIntermediate_L/LittleDistal_L",
+      "Required": true,
+      "Source": "左小指３"
+    },
+    {
+      "Path": "Armature/Hips/Spine/Chest/Shoulder_R",
+      "Required": true,
+      "Source": "右肩"
+    },
+    {
+      "Path": "Armature/Hips/Spine/Chest/Shoulder_R/UpperArm_R",
+      "Required": true,
+      "Source": "右腕",
+      "Fallback": {
+        "WhenMissing": "Armature/Hips/Spine/Chest/Shoulder_R/UpperArm_R/UpperArm_twist_R",
+        "Source": "右腕捩"
+      }
+    },
+    {
+      "Path": "Armature/Hips/Spine/Chest/Shoulder_R/UpperArm_R/LowerArm_R",
+      "Required": true,
+      "Source": "右ひじ",
+      "Fallback": {
+        "WhenMissing": "Armature/Hips/Spine/Chest/Shoulder_R/UpperArm_R/LowerArm_R/LowerArm_twist_R",
+        "Source": "右手捩"
+      }
+    },
+    {
+      "Path": "Armature/Hips/Spine/Chest/Shoulder_R/UpperArm_R/LowerArm_R/Hand_R",
+      "Required": true,
+      "Source": "右手首"
+    },
+    {
+      "Path": "Armature/Hips/UpperLeg_R",
+      "Required": true,
+      "Source": "右足D"
+    },
+    {
+      "Path": "Armature/Hips/UpperLeg_R/LowerLeg_R",
+      "Required": true,
+      "Source": "右ひざD"
+    },
+    {
+      "Path": "Armature/Hips/UpperLeg_R/LowerLeg_R/Foot_R",
+      "Required": true,
+      "Source": "右足首D"
+    },
+    {
+      "Path": "Armature/Hips/Spine/Chest/Shoulder_R/UpperArm_R/LowerArm_R/Hand_R/ThumbProximal_R",
+      "Required": true,
+      "Source": "右親指０"
+    },
+    {
+      "Path": "Armature/Hips/Spine/Chest/Shoulder_R/UpperArm_R/LowerArm_R/Hand_R/ThumbProximal_R/ThumbIntermediate_R",
+      "Required": true,
+      "Source": "右親指１"
+    },
+    {
+      "Path": "Armature/Hips/Spine/Chest/Shoulder_R/UpperArm_R/LowerArm_R/Hand_R/ThumbProximal_R/ThumbIntermediate_R/ThumbDistal_R",
+      "Required": true,
+      "Source": "右親指２"
+    },
+    {
+      "Path": "Armature/Hips/Spine/Chest/Shoulder_R/UpperArm_R/LowerArm_R/Hand_R/IndexProximal_R",
+      "Required": true,
+      "Source": "右人指１"
+    },
+    {
+      "Path": "Armature/Hips/Spine/Chest/Shoulder_R/UpperArm_R/LowerArm_R/Hand_R/IndexProximal_R/IndexIntermediate_R",
+      "Required": true,
+      "Source": "右人指２"
+    },
+    {
+      "Path": "Armature/Hips/Spine/Chest/Shoulder_R/UpperArm_R/LowerArm_R/Hand_R/IndexProximal_R/IndexIntermediate_R/IndexDistal_R",
+      "Required": true,
+      "Source": "右人指３"
+    },
+    {
+      "Path": "Armature/Hips/Spine/Chest/Shoulder_R/UpperArm_R/LowerArm_R/Hand_R/MiddleProximal_R",
+      "Required": true,
+      "Source": "右中指１"
+    },
+    {
+      "Path": "Armature/Hips/Spine/Chest/Shoulder_R/UpperArm_R/LowerArm_R/Hand_R/MiddleProximal_R/MiddleIntermediate_R",
+      "Required": true,
+      "Source": "右中指２"
+    },
+    {
+      "Path": "Armature/Hips/Spine/Chest/Shoulder_R/UpperArm_R/LowerArm_R/Hand_R/MiddleProximal_R/MiddleIntermediate_R/MiddleDistal_R",
+      "Required": true,
+      "Source": "右中指３"
+    },
+    {
+      "Path": "Armature/Hips/Spine/Chest/Shoulder_R/UpperArm_R/LowerArm_R/Hand_R/RingProximal_R",
+      "Required": true,
+      "Source": "右薬指１"
+    },
+    {
+      "Path": "Armature/Hips/Spine/Chest/Shoulder_R/UpperArm_R/LowerArm_R/Hand_R/RingProximal_R/RingIntermediate_R",
+      "Required": true,
+      "Source": "右薬指２"
+    },
+    {
+      "Path": "Armature/Hips/Spine/Chest/Shoulder_R/UpperArm_R/LowerArm_R/Hand_R/RingProximal_R/RingIntermediate_R/RingDistal_R",
+      "Required": true,
+      "Source": "右薬指３"
+    },
+    {
+      "Path": "Armature/Hips/Spine/Chest/Shoulder_R/UpperArm_R/LowerArm_R/Hand_R/LittleProximal_R",
+      "Required": true,
+      "Source": "右小指１"
+    },
+    {
+      "Path": "Armature/Hips/Spine/Chest/Shoulder_R/UpperArm_R/LowerArm_R/Hand_R/LittleProximal_R/LittleIntermediate_R",
+      "Required": true,
+      "Source": "右小指２"
+    },
+    {
+      "Path": "Armature/Hips/Spine/Chest/Shoulder_R/UpperArm_R/LowerArm_R/Hand_R/LittleProximal_R/LittleIntermediate_R/LittleDistal_R",
+      "Required": true,
+      "Source": "右小指３"
+    },
+    {
+      "Path": "Armature/Hips/Spine/Chest/Shoulder_L/UpperArm_L/UpperArm_twist_L",
+      "Required": false,
+      "Source": "UpperArm_twist_L"
+    },
+    {
+      "Path": "Armature/Hips/Spine/Chest/Shoulder_L/UpperArm_L/LowerArm_L/LowerArm_twist_L",
+      "Required": false,
+      "Source": "LowerArm_twist_L"
+    },
+    {
+      "Path": "Armature/Hips/UpperLeg_L/LowerLeg_L/Foot_L/Toe_L",
+      "Required": false,
+      "Source": "左足先EX"
+    },
+    {
+      "Path": "Armature/Hips/Butt_L",
+      "Required": false,
+      "Source": "Butt_L"
+    },
+    {
+      "Path": "Armature/Hips/Butt_L/Butt_L_end",
+      "Required": false,
+      "Source": "Butt_L_end"
+    },
+    {
+      "Path": "Armature/Hips/Spine/Chest/Neck/Head/Cheek_root_L",
+      "Required": false,
+      "Source": "Cheek_root_L"
+    },
+    {
+      "Path": "Armature/Hips/Spine/Chest/Neck/Head/Cheek_root_L/Cheek_L",
+      "Required": false,
+      "Source": "Cheek_L"
+    },
+    {
+      "Path": "Armature/Hips/Spine/Chest/Neck/Head/Cheek_root_L/Cheek_L/Cheek_L_end",
+      "Required": false,
+      "Source": "Cheek_L_end"
+    },
+    {
+      "Path": "Armature/Hips/Spine/Chest/BreastRotateL",
+      "Required": false,
+      "Source": "BreastRotateL"
+    },
+    {
+      "Path": "Armature/Hips/Spine/Chest/BreastRotateL/Breast_L",
+      "Required": false,
+      "Source": "Breast_L"
+    },
+    {
+      "Path": "Armature/Hips/Spine/Chest/BreastRotateL/Breast_L/Breast_L.001",
+      "Required": false,
+      "Source": "Breast_L.001"
+    },
+    {
+      "Path": "Armature/Hips/Spine/Chest/BreastRotateL/Breast_L/Breast_L.001/Breast_L.001_end",
+      "Required": false,
+      "Source": "Breast_L.001_end"
+    },
+    {
+      "Path": "Armature/Hips/Spine/Chest/Shoulder_R/UpperArm_R/UpperArm_twist_R",
+      "Required": false,
+      "Source": "UpperArm_twist_R"
+    },
+    {
+      "Path": "Armature/Hips/Spine/Chest/Shoulder_R/UpperArm_R/LowerArm_R/LowerArm_twist_R",
+      "Required": false,
+      "Source": "LowerArm_twist_R"
+    },
+    {
+      "Path": "Armature/Hips/UpperLeg_R/LowerLeg_R/Foot_R/Toe_R",
+      "Required": false,
+      "Source": "右足先EX"
+    },
+    {
+      "Path": "Armature/Hips/Butt_R",
+      "Required": false,
+      "Source": "Butt_R"
+    },
+    {
+      "Path": "Armature/Hips/Butt_R/Butt_R_end",
+      "Required": false,
+      "Source": "Butt_R_end"
+    },
+    {
+      "Path": "Armature/Hips/Spine/Chest/Neck/Head/Cheek_root_R",
+      "Required": false,
+      "Source": "Cheek_root_R"
+    },
+    {
+      "Path": "Armature/Hips/Spine/Chest/Neck/Head/Cheek_root_R/Cheek_R",
+      "Required": false,
+      "Source": "Cheek_R"
+    },
+    {
+      "Path": "Armature/Hips/Spine/Chest/Neck/Head/Cheek_root_R/Cheek_R/Cheek_R_end",
+      "Required": false,
+      "Source": "Cheek_R_end"
+    },
+    {
+      "Path": "Armature/Hips/Spine/Chest/BreastRotateR",
+      "Required": false,
+      "Source": "BreastRotateR"
+    },
+    {
+      "Path": "Armature/Hips/Spine/Chest/BreastRotateR/Breast_R",
+      "Required": false,
+      "Source": "Breast_R"
+    },
+    {
+      "Path": "Armature/Hips/Spine/Chest/BreastRotateR/Breast_R/Breast_R.001",
+      "Required": false,
+      "Source": "Breast_R.001"
+    },
+    {
+      "Path": "Armature/Hips/Spine/Chest/BreastRotateR/Breast_R/Breast_R.001/Breast_R.001_end",
+      "Required": false,
+      "Source": "Breast_R.001_end"
+    },
+    {
+      "Path": "Armature/Hips/Saccu_Skirt_root",
+      "Required": false,
+      "Source": "Saccu_Skirt_root"
+    },
+    {
+      "Path": "Armature/Hips/Spine/Chest/Neck/Head/LeftEye",
+      "Required": false,
+      "Source": "左目"
+    },
+    {
+      "Path": "Armature/Hips/Spine/Chest/Neck/Head/RightEye",
+      "Required": false,
+      "Source": "右目"
+    },
+    {
+      "Path": "Armature/Hips/Spine/Chest/Neck/Head/Selestia_hair_root",
+      "Required": false,
+      "Source": "Selestia_hair_root"
+    },
+    {
+      "Path": "Armature/Hips/Spine/Chest/Neck/Head/Tang",
+      "Required": false,
+      "Source": "Tang"
+    },
+    {
+      "Path": "Armature/Hips/Spine/Chest/Neck/Head/Tang/Tang.001",
+      "Required": false,
+      "Source": "Tang.001"
+    },
+    {
+      "Path": "Armature/Hips/Spine/Chest/Neck/Head/Tang/Tang.001/Tang.001_end",
+      "Required": false,
+      "Source": "Tang.001_end"
+    }
+  ]
+}

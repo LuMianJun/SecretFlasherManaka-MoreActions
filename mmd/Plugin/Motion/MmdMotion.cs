@@ -18,6 +18,23 @@ public sealed class MmdMotion
     public readonly Dictionary<string,List<MorphKey>> morphs=new Dictionary<string,List<MorphKey>>();
     readonly Dictionary<string,List<KeyValuePair<uint,bool>>> ikSwitches=new Dictionary<string,List<KeyValuePair<uint,bool>>>();
     public string modelName;public uint lastFrame;
+    internal bool ExactBoneSamples;
+    internal readonly HashSet<string> ResolvedAliases=new(StringComparer.Ordinal);
+    internal MmdMotion BindAliases(IEnumerable<KeyValuePair<string,string>> aliases)
+    {
+        var result=new MmdMotion{modelName=modelName,lastFrame=lastFrame,ExactBoneSamples=ExactBoneSamples};
+        foreach(var p in tracks)result.tracks.Add(p.Key,p.Value);
+        foreach(var p in morphs)result.morphs.Add(p.Key,p.Value);
+        foreach(var p in ikSwitches)result.ikSwitches.Add(p.Key,p.Value);
+        foreach(var group in aliases.GroupBy(p=>p.Key,StringComparer.Ordinal))
+        {
+            var targets=group.Select(p=>p.Value).Distinct().ToArray();
+            if(targets.Length!=1||!tracks.TryGetValue(group.Key,out var keys))continue;
+            if(!result.tracks.ContainsKey(targets[0]))result.tracks.Add(targets[0],keys);
+            result.ResolvedAliases.Add(group.Key);
+        }
+        return result;
+    }
     static string ReadText(BinaryReader r,int size) { var bytes=r.ReadBytes(size); if(bytes.Length!=size)throw new EndOfStreamException(); return Encoding.GetEncoding(932).GetString(bytes).Split('\0')[0]; }
     static bool Finite(float v)=>!float.IsNaN(v)&&!float.IsInfinity(v);
     static void CheckSection(BinaryReader r,uint count,int size) { if(count>2000000||count*(long)size>r.BaseStream.Length-r.BaseStream.Position)throw new InvalidDataException("Truncated or excessive VMD section"); }
@@ -36,7 +53,7 @@ public sealed class MmdMotion
             motion.modelName=ReadText(r,header.EndsWith("0002")?20:10);var count=r.ReadUInt32();CheckSection(r,count,111);
             for(int i=0;i<count;i++)
             {
-                var name=ReadText(r,15);var key=new Key{frame=r.ReadUInt32(),p=new Vector3{x=r.ReadSingle(),y=r.ReadSingle(),z=r.ReadSingle()},q=new Quaternion{x=r.ReadSingle(),y=r.ReadSingle(),z=r.ReadSingle(),w=r.ReadSingle()},interpolation=r.ReadBytes(64)};
+                var name=MmdBoneMap.Normalize(ReadText(r,15));var key=new Key{frame=r.ReadUInt32(),p=new Vector3{x=r.ReadSingle(),y=r.ReadSingle(),z=r.ReadSingle()},q=new Quaternion{x=r.ReadSingle(),y=r.ReadSingle(),z=r.ReadSingle(),w=r.ReadSingle()},interpolation=r.ReadBytes(64)};
                 if(key.interpolation.Length!=64||key.frame>1080000||!Finite(key.p.x)||!Finite(key.p.y)||!Finite(key.p.z)||!Finite(key.q.x)||!Finite(key.q.y)||!Finite(key.q.z)||!Finite(key.q.w)||!Finite(key.q.sqrMagnitude())||key.q.sqrMagnitude()<0.0001f)throw new Exception("Invalid VMD bone key");
                 key.p=ConvertPosition(key.p);key.q=ConvertRotation(key.q);
                 if(!motion.tracks.ContainsKey(name))motion.tracks[name]=new List<Key>();motion.tracks[name].Add(key);motion.lastFrame=Math.Max(motion.lastFrame,key.frame);
@@ -57,7 +74,7 @@ public sealed class MmdMotion
                 for(int i=0;i<count;i++)
                 {
                     var frame=r.ReadUInt32();r.ReadByte();var entries=r.ReadUInt32();CheckSection(r,entries,21);
-                    for(int j=0;j<entries;j++){var name=ReadText(r,20);var enabled=r.ReadByte()!=0;if(!motion.ikSwitches.ContainsKey(name))motion.ikSwitches[name]=new List<KeyValuePair<uint,bool>>();motion.ikSwitches[name].Add(new KeyValuePair<uint,bool>(frame,enabled));}
+                    for(int j=0;j<entries;j++){var name=MmdBoneMap.Normalize(ReadText(r,20));var enabled=r.ReadByte()!=0;if(!motion.ikSwitches.ContainsKey(name))motion.ikSwitches[name]=new List<KeyValuePair<uint,bool>>();motion.ikSwitches[name].Add(new KeyValuePair<uint,bool>(frame,enabled));}
                 }
             }
         }

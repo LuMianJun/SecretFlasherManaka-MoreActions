@@ -7,7 +7,12 @@
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="../Plugin/Motion/MmdMotion.cs" Link="MmdMotion.cs" />
+    <Compile Include="../Plugin/Rig/MmdBoneMap.cs" Link="MmdBoneMap.cs" />
+    <Compile Include="../../more-actions/Plugin/Rig/MotionRig.cs" Link="MotionRig.cs" />
     <Compile Include="../Plugin/Motion/MmdSkeleton.cs" Link="MmdSkeleton.cs" />
     <Compile Include="../SkeletonValidation/UnityBoundary.cs" Link="UnityBoundary.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="../../shared/body-bones.json" Link="body-bones.json" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

@@ -20,9 +20,11 @@ public class MonoBehaviour : Object {public MonoBehaviour(IntPtr pointer) {}}
 public sealed class GameObject : Object
 {
     public static int CreatedCount, RendererQueries;
-    public string name; public HideFlags hideFlags; public readonly Transform transform; readonly List<object> components=[];
+    public string name; public int layer; public HideFlags hideFlags; public readonly Transform transform; readonly List<object> components=[];
     public GameObject(string name) { CreatedCount++; this.name=name; transform=new Transform(this); }
-    public void SetActive(bool active) {}
+    bool active=true;
+    public bool activeInHierarchy=>active&&(transform.parent==null||transform.parent.gameObject.activeInHierarchy);
+    public void SetActive(bool active) {this.active=active;}
     public T AddComponent<T>() where T:new() { var c=new T(); if(c is SkinnedMeshRenderer r) r.transform=transform; components.Add(c); return c; }
     public T GetComponent<T>() where T:class => components.OfType<T>().FirstOrDefault();
     public T[] GetComponentsInChildren<T>(bool includeInactive)
@@ -63,6 +65,12 @@ public sealed class Animator : Object
 }
 public sealed class Mesh : Object
 {
+    public string name="";public bool isReadable=true;
+    Vector3[] vertexData=[];BoneWeight[] weightData=[];
+    public int VertexReads,WeightReads;
+    public Vector3[] vertices {get{VertexReads++;return vertexData;}set{vertexData=value;}}
+    public BoneWeight[] boneWeights {get{WeightReads++;return weightData;}set{weightData=value;}}
+    public int vertexCount=>vertexData.Length;
     Matrix4x4[] binds=[]; public int BindReads,NameReads; public bool ThrowOnNameRead;
     public Matrix4x4[] bindposes {get{BindReads++;return binds;}set{binds=value;}}
     public string[] ShapeNames={"eye_close","vrc.v_aa","vrc.v_ih","vrc.v_ou","vrc.v_e","vrc.v_oh","mouth_a","custom_eye"};
@@ -72,9 +80,21 @@ public sealed class Mesh : Object
 }
 public sealed class SkinnedMeshRenderer : Object
 {
+    public GameObject gameObject=>transform.gameObject;
+    public bool enabled=true,forceRenderingOff,ThrowBake;
+    public int BakeCount;
+    public Vector3[] BakedVertices;
+    public Mesh LastBake;
+    public void BakeMesh(Mesh destination,bool useScale=false)
+    {BakeCount++;LastBake=destination;if(ThrowBake)throw new Exception("Bake fixture failure");if(useScale)throw new Exception("Unexpected double skin scale");destination.vertices=BakedVertices??sharedMesh.vertices.ToArray();}
     public Transform transform; public string name=>transform.name; public Mesh sharedMesh; public Transform[] bones=[]; readonly Dictionary<int,float> weights=[];
     public Matrix4x4 localToWorldMatrix=>transform.localToWorldMatrix;
     public float GetBlendShapeWeight(int i)=>weights.GetValueOrDefault(i); public void SetBlendShapeWeight(int i,float value)=>weights[i]=value;
+}
+public struct BoneWeight
+{
+    public int boneIndex0,boneIndex1,boneIndex2,boneIndex3;
+    public float weight0,weight1,weight2,weight3;
 }
 public readonly struct Keyframe(float time,float value) { public readonly float time=time,value=value; }
 public struct Vector3(float x,float y,float z)
@@ -119,6 +139,7 @@ public readonly struct Matrix4x4(N.Matrix4x4 value)
     public Quaternion rotation { get { N.Matrix4x4.Decompose(value,out _,out var q,out _); return Quaternion.From(q); } }
     public Vector3 GetColumn(int index)=>index switch {0=>new(value.M11,value.M12,value.M13),1=>new(value.M21,value.M22,value.M23),2=>new(value.M31,value.M32,value.M33),3=>new(value.M41,value.M42,value.M43),_=>throw new NotSupportedException()};
     public Vector3 Point(Vector3 p)=>Vector3.From(N.Vector3.Transform(p.N,value)); public Vector3 Vector(Vector3 p)=>Vector3.From(N.Vector3.TransformNormal(p.N,value));
+    public Vector3 MultiplyPoint3x4(Vector3 p)=>Point(p);
 }
 public static class Mathf
 {

@@ -4,13 +4,15 @@ using UnityEngine;
 const string hipPath="Armature/Hips";
 const string neckPath="Armature/Hips/Spine/Chest/Neck";
 const string headPath=neckPath+"/Head";
+const string eyePath=headPath+"/LeftEye";
+const string buttPath=hipPath+"/Butt_L";
 int count=0;
 void Check(bool value,string message){count++;if(!value)throw new Exception(message);}
 bool Rotation(Transform bone,float degrees)=>Quaternion.Angle(bone.localRotation,Quaternion.AngleAxis(degrees,Vector3.up))<.01f;
-GameObject Avatar()
+GameObject Avatar(bool includeOptional=false)
 {
     var root=new GameObject("Avatar");root.AddComponent<Animator>();
-    foreach(var path in MotionRig.BonePaths())
+    foreach(var path in includeOptional?MotionRig.BonePaths():MotionRig.RequiredBonePaths())
     {
         var parent=root.transform;
         foreach(var part in path.Split('/'))
@@ -28,6 +30,61 @@ LoadedAction Motion(ActionDefinition definition)=>new(){Definition=definition,Cl
     proxy.transform.Find(neckPath).localRotation=Quaternion.AngleAxis(55,Vector3.up);
     proxy.transform.Find(hipPath).localPosition+=new Vector3(0,time*.1f,0);
 }}};
+
+var minimal=Avatar();
+Check(MotionSkeleton.ResolveBones(minimal.transform).Count==49,"The original 49-bone model remains sufficient after the preset grows");
+var fullPreset=Avatar(true);
+Check(MotionSkeleton.ResolveBones(fullPreset.transform).Keys.ToHashSet().SetEquals(MotionRig.BonePaths()),"The shared preset resolves every present optional character bone");
+UnityEngine.Object.Destroy(minimal);UnityEngine.Object.Destroy(fullPreset);
+
+foreach(bool native in new[]{false,true})
+{
+    var root=Avatar(true);var eye=root.transform.Find(eyePath);var butt=root.transform.Find(buttPath);
+    var clip=new LoadedAction{Definition=new(){WriteFaceMorphs=false},Clip=new(){Evaluate=(proxy,_)=>{
+        proxy.transform.Find(eyePath).localRotation=Quaternion.AngleAxis(90,Vector3.up);
+        proxy.transform.Find(buttPath).localRotation=Quaternion.AngleAxis(75,Vector3.up);
+    }}};
+    using(var pose=new ActionPose(root,clip,native))
+    {
+        Check(pose.BoneCount==49,"Adding preset paths does not enlarge default clip ownership");
+        foreach(float value in new[]{23f,41f})
+        {
+            pose.BeginNativeBody();eye.localRotation=Quaternion.AngleAxis(value,Vector3.up);butt.localRotation=Quaternion.AngleAxis(value+5,Vector3.up);pose.EndNativeBody(true);
+            pose.Apply(1);
+            Check(Rotation(eye,value)&&Rotation(butt,value+5),"Default clip ownership preserves current native eyes and secondary-bone motion");
+        }
+    }
+    Check(Rotation(eye,41)&&Rotation(butt,46),"Stopping a default clip leaves unowned optional bones untouched");
+    UnityEngine.Object.Destroy(root);
+
+    root=Avatar(true);eye=root.transform.Find(eyePath);butt=root.transform.Find(buttPath);var head=root.transform.Find(headPath);
+    clip=new LoadedAction{Definition=new(){WriteFaceMorphs=false,BonePaths=new[]{eyePath,buttPath}},Clip=new(){Evaluate=(proxy,_)=>{
+        proxy.transform.Find(eyePath).localRotation=Quaternion.AngleAxis(73,Vector3.up);
+        proxy.transform.Find(buttPath).localRotation=Quaternion.AngleAxis(64,Vector3.up);
+    }}};
+    using(var pose=new ActionPose(root,clip,native))
+    {
+        Check(pose.BoneCount==2,"Explicit paths select additional preset bones without claiming the whole body");
+        pose.BeginNativeBody();eye.localRotation=Quaternion.AngleAxis(31,Vector3.up);butt.localRotation=Quaternion.AngleAxis(37,Vector3.up);head.localRotation=Quaternion.AngleAxis(42,Vector3.up);pose.EndNativeBody(true);
+        pose.Apply(1);
+        Check(Rotation(eye,73)&&Rotation(butt,64)&&Rotation(head,42),"Explicit optional bones follow the sampled clip while the unselected head remains native");
+    }
+    Check(Rotation(eye,31)&&Rotation(butt,37)&&Rotation(head,42),"Explicit optional bones restore their latest native baseline on stop");
+    UnityEngine.Object.Destroy(root);
+
+    var missing=Avatar();bool rejected=false;
+    try{using var pose=new ActionPose(missing,Motion(new(){WriteFaceMorphs=false,BonePaths=new[]{eyePath}}),native);}
+    catch(Exception e){rejected=e.Message.Contains("Selected live body bone missing",StringComparison.Ordinal);}
+    Check(rejected&&missing.GetComponent<Animator>().cullingMode==AnimatorCullingMode.CullUpdateTransforms,"An explicitly selected absent optional bone is rejected without acquiring Animator ownership");
+    UnityEngine.Object.Destroy(missing);
+}
+
+var missingRequired=Avatar();var detachedHead=missingRequired.transform.Find(headPath);detachedHead.SetParent(null,false);bool requiredRejected=false;
+try{_ = MotionSkeleton.ResolveBones(missingRequired.transform);}
+catch(Exception e){requiredRejected=e.Message.Contains("Required live body bone missing",StringComparison.Ordinal);}
+Check(requiredRejected,"A missing required body bone is still rejected");
+UnityEngine.Object.Destroy(missingRequired);
+UnityEngine.Object.Destroy(detachedHead.gameObject);
 
 foreach(bool native in new[]{false,true})
 {

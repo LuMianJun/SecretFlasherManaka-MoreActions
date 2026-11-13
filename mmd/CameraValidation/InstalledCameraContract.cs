@@ -82,7 +82,7 @@ internal static class InstalledCameraContract
         Console.WriteLine("PASS ActionDriver IL2CPP injection boundary: only void lifecycle callbacks; managed helpers hidden");
     }
 
-    internal static void Verify(string game, bool withExamplePacks = true)
+    internal static void Verify(string game, bool withExamplePacks = true, string package = null)
     {
         string interop = Path.Combine(game, "BepInEx", "interop", "Assembly-CSharp.dll");
         Check(interop, new()
@@ -107,9 +107,19 @@ internal static class InstalledCameraContract
             ["OptionItemBarView"] = new[] { "Initialize", "OnChangeSlider" },
             ["Localizer"] = new[] { "Trans" }
         });
-        string baseDll = Path.Combine(game, "BepInEx", "plugins", "SFMMoreActions", "SFM.MoreActions.dll");
-        string mmdDll = Path.Combine(game, "BepInEx", "plugins", "SFMVmdProbe", "SFM.VmdProbe.dll");
-        string npcDll = Path.Combine(game, "BepInEx", "plugins", "SFMNpcSpectators", "SFM.NpcSpectators.dll");
+        string baseDll = Path.Combine(package ?? game, "BepInEx", "plugins", "SFMMoreActions", "SFM.MoreActions.dll");
+        string mmdDll = Path.Combine(package ?? game, "BepInEx", "plugins", "SFMVmdProbe", "SFM.VmdProbe.dll");
+        string npcDll = Path.Combine(package ?? game, "BepInEx", "plugins", "SFMNpcSpectators", "SFM.NpcSpectators.dll");
+        string presetFile=Path.Combine(Path.GetDirectoryName(baseDll)!,"body-bones.json");
+        using(var preset=JsonDocument.Parse(File.ReadAllText(presetFile)))
+        {
+            var presetRoot=preset.RootElement;var bones=presetRoot.GetProperty("Bones").EnumerateArray().ToArray();
+            if(presetRoot.GetProperty("Schema").GetInt32()!=1||bones.Length!=80||bones.Count(b=>b.GetProperty("Required").GetBoolean())!=49||
+                bones.Select(b=>b.GetProperty("Path").GetString()).Distinct(StringComparer.Ordinal).Count()!=80||
+                bones.Any(b=>string.IsNullOrWhiteSpace(b.GetProperty("Source").GetString())))
+                throw new Exception("Invalid shared body bone preset: "+presetFile);
+        }
+        Console.WriteLine("PASS shared body-bones.json beside More Actions: 80 paths, 49 core bones and MMD sources");
         VerifyDriverInjectionBoundary(baseDll);
         VerifyPresenceDependency(mmdDll);
         Check(Path.Combine(game,"BepInEx","interop","UnityEngine.AnimationModule.dll"),new()
@@ -128,6 +138,7 @@ internal static class InstalledCameraContract
         VerifyWorkerMethods(mmdDll, "MmdMorphBindings", new[] { "Compose", "IsMouthMorph" });
         VerifyWorkerMethods(mmdDll, "MmdLyricTrack", new[] { "Read" });
         Check(baseDll, new() { ["ActionPlaybackApi"] = new[] { "get_PlaybackPositionSeconds", "add_PoseApplied", "remove_PoseApplied", "add_PlaybackChanged" },
+            ["MotionRig"] = new[] { "Initialize", "BonePaths", "RequiredBonePaths", "MmdSource" },
             ["ActionDriver"] = new[] { "PrepareNativeIdle", "StopWithDiagnostics", "SyncPause" },
             ["ActionCancellationDiagnostics"] = new[] { "Record" },
             ["MotionAudioClock"] = new[] { "SetPaused", "HasStarted", "get_Paused" },
@@ -171,16 +182,19 @@ internal static class InstalledCameraContract
         }
         if (!controllerMove) throw new Exception("Root motion must use CharacterController.Move");
         if (mmdRefs.Contains("UnityEngine.AssetBundleModule") || mmdRefs.Contains("UnityEngine.AnimationModule")) throw new Exception("MMD must use the direct VMD implementation");
+        if (mmdRefs.Contains("UnityEngine.PhysicsModule")) throw new Exception("Retired MMD scene measurement dependency still compiled");
+        var retiredMeasurements=new HashSet<string>(StringComparer.Ordinal){"MmdHandDiagnostics","MmdLegDiagnostics","MmdPoseDiagnostics","MmdHeightDiagnostics","MmdSurfaceDiagnostics","MmdSceneProbe","MmdBoneCatalog"};
         foreach (var typeHandle in m.TypeDefinitions)
         {
             var type = m.GetTypeDefinition(typeHandle);
-            if (m.GetString(type.Name) == "MmdHandDiagnostics") throw new Exception("Temporary hand diagnostics still compiled");
+            if (retiredMeasurements.Contains(m.GetString(type.Name))) throw new Exception("Retired MMD measurement type still compiled: "+m.GetString(type.Name));
             if (type.GetMethods().Any(h => m.GetString(m.GetMethodDefinition(h).Name) == "ReadPmd"))
                 throw new Exception("Retired model parser still compiled");
         }
         foreach (var handle in m.MemberReferences)
         {
             var member = m.GetMemberReference(handle);
+            if (m.GetString(member.Name)=="BakeMesh") throw new Exception("Retired MMD mesh measurement call still compiled");
             if (member.Parent.Kind == HandleKind.TypeReference && m.GetString(m.GetTypeReference((TypeReferenceHandle)member.Parent).Name) == "ActionRegistry" && m.GetString(member.Name) == "Register")
                 throw new Exception("Old MMD bundle registration branch still compiled");
         }
@@ -220,45 +234,61 @@ internal static class InstalledCameraContract
             .Where(f => f.FieldType == typeof(System.Reflection.Emit.OpCode)).Select(f => (System.Reflection.Emit.OpCode)f.GetValue(null)!)
             .ToDictionary(op => unchecked((ushort)op.Value));
         var type = metadata.TypeDefinitions.Select(metadata.GetTypeDefinition).Single(t => metadata.GetString(t.Name) == typeName);
+        var pending = new Queue<(MethodDefinitionHandle Method, string Chain)>();
+        var visited = new HashSet<MethodDefinitionHandle>();
         foreach (string name in methodNames)
         {
-            var methods = type.GetMethods().Select(metadata.GetMethodDefinition).Where(m => metadata.GetString(m.Name) == name).ToArray();
+            var methods = type.GetMethods().Where(h => metadata.GetString(metadata.GetMethodDefinition(h).Name) == name).ToArray();
             if (methods.Length == 0) throw new Exception("Missing worker method " + typeName + "." + name);
-            foreach (var method in methods)
+            foreach (var h in methods) pending.Enqueue((h, typeName + "." + name));
+        }
+        // Follow helpers and ldftn delegate targets too: a direct-call-only check
+        // misses Unity calls inside predicates executed by managed LINQ.
+        while (pending.TryDequeue(out var next))
+        {
+            if (!visited.Add(next.Method)) continue;
+            var method = metadata.GetMethodDefinition(next.Method);
+            if (method.RelativeVirtualAddress == 0) continue;
+            var il = pe.GetMethodBody(method.RelativeVirtualAddress).GetILBytes()!;
+            for (int offset = 0; offset < il.Length;)
             {
-                var il = pe.GetMethodBody(method.RelativeVirtualAddress).GetILBytes()!;
-                for (int offset = 0; offset < il.Length;)
+                ushort code = il[offset++]; if (code == 0xfe) code = (ushort)(0xfe00 | il[offset++]);
+                var op = opcodes[code];
+                int size = op.OperandType switch
                 {
-                    ushort code = il[offset++]; if (code == 0xfe) code = (ushort)(0xfe00 | il[offset++]);
-                    var op = opcodes[code];
-                    int size = op.OperandType switch
+                    System.Reflection.Emit.OperandType.InlineNone => 0,
+                    System.Reflection.Emit.OperandType.ShortInlineBrTarget or System.Reflection.Emit.OperandType.ShortInlineI or System.Reflection.Emit.OperandType.ShortInlineVar => 1,
+                    System.Reflection.Emit.OperandType.InlineVar => 2,
+                    System.Reflection.Emit.OperandType.InlineI8 or System.Reflection.Emit.OperandType.InlineR => 8,
+                    System.Reflection.Emit.OperandType.InlineSwitch => 4 + BitConverter.ToInt32(il, offset) * 4,
+                    _ => 4
+                };
+                if (op.OperandType == System.Reflection.Emit.OperandType.InlineMethod)
+                {
+                    var handle = System.Reflection.Metadata.Ecma335.MetadataTokens.EntityHandle(BitConverter.ToInt32(il, offset));
+                    if (handle.Kind == HandleKind.MethodSpecification)
+                        handle = metadata.GetMethodSpecification((MethodSpecificationHandle)handle).Method;
+                    if (handle.Kind == HandleKind.MethodDefinition)
                     {
-                        System.Reflection.Emit.OperandType.InlineNone => 0,
-                        System.Reflection.Emit.OperandType.ShortInlineBrTarget or System.Reflection.Emit.OperandType.ShortInlineI or System.Reflection.Emit.OperandType.ShortInlineVar => 1,
-                        System.Reflection.Emit.OperandType.InlineVar => 2,
-                        System.Reflection.Emit.OperandType.InlineI8 or System.Reflection.Emit.OperandType.InlineR => 8,
-                        System.Reflection.Emit.OperandType.InlineSwitch => 4 + BitConverter.ToInt32(il, offset) * 4,
-                        _ => 4
-                    };
-                    if (op.OperandType == System.Reflection.Emit.OperandType.InlineMethod)
+                        var called = metadata.GetMethodDefinition((MethodDefinitionHandle)handle);
+                        var owner = metadata.GetTypeDefinition(called.GetDeclaringType());
+                        pending.Enqueue(((MethodDefinitionHandle)handle, next.Chain + " -> " + metadata.GetString(owner.Name) + "." + metadata.GetString(called.Name)));
+                    }
+                    else if (handle.Kind == HandleKind.MemberReference)
                     {
-                        var handle = System.Reflection.Metadata.Ecma335.MetadataTokens.Handle(BitConverter.ToInt32(il, offset));
-                        if (handle.Kind == HandleKind.MemberReference)
+                        var member = metadata.GetMemberReference((MemberReferenceHandle)handle);
+                        if (member.Parent.Kind == HandleKind.TypeReference)
                         {
-                            var member = metadata.GetMemberReference((MemberReferenceHandle)handle);
-                            if (member.Parent.Kind == HandleKind.TypeReference)
-                            {
-                                var owner = metadata.GetTypeReference((TypeReferenceHandle)member.Parent);
-                                if (metadata.GetString(owner.Namespace).StartsWith("UnityEngine", StringComparison.Ordinal))
-                                    throw new Exception("Worker method calls Unity API: " + typeName + "." + name + " -> " + metadata.GetString(owner.Name) + "." + metadata.GetString(member.Name));
-                            }
+                            var owner = metadata.GetTypeReference((TypeReferenceHandle)member.Parent);
+                            if (metadata.GetString(owner.Namespace).StartsWith("UnityEngine", StringComparison.Ordinal))
+                                throw new Exception("Worker method calls Unity API: " + next.Chain + " -> " + metadata.GetString(owner.Name) + "." + metadata.GetString(member.Name));
                         }
                     }
-                    offset += size;
                 }
+                offset += size;
             }
         }
-        Console.WriteLine("PASS worker IL has no Unity method calls: " + typeName + " / " + string.Join(",", methodNames));
+        Console.WriteLine("PASS worker IL helpers/delegates have no Unity method calls: " + typeName + " / " + string.Join(",", methodNames));
     }
     static void Check(string file, Dictionary<string, string[]> contract)
     {

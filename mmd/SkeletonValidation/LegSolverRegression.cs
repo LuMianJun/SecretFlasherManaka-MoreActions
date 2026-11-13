@@ -166,6 +166,7 @@ internal static class LegSolverRegression
             // Frozen poles below predate support for waist-cancel inheritance.
             // Retain their original input hierarchy to keep testing that solver
             // regression; they cannot grade a different authored FK hint.
+            foreach(var b in legacy.bones.Where(b=>b.name.StartsWith("腰キャンセル",StringComparison.Ordinal)))b.append=-1;
             // Frozen diagnostic comparison: 800-step atan2 CCD converged within
             // 0.1mm at these frames. Broad bounds catch the reported large pole
             // deviation; CCD is not the author's original model or exact pose.

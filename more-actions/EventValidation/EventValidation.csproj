@@ -32,4 +32,7 @@
     <Compile Include="../../npc-spectators/Plugin/Integration/ActionEventBridge.cs" Link="ActionEventBridge.cs" />
     <Compile Include="../../npc-spectators/Plugin/Integration/CrowdApi.cs" Link="CrowdApi.cs" />
   </ItemGroup>
+  <ItemGroup>
+    <None Include="../../shared/body-bones.json" Link="body-bones.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
 </Project>

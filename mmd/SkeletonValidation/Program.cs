@@ -6,10 +6,22 @@ using SFM.Mmd;
 try
 {
 Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
+if(args.Length==3&&args[0]=="--solver-audit")
+{SolverAlgorithmAudit.Run(args[1],args[2]);return;}
+if(args.Length==3&&args[0]=="--pose-trace")
+{PoseTraceReplay.Analyze(args[1],args[2]);return;}
 int checks=0;
 void Check(bool ok,string label) { checks++; if(!ok) throw new Exception(label); }
 void Reject(Action action,string label) { bool failed=false; try { action(); } catch { failed=true; } Check(failed,label); }
 bool Finite(Quaternion q)=>float.IsFinite(q.x)&&float.IsFinite(q.y)&&float.IsFinite(q.z)&&float.IsFinite(q.w)&&Math.Abs(q.sqrMagnitude()-1)<.002;
+var presetPaths=MotionRig.BonePaths().ToArray();
+using(var inventory=System.Text.Json.JsonDocument.Parse(File.ReadAllText(Path.Combine(AppContext.BaseDirectory,"body-bones.json"))))
+{
+    var audited=inventory.RootElement.GetProperty("Bones").EnumerateArray().Select(b=>b.GetProperty("Path").GetString()).ToHashSet(StringComparer.Ordinal);
+    Check(audited.SetEquals(presetPaths),"Public bone preset exactly consumes the single shared JSON inventory");
+    Check(presetPaths.Length==audited.Count,"Common bone preset has no duplicate paths");
+    Check(MotionRig.RequiredBonePaths().Count()==49&&MotionRig.RequiredBonePaths().All(MotionRig.IsSupportedPath),"All original required bones remain in the complete preset");
+}
 string[] FixedNames()
 {
     var names=Enumerable.Range(0,FixedModelFace.ShapeCount).Select(i=>"shape"+i).ToArray();
@@ -81,8 +93,8 @@ fixture.renderer.SetBlendShapeWeight(0,37);
 var saved=fixture.bones.ToDictionary(x=>x.Key,x=>x.Value.localRotation); var savedHip=fixture.bones[hips].localPosition;
 using(var pose=new RuntimeVmdPose(fixture.avatar,definition,Motion(),MmdReferencePose.T))
 {
-    Check(pose.BoneCount==49 && pose.Apply(0),"Explicit T reference drives the original 49 body bones without a PMD");
-    foreach(var path in MotionRig.BonePaths()) Check(Quaternion.Angle(fixture.bones[path].rotation,bind[path].rotation)<.1,"Explicit T preserves the previous bind reference despite a different current idle pose");
+    Check(pose.BoneCount==51 && pose.Apply(0),"Explicit T reference drives the original body bones and both toes without a PMD");
+    foreach(var path in MotionRig.RequiredBonePaths()) Check(Quaternion.Angle(fixture.bones[path].rotation,bind[path].rotation)<.1,"Explicit T preserves the previous bind reference despite a different current idle pose");
 }
 foreach(var (path,q) in saved) Check(Quaternion.Angle(fixture.bones[path].localRotation,q)<.1,"Stopping restores this playback's original rotations");
 Check(Vector3.Distance(savedHip,fixture.bones[hips].localPosition)<1e-5 && fixture.renderer.GetBlendShapeWeight(0)==37,"Stopping restores hip and face state");
@@ -829,6 +841,8 @@ protectedLayer.Begin();protectedLayer.Write(protectedFace.renderer,55,100);prote
 Check(protectedFace.renderer.GetBlendShapeWeight(55)==71&&protectedFace.renderer.GetBlendShapeWeight(145)==72&&protectedFace.renderer.GetBlendShapeWeight(373)==73,"Eye/lash customization remains intact");
 protectedLayer.RestoreNativeFace();ActionFaceSettings.KeepGameExpressions=true;MmdRigCache.Clear();
 
+MmdRigCache.Clear();
+BoneMappingRegression.Run(Check,positions,Avatar,args.Length>0?Path.GetFullPath(args[0]):null);
 LegSolverRegression.Run(Check,positions,args.Length>0?Path.GetFullPath(args[0]):null);
 Console.WriteLine($"PASS {checks} assertions: production topology/parser/retargeter/cache/async pump; synthetic scene math boundary, not rendered game verification");
 

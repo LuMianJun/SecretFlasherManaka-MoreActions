@@ -1,5 +1,10 @@
 ﻿# Third-party references
 
+## nanoem semi-standard bone behavior
+
+- [Semi-standard bone plugin source](https://github.com/hkrn/nanoem/blob/main/emapp/plugins/ssb/ssb.cc) and [bone evaluation](https://github.com/hkrn/nanoem/blob/main/emapp/src/model/Bone.cc) were inspected to verify waist/shoulder cancellation, the post-IK D deformation chain, and user-rotation times inherited-rotation ordering.
+- These are behavioral references for the local synthetic skeleton and retargeter. The plugin does not embed nanoem's implementation or model assets. The game toe joint is used as the adapted EX pivot; this does not reproduce another model's forefoot mesh weights.
+
 ## AnimReplacer
 
 Project thread: [Secret Flasher Manaka Anim Replacer](https://f95zone.to/threads/secret-flasher-manaka-anim-replacer.299100/).

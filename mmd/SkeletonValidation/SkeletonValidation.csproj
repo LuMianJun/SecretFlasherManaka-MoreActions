@@ -11,6 +11,7 @@
     <Compile Include="../../more-actions/Plugin/Rig/ActionBodyPoseLease.cs" Link="ActionBodyPoseLease.cs" />
     <Compile Include="../../more-actions/Plugin/Rig/ActionFaceMorphLayer.cs" Link="ActionFaceMorphLayer.cs" />
     <Compile Include="../Plugin/Rig/GameMmdSkeleton.cs" Link="GameMmdSkeleton.cs" />
+    <Compile Include="../Plugin/Rig/MmdBoneMap.cs" Link="MmdBoneMap.cs" />
     <Compile Include="../Plugin/Rig/MmdTargetSnapshot.cs" Link="MmdTargetSnapshot.cs" />
     <Compile Include="../Plugin/Import/MmdPackPreparation.cs" Link="MmdPackPreparation.cs" />
     <Compile Include="../Plugin/Lyrics/MmdLyricTrack.cs" Link="MmdLyricTrack.cs" />
@@ -30,5 +31,8 @@
     <Compile Include="../../more-actions/Plugin/Api/ActionPlaybackApi.cs" Link="ActionPlaybackApi.cs" />
     <Compile Include="../../more-actions/Plugin/Playback/ActionRequestQueue.cs" Link="ActionRequestQueue.cs" />
     <Compile Include="../../more-actions/Plugin/Api/RuntimeActionSource.cs" Link="RuntimeActionSource.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="../../shared/body-bones.json" Link="body-bones.json" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

@@ -14,7 +14,9 @@ public sealed class RuntimeVmdSource : IActionSource, IPreparedActionSource
     readonly MmdMotion faceMotion;
     public float Duration => motion.lastFrame / 30f;
     public int RetainedTracks => motion.tracks.Count;
-    public int IgnoredTracks { get; }
+    public int IgnoredTracks => 0;
+    public int ModelSpecificTracks { get; }
+    public int UnsupportedAnimatedTracks { get; }
     internal string SkeletonKey => MmdRigCache.SkeletonKey(ReferencePose);
     internal MmdReferencePose ReferencePose { get; }
     internal void Prepare(GameObject target) => MmdRigCache.Prepare(target, ReferencePose);
@@ -31,9 +33,11 @@ public sealed class RuntimeVmdSource : IActionSource, IPreparedActionSource
         {
             var names = new HashSet<string>(GameMmdSkeleton.SupportedNames());
             var ignored = motion.tracks.Keys.Where(n => !names.Contains(n)).ToArray();
-            IgnoredTracks = ignored.Length;
-            foreach (var name in ignored) motion.tracks.Remove(name);
-            if (!motion.tracks.Keys.Any(n => n == "上半身" || n == "下半身" || n == "左腕" || n == "右腕")) throw new InvalidDataException("VMD has no supported standard body tracks");
+            ModelSpecificTracks = ignored.Length;
+            UnsupportedAnimatedTracks=ignored.Count(n=>MmdBoneMap.Animated(motion.tracks[n]));
+            // Keep native/model-specific tracks until the actual body mesh is
+            // known. A full binding report follows at CreatePose.
+            global::Plugin.LogSource?.LogInfo("MMD_TRACK_AUDIT file="+vmdPath+" standard="+(motion.tracks.Count-ignored.Length)+" modelSpecific="+ignored.Length+" animatedModelSpecific="+string.Join(",",ignored.Where(n=>MmdBoneMap.Animated(motion.tracks[n])).OrderBy(n=>n,StringComparer.Ordinal)));
         }
     }
     public IActionPose CreatePose(GameObject target, ActionDefinition definition) => new RuntimeVmdPose(target, definition, motion, ReferencePose, faceMotion);

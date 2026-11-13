@@ -21,6 +21,7 @@ public sealed class Plugin : BasePlugin
     public override void Load()
     {
         LogSource = Log;
+        MotionRig.Initialize();
         var packs = Config.Bind("Actions", "Directory", "Actions", "Action pack directory relative to this plugin.");
         Volume = Config.Bind("Audio", "Volume", 1f, "Master custom-action music volume, 0-1, multiplied by pack volume and native sound settings.");
         FollowCamera = Config.Bind("Camera", "FollowFaceCamera", true, "Track the original face camera after the custom pose; preserves native visibility.");

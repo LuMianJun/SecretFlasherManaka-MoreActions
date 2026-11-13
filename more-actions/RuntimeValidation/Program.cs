@@ -22,6 +22,28 @@ try
     Reject(() => ActionRegistry.RegisterRuntime(new ActionDefinition { Id = "escape", DisplayName = "Escape", AudioFile = "../outside.wav" }, source, root, "mmd"), "Runtime audio cannot escape package");
     Reject(() => ActionRegistry.RegisterRuntime(new ActionDefinition { Id = "invalid", DisplayName = "Invalid" }, new Source(float.NaN), root, "mmd"), "Invalid source duration rejected");
     Reject(() => ActionRegistry.RegisterRuntime(new ActionDefinition { Id = "mixed", DisplayName = "Mixed", Bundle = "bundle" }, source, root, "mmd"), "Ambiguous clip/runtime sources rejected");
+    const string eye="Armature/Hips/Spine/Chest/Neck/Head/LeftEye";
+    const string toe="Armature/Hips/UpperLeg_L/LowerLeg_L/Foot_L/Toe_L";
+    const string twist="Armature/Hips/Spine/Chest/Shoulder_L/UpperArm_L/UpperArm_twist_L";
+    ActionRegistry.RegisterRuntime(new(){Id="additional-bones",DisplayName="Additional bones",BonePaths=[eye,toe,twist]},source,root,"mmd");
+    Check(ActionRegistry.Get("additional-bones").BonePaths.SequenceEqual(new[]{eye,toe,twist}),"Ordinary runtime sources can select preset eye, toe and twist bones");
+    int presetIndex=0;
+    foreach(var path in MotionRig.BonePaths())
+    {
+        string id="preset-"+presetIndex++;
+        ActionRegistry.RegisterRuntime(new(){Id=id,DisplayName="Preset bone",BonePaths=[path]},source,root,"mmd");
+        Check(ActionRegistry.Get(id).BonePaths.Single()==path,"Every preset bone is selectable through ordinary runtime registration: "+path);
+    }
+    ActionRegistry.RegisterRuntime(new(){Id="lower-toe",DisplayName="Toe",BonePaths=[toe],BodyMask=ActionBodyMask.LowerBody},source,root,"mmd");
+    Check(ActionRegistry.Get("lower-toe").BonePaths.Single()==toe,"Preset toes remain available to lower-body actions");
+    Reject(()=>ActionRegistry.RegisterRuntime(new(){Id="unknown-bone",DisplayName="Unknown",BonePaths=["Armature/Hips/Unknown"]},source,root,"mmd"),"Unknown bone paths rejected");
+    Reject(()=>ActionRegistry.RegisterRuntime(new(){Id="spoofed-descendant",DisplayName="Spoofed",BonePaths=[eye+"/InjectedBone"]},source,root,"mmd"),"Preset path prefixes do not authorize arbitrary descendants");
+    Reject(()=>ActionRegistry.RegisterRuntime(new(){Id="spoofed-parent",DisplayName="Spoofed",BonePaths=["Armature/Hips/LeftEye"]},source,root,"mmd"),"A valid bone name under an unrecognized parent is rejected");
+    Reject(()=>ActionRegistry.RegisterRuntime(new(){Id="duplicate-bones",DisplayName="Duplicate",BonePaths=[eye,eye]},source,root,"mmd"),"Duplicate preset bone paths rejected");
+    Reject(()=>ActionRegistry.RegisterRuntime(new(){Id="null-bones",DisplayName="Null",BonePaths=null},source,root,"mmd"),"Null bone path lists rejected");
+    Reject(()=>ActionRegistry.RegisterRuntime(new(){Id="null-bone",DisplayName="Null",BonePaths=[null]},source,root,"mmd"),"Null bone path entries rejected");
+    Reject(()=>ActionRegistry.RegisterRuntime(new(){Id="masked-eye",DisplayName="Eye",BonePaths=[eye],BodyMask=ActionBodyMask.LowerBody},source,root,"mmd"),"Preset eyes retain lower-body mask validation");
+    Reject(()=>ActionRegistry.RegisterRuntime(new(){Id="masked-toe",DisplayName="Toe",BonePaths=[toe],BodyMask=ActionBodyMask.UpperBody},source,root,"mmd"),"Preset toes retain upper-body mask validation");
     var idle = new ActionAvailability(true, true, false, false, false, false, false, false, false, false, false);
     Check(ActionPolicy.BlockReason(registered, idle) == null && ActionPolicy.BlockReason(registered, idle with { Handcuffed = true }) == "handcuffed", "Runtime actions retain native handcuff restrictions");
     Check(ActionPolicy.BlockReason(registered, idle with { Sitting = true }) == "stand first" && ActionPolicy.BlockReason(registered, idle with { Moving = true }) == "moving", "Runtime actions retain posture/movement restrictions");

@@ -1,4 +1,4 @@
-﻿param([Parameter(Mandatory=$true)][string]$GameDir)
+param([Parameter(Mandatory=$true)][string]$GameDir)
 $ErrorActionPreference = 'Stop'
 $gameRoot = (Resolve-Path -LiteralPath $GameDir).Path
 $packageRoot = [IO.Path]::GetFullPath($PSScriptRoot)
@@ -6,6 +6,7 @@ $pluginsRoot = [IO.Path]::GetFullPath((Join-Path $gameRoot 'BepInEx/plugins'))
 if (-not (Test-Path -LiteralPath (Join-Path $gameRoot 'BepInEx/core/BepInEx.Unity.IL2CPP.dll'))) { throw 'BepInEx IL2CPP installation not found.' }
 $manifest = @(Get-Content -LiteralPath (Join-Path $packageRoot 'files.sha256.json') -Raw -Encoding UTF8 | ConvertFrom-Json | ForEach-Object { $_ })
 $required = @('BepInEx/plugins/SFMMoreActions/SFM.MoreActions.dll','BepInEx/plugins/SFMVmdProbe/SFM.VmdProbe.dll','BepInEx/plugins/SFMNpcSpectators/SFM.NpcSpectators.dll')
+$required += 'BepInEx/plugins/SFMMoreActions/body-bones.json'
 $allowed = $required + @('BepInEx/plugins/SFMVmdProbe/README.zh-CN.md')
 $allowed += 'BepInEx/plugins/SFMVmdProbe/THIRD_PARTY_NOTICES.md'
 $allowed += 'BepInEx/plugins/SFMMoreActions/THIRD_PARTY_NOTICES.md'
@@ -15,7 +16,7 @@ foreach ($folder in @('SFMMoreActions','SFMVmdProbe')) {
 $allowed += @('BepInEx/plugins/SFMMoreActions/README.zh-CN.md','BepInEx/plugins/SFMNpcSpectators/README.zh-CN.md')
 $allowed += @('BepInEx/plugins/SFMMoreActions/README.en.md','BepInEx/plugins/SFMVmdProbe/README.en.md','BepInEx/plugins/SFMNpcSpectators/README.en.md')
 if (@($manifest.file | Sort-Object -Unique).Count -ne $manifest.Count) { throw 'Duplicate package target.' }
-foreach ($name in $required) { if ($name -notin $manifest.file) { throw "Missing plugin: $name" } }
+foreach ($name in $required) { if ($name -notin $manifest.file) { throw "Missing required file: $name" } }
 $backupRoot = Join-Path $gameRoot ('BepInEx/unified-vmd-backups/' + [DateTime]::Now.ToString('yyyyMMdd-HHmmss-fff'))
 $items = @()
 $configRoot = [IO.Path]::GetFullPath((Join-Path $gameRoot 'BepInEx/config'))

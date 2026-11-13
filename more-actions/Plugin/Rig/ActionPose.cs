@@ -38,8 +38,21 @@ internal sealed class ActionPose : IActionPose, IActionFacePose, IActionBodyPose
             var resolved = MotionSkeleton.ResolveBones(liveRoot.transform);
             if (nativeAnimator) proxy.transform.localScale = liveRoot.transform.lossyScale;
             MotionSkeleton.CopyCanonicalTree(liveRoot.transform, proxy.transform);
+            foreach (var path in action.Definition.BonePaths)
+                if (!MotionRig.IsSupportedPath(path) || !resolved.ContainsKey(path))
+                    throw new Exception("Selected live body bone missing: " + path);
             foreach (var path in MotionRig.BonePaths())
-                if (ActionPolicy.WritesBone(action.Definition, path)) bones.Add((path, resolved[path], proxy.transform.Find(path)));
+            {
+                if (!ActionPolicy.WritesBone(action.Definition, path)) continue;
+                // Runtime clips do not expose their curve bindings. Preserve
+                // default ownership of the original body rig; additional
+                // preset bones participate only when explicitly selected.
+                if (action.Definition.BonePaths.Length == 0 && !MotionRig.IsRequiredPath(path)) continue;
+                if (!resolved.TryGetValue(path, out var live)) continue;
+                var sample = proxy.transform.Find(path);
+                if (sample == null) throw new Exception("Selected sampling body bone missing: " + path);
+                bones.Add((path, live, sample));
+            }
             if (bones.Count == 0) throw new Exception("Action has no writable bones");
             savedRotations = new Quaternion[bones.Count];
             for (int i = 0; i < bones.Count; i++) savedRotations[i] = bones[i].live.localRotation;

@@ -1,4 +1,4 @@
-﻿param(
+param(
     [Parameter(Mandatory=$true)][string]$GameDir,
     [string]$OutputDir = (Join-Path $PSScriptRoot 'releases/SFM-MoreActions-v1.7.0')
 )
@@ -14,6 +14,7 @@ $files = @(
     @{source='more-actions/Plugin/bin/Release/net6.0/SFM.MoreActions.dll';target='BepInEx/plugins/SFMMoreActions/SFM.MoreActions.dll'},
     @{source='mmd/Plugin/bin/Release/net6.0/SFM.VmdProbe.dll';target='BepInEx/plugins/SFMVmdProbe/SFM.VmdProbe.dll'},
     @{source='npc-spectators/Plugin/bin/Release/net6.0/SFM.NpcSpectators.dll';target='BepInEx/plugins/SFMNpcSpectators/SFM.NpcSpectators.dll'},
+    @{source='shared/body-bones.json';target='BepInEx/plugins/SFMMoreActions/body-bones.json'},
     @{source='THIRD_PARTY_NOTICES.md';target='BepInEx/plugins/SFMVmdProbe/THIRD_PARTY_NOTICES.md'},
     @{source='THIRD_PARTY_NOTICES.md';target='BepInEx/plugins/SFMMoreActions/THIRD_PARTY_NOTICES.md'},
     @{source='mmd/README.zh-CN.md';target='BepInEx/plugins/SFMVmdProbe/README.zh-CN.md'},

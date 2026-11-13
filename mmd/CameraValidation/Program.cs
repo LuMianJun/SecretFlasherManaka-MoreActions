@@ -182,7 +182,7 @@ try
         Console.WriteLine("PASS CH4NGE opening: face=1.288m; hand=1.396-1.704m; zero added height");
     }
     Console.WriteLine($"PASS {assertions} assertions: VMD parser, cuts, coordinates, synchronization, optional packs, ownership, restoration and failure isolation");
-    if (args.Length > 1) InstalledCameraContract.Verify(args[1], !packageOnly);
+    if (args.Length > 1) InstalledCameraContract.Verify(args[1], !packageOnly, packageOnly && args.Length > 2 ? args[2] : null);
     if (args.Length > 2 && !packageOnly)
     {
         var shake = VmdCameraMotion.Read(args[2]);

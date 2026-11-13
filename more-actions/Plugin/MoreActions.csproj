@@ -89,4 +89,7 @@
     <Compile Include="Import/WaveAudio.cs" />
     <Compile Include="../../shared/ModOptions.cs" Link="ModOptions.cs" />
   </ItemGroup>
+  <ItemGroup>
+    <None Include="../../shared/body-bones.json" Link="body-bones.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
 </Project>

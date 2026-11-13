@@ -17,7 +17,7 @@ internal static class ActionDefinitionValidation
         if (!Enum.IsDefined(typeof(ActionBodyMask), definition.BodyMask) || !double.IsFinite(definition.AudioDelaySeconds) || definition.AudioDelaySeconds < 0 || !float.IsFinite(definition.Volume) || definition.Volume < 0 || definition.Volume > 1) throw new ArgumentException("Invalid mask or audio settings");
         if (definition.Loop && (!string.IsNullOrEmpty(definition.AudioAsset) || !string.IsNullOrEmpty(definition.AudioFile))) throw new ArgumentException("Audio requires one-shot playback; silent motion loops are supported");
         if (!definition.RequiresHands && (definition.BodyMask != ActionBodyMask.LowerBody || definition.WriteFaceMorphs)) throw new ArgumentException("Hand-independent actions must use LowerBody and leave face morphs to the game");
-        if (definition.BonePaths == null || definition.BonePaths.Distinct().Count() != definition.BonePaths.Length || definition.BonePaths.Any(p => !MotionRig.BonePaths().Contains(p) || !ActionPolicy.InMask(p, definition.BodyMask))) throw new ArgumentException("Unknown, duplicate or out-of-mask bone path");
+        if (definition.BonePaths == null || definition.BonePaths.Distinct().Count() != definition.BonePaths.Length || definition.BonePaths.Any(p => !MotionRig.IsSupportedPath(p) || !ActionPolicy.InMask(p, definition.BodyMask))) throw new ArgumentException("Unknown, duplicate or out-of-mask bone path");
         var root = Path.GetFullPath(packDirectory);
         var path = source == null ? ResolveFile(root, definition.Bundle) : "";
         var audioPath = string.IsNullOrEmpty(definition.AudioFile) ? "" : ResolveFile(root, definition.AudioFile);

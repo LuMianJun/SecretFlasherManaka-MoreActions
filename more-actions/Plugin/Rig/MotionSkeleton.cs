@@ -24,17 +24,16 @@ public static class MotionSkeleton
 
     public static Dictionary<string, Transform> ResolveBones(Transform root)
     {
-        var required = new HashSet<string>(MotionRig.BonePaths());
         var resolved = new Dictionary<string, Transform>();
         foreach (var node in root.GetComponentsInChildren<Transform>(true))
         {
             if (IsAdjuster(node)) continue;
             var path = CanonicalPath(node, root);
-            if (!required.Contains(path)) continue;
+            if (!MotionRig.IsSupportedPath(path)) continue;
             if (resolved.ContainsKey(path)) throw new Exception("Ambiguous body bone: " + path);
             resolved.Add(path, node);
         }
-        foreach (var path in required)
+        foreach (var path in MotionRig.RequiredBonePaths())
             if (!resolved.ContainsKey(path)) throw new Exception("Required live body bone missing: " + path);
         return resolved;
     }

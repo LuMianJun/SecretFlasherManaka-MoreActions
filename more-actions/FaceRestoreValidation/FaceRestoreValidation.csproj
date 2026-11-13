@@ -13,4 +13,7 @@
     <Compile Include="../Plugin/Rig/MotionSkeleton.cs" Link="MotionSkeleton.cs" />
     <Compile Include="../Plugin/Api/RuntimeActionSource.cs" Link="RuntimeActionSource.cs" />
   </ItemGroup>
+  <ItemGroup>
+    <None Include="../../shared/body-bones.json" Link="body-bones.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
 </Project>

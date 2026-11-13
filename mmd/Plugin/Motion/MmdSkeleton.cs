@@ -12,7 +12,7 @@ namespace SFM.Mmd;
 // applied to BOTH positions and quaternions, exactly once.
 public sealed class MmdSkeleton : IDisposable
 {
-    public sealed class Bone { public string name;public int parent,tail,type;public Vector3 rest;public Transform node; }
+    public sealed class Bone { public string name;public int parent,tail,type;public Vector3 rest;public Transform node;public int append=-1;public float appendRatio=1;public bool afterIk; }
     public sealed class Ik { public int target,effector,iterations;public float limit;public int[] links;public bool limitKnee;public float kneeMax=180,kneeMin; }
     public readonly List<Bone> bones=new List<Bone>();public readonly List<Ik> iks=new List<Ik>();
     public readonly Dictionary<string,Bone> byName=new Dictionary<string,Bone>();
@@ -35,7 +35,7 @@ public sealed class MmdSkeleton : IDisposable
         var instance = new MmdSkeleton();
         foreach (var b in bones)
         {
-            var copy = new Bone { name = b.name, parent = b.parent, tail = b.tail, type = b.type, rest = b.rest };
+            var copy = new Bone { name = b.name, parent = b.parent, tail = b.tail, type = b.type, rest = b.rest, append=b.append, appendRatio=b.appendRatio, afterIk=b.afterIk };
             instance.bones.Add(copy); instance.byName.Add(copy.name, copy);
         }
         foreach (var ik in iks) instance.iks.Add(new Ik { target = ik.target, effector = ik.effector, iterations = ik.iterations, limit = ik.limit, links = (int[])ik.links.Clone(), limitKnee = ik.limitKnee, kneeMax = ik.kneeMax, kneeMin = ik.kneeMin });
@@ -45,13 +45,14 @@ public sealed class MmdSkeleton : IDisposable
     {
         foreach(var b in bones)
         {
-            var key=motion.Sample(b.name,frame);var q=key.q;
+            var key=SampleBone(motion,b.name,frame);var q=key.q;
             if(b.type==8&&b.tail>0&&b.tail<bones.Count)
             {
                 var axis=(bones[b.tail].rest-b.rest).normalized;var v=new Vector3(q.x,q.y,q.z);v=axis*Vector3.Dot(v,axis);
                 q=new Quaternion(v.x,v.y,v.z,q.w).normalized;
             }
             b.node.localRotation=q;b.node.localPosition=b.rest-(b.parent<0?Vector3.zero:bones[b.parent].rest)+key.p;
+            if(b.append>=0&&!b.afterIk)ApplyAppend(b);
         }
         if(useIk)foreach(var ik in iks)
         {
@@ -83,6 +84,37 @@ public sealed class MmdSkeleton : IDisposable
                 if(!moved||Vector3.Distance(effector.position,target.position)<0.001f)break;
             }
         }
+        RefreshDeform(motion,frame);
+    }
+
+    static string TrackName(MmdMotion motion,string track)
+    {
+        if(!motion.ExactBoneSamples&&track.Length==4&&track.Substring(1,2)=="親指"&&!motion.tracks.ContainsKey(track.Substring(0,3)+"０"))
+            return track[3]=='０'?track.Substring(0,3)+"１":track[3]=='１'?track.Substring(0,3)+"２":"";
+        return track;
+    }
+    internal static MmdMotion.Key SampleBone(MmdMotion motion,string track,float frame)
+    {
+        return motion.Sample(TrackName(motion,track),frame);
+    }
+
+    internal void RefreshDeform(MmdMotion motion,float frame)
+    {
+        for(int i=0;i<bones.Count;i++)
+        {
+            var b=bones[i];
+            if(b.append<0||!b.afterIk)continue;
+            b.node.localRotation=SampleBone(motion,b.name,frame).q;ApplyAppend(b);
+        }
+    }
+
+    void ApplyAppend(Bone bone)
+    {
+        var q=bones[bone.append].node.localRotation;
+        if(bone.appendRatio==-1)q=Quaternion.Inverse(q);
+        else if(bone.appendRatio!=1)q=Quaternion.Slerp(Quaternion.identity,q,bone.appendRatio);
+        // PMX append order: user rotation * inherited rotation (nanoem Bone.cc).
+        bone.node.localRotation=(bone.node.localRotation*q).normalized;
     }
 
     // Solve the hinge analytically from this frame's sampled geometry. Limited

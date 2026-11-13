@@ -11,7 +11,6 @@ namespace SFM.Mmd;
 public sealed class RuntimeVmdPose : IActionPose, IActionRootMotionPose, IActionFacePose, IActionBodyPose
 {
     readonly RuntimeVmdRig rig;
-    readonly ActionDefinition definition;
     readonly MmdMotion motion;
     readonly MmdMotion faceMotion;
     readonly ActionBodyPoseLease body;
@@ -40,22 +39,27 @@ public sealed class RuntimeVmdPose : IActionPose, IActionRootMotionPose, IAction
     internal RuntimeVmdPose(GameObject target, ActionDefinition action, MmdMotion keys, MmdReferencePose referencePose, MmdMotion faceKeys)
     {
         rig = MmdRigCache.Rent(target, referencePose);
-        definition = action; motion = keys;
         faceMotion = faceKeys ?? keys;
         try
         {
+            motion=keys.BindAliases(rig.Aliases());
+            foreach(string path in action.BonePaths)
+                if(!rig.bindings.Any(b=>b.path==path))throw new InvalidDataException("MMD target bone missing: "+path);
             write = new bool[rig.bindings.Count];
             int count = 0;
             for (int i = 0; i < write.Length; i++)
             {
-                var b = rig.bindings[i]; write[i] = ActionPolicy.WritesBone(action, b.path);
+                var b = rig.bindings[i];
+                bool keyed=motion.tracks.ContainsKey(b.source)||((b.source=="左目"||b.source=="右目")&&motion.tracks.ContainsKey("両目"));
+                write[i] = (ActionPolicy.WritesBone(action, b.path)||(b.twist&&b.parent!=null&&ActionPolicy.WritesBone(action,b.parent.path)))&&(!b.optional||keyed||b.twist);
                 if (write[i]) count++;
                 if (b.path == "Armature/Hips") writeHip = write[i] && action.WriteHipTranslation;
             }
             BoneCount = count;
-            var owned = rig.bindings.Where((b,i)=>write[i]).Select(b=>b.live)
-                .Concat(rig.toes.Where(t=>ActionPolicy.WritesBone(action,t.path.Substring(0,t.path.LastIndexOf('/')))).Select(t=>t.live));
+            var owned = rig.bindings.Where((b,i)=>write[i]).Select(b=>b.live);
             body = new ActionBodyPoseLease(target, owned);
+            var unsupported=motion.tracks.Where(p=>!rig.source.byName.ContainsKey(p.Key)&&!motion.ResolvedAliases.Contains(p.Key)&&MmdBoneMap.Animated(p.Value)).Select(p=>p.Key).OrderBy(n=>n,StringComparer.Ordinal).ToArray();
+            global::Plugin.LogSource?.LogInfo("MMD_BONES_BOUND id="+action.Id+" targetBones="+rig.bindings.Count+" controlled="+count+" unsupportedAnimated="+string.Join(",",unsupported));
             if (action.WriteFaceMorphs)
             {
                 face = new ActionFaceMorphLayer(target, action);
@@ -88,11 +92,35 @@ public sealed class RuntimeVmdPose : IActionPose, IActionRootMotionPose, IAction
         if (disposed || !rig.IsUsable) return false;
         seconds = Mathf.Clamp(seconds, 0, motion.lastFrame / 30f); rig.source.Evaluate(motion, seconds * 30);
         body.ApplyBaseline();
+        var heading = rig.liveRoot.rotation;
         for (int i = 0; i < rig.bindings.Count; i++)
         {
             var b = rig.bindings[i];
-            b.sample.localRotation = (Quaternion.Inverse(b.sample.parent.rotation) * rig.source.byName[b.source].node.rotation * b.neutral).normalized;
-            if (write[i]) b.live.localRotation = b.sample.localRotation;
+            b.sample.localRotation = (Quaternion.Inverse(b.sample.parent.rotation) * b.sourceBone.node.rotation * b.neutral).normalized;
+            if (write[i])
+            {
+                if(b.optional&&!b.twist&&b.parent!=null)
+                {
+                    // Unmapped native control parents (e.g. BreastRotateL)
+                    // retain customization. Apply the keyed delta in the
+                    // nearest mapped parent's axes, not as its child's local Q.
+                    var parentRotation=b.parentSourceBone.node.rotation;
+                    var relative=Quaternion.Inverse(parentRotation)*b.sourceBone.node.rotation;
+                    var basis=b.parent.live.rotation*Quaternion.Inverse(b.parent.neutral);
+                    b.live.rotation=basis*relative*Quaternion.Inverse(basis)*b.live.rotation;
+                }
+                else b.live.localRotation = b.sample.localRotation;
+                if(b.parent!=null)
+                {
+                    // Transfer only the positional difference introduced by
+                    // missing pivots, sibling branches and authored local keys.
+                    // The native baseline retains customization and all lengths;
+                    // ordinary rigid edges get a zero correction.
+                    var source=b.sourceBone;var parent=b.parentSourceBone;
+                    var delta=(source.node.position-parent.node.position)-parent.node.rotation*b.restDelta;
+                    b.live.localPosition+=b.live.parent.InverseTransformVector(heading*delta*rig.scale);
+                }
+            }
         }
         if (writeHip)
         {
@@ -102,7 +130,7 @@ public sealed class RuntimeVmdPose : IActionPose, IActionRootMotionPose, IAction
             // skeleton, preserving an authored first-frame crouch or jump.
             RootDisplacement = HorizontalWorld(rig.source.byName["下半身"].node.position - originHip);
             float vertical = (rig.source.byName["下半身"].node.position.y - referenceHipHeight) * rig.scale;
-            rig.hip.localPosition = rig.hip.localPosition + rig.hip.parent.InverseTransformVector(rig.liveRoot.rotation * Vector3.up * vertical);
+            rig.hip.localPosition = rig.hip.localPosition + rig.hip.parent.InverseTransformVector(heading * Vector3.up * vertical);
         }
         face?.Begin();
         if (face != null) foreach (var m in morphs)
