@@ -139,6 +139,22 @@ internal sealed class MmdTargetSnapshot
             if(!Rest.TryGetValue(path,out var matrix))continue;
             for(int c=0;c<4;c++){Vector3 v=matrix.GetColumn(c);values.Add(v.x);values.Add(v.y);values.Add(v.z);}
             Vector3 local=matrix.GetColumn(3);
+            int slash=path.LastIndexOf('/');string parentPath=path.Substring(0,slash);
+            if(ReferencePositions.TryGetValue(parentPath,out var parentPosition))
+            {
+                Vector3 parentBind=Rest[parentPath].GetColumn(3);
+                float length=1;
+                // Native customization sets these Y scales to ThighsLength /
+                // LowerLegLength. Its reciprocal wrapper cancels inherited
+                // scale, then LateUpdate multiplies the child's translation.
+                // Cache invalidation alone did not apply this length to IK.
+                string name=path.Substring(slash+1);
+                if(name.StartsWith("LowerLeg_",StringComparison.Ordinal)||name.StartsWith("Foot_",StringComparison.Ordinal)||name=="Chest")
+                    length=Bones[parentPath].localScale.y;
+                if(!float.IsFinite(length)||length<=0)throw new ArgumentException("Invalid customized leg length: "+path);
+                local=parentPosition+(local-parentBind)*length;
+                values.Add(length);
+            }
             ReferencePositions.Add(path,local);
             Vector3 p=MetricX*local.x+MetricY*local.y+MetricZ*local.z;
             Positions.Add(path, new NVector(p.x, p.y, p.z)); yield return 0;

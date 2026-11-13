@@ -841,6 +841,53 @@ protectedLayer.Begin();protectedLayer.Write(protectedFace.renderer,55,100);prote
 Check(protectedFace.renderer.GetBlendShapeWeight(55)==71&&protectedFace.renderer.GetBlendShapeWeight(145)==72&&protectedFace.renderer.GetBlendShapeWeight(373)==73,"Eye/lash customization remains intact");
 protectedLayer.RestoreNativeFace();ActionFaceSettings.KeepGameExpressions=true;MmdRigCache.Clear();
 
+// Native body customization cancels inherited bone scale with a wrapper,
+// then multiplies knee/ankle translations exactly once in LateUpdate.
+foreach(var profile in new[]{(thigh:1.3f,shin:.8f,height:1.125f),(thigh:.8f,shin:1.35f,height:.9f)})
+{
+    MmdRigCache.Clear();var actor=Avatar();
+    actor.avatar.transform.localScale=Vector3.one*profile.height;
+    actor.avatar.transform.rotation=Quaternion.AngleAxis(73,Vector3.up);
+    foreach(string suffix in new[]{"_L","_R"})
+    {
+        string leg=hips+"/UpperLeg"+suffix,knee=leg+"/LowerLeg"+suffix,foot=knee+"/Foot"+suffix;
+        foreach(var item in new[]{(path:leg,length:profile.thigh),(path:knee,length:profile.shin)})
+        {
+            var bone=actor.bones[item.path];var children=Enumerable.Range(0,bone.childCount).Select(bone.GetChild).ToArray();
+            bone.localScale=new(.9f,item.length,1.1f);
+            var wrapper=new GameObject("PlayerBoneScaleAdjuster").transform;wrapper.SetParent(bone,false);
+            wrapper.localScale=new(1/.9f,1/item.length,1/1.1f);
+            foreach(var child in children)child.SetParent(wrapper,false);
+        }
+        actor.bones[knee].localPosition*=profile.thigh;actor.bones[foot].localPosition*=profile.shin;
+    }
+    var dimensions=MmdTargetSnapshot.Read(actor.avatar);
+    using var solver=GameMmdSkeleton.CreateData(dimensions.Positions);solver.CreateTransforms();solver.useIk=true;
+    foreach(var side in new[]{("左","_L"),("右","_R")})
+    {
+        string leg=hips+"/UpperLeg"+side.Item2,knee=leg+"/LowerLeg"+side.Item2,foot=knee+"/Foot"+side.Item2;
+        Check(Math.Abs(Vector3.Distance(solver.byName[side.Item1+"足"].rest,solver.byName[side.Item1+"ひざ"].rest)*.08f-Vector3.Distance(actor.bones[leg].position,actor.bones[knee].position))<1e-5,"Custom thigh geometry equals the live world segment with wrapper cancellation");
+        Check(Math.Abs(Vector3.Distance(solver.byName[side.Item1+"ひざ"].rest,solver.byName[side.Item1+"足首"].rest)*.08f-Vector3.Distance(actor.bones[knee].position,actor.bones[foot].position))<1e-5,"Custom shin geometry equals the live world segment with wrapper cancellation");
+    }
+    var action=Motion();action.tracks["センター"]=[new(){q=Quaternion.identity,p=new(0,-.45f,0),interpolation=new byte[64]}];
+    foreach(string side in new[]{"左","右"})action.tracks[side+"足ＩＫ"]=[new(){q=Quaternion.identity,interpolation=new byte[64]}];
+    var savedLocal=actor.bones.ToDictionary(p=>p.Key,p=>p.Value.localPosition);
+    using(var pose=new RuntimeVmdPose(actor.avatar,new ActionDefinition(),action))
+    {
+        foreach(float seconds in new[]{0f,.5f,1f,0f})
+        {
+            pose.Apply(seconds);solver.Evaluate(action,seconds*30);
+            foreach(var side in new[]{("左","_L"),("右","_R")})
+            {
+                string foot=hips+"/UpperLeg"+side.Item2+"/LowerLeg"+side.Item2+"/Foot"+side.Item2;
+                var expected=actor.avatar.transform.rotation*(solver.byName[side.Item1+"足首"].node.position-solver.byName["下半身"].node.position)*.08f;
+                var actual=actor.bones[foot].position-actor.bones[hips].position;
+                Check(Vector3.Distance(expected,actual)<.001f,"Customized retargeted ankle follows the source solve in world space");
+            }
+            Check(actor.bones.Where(p=>p.Key!=hips).All(p=>Vector3.Distance(p.Value.localPosition,savedLocal[p.Key])<1e-5),"Custom IK leaves native segment translations unchanged");
+        }
+    }
+}
 MmdRigCache.Clear();
 BoneMappingRegression.Run(Check,positions,Avatar,args.Length>0?Path.GetFullPath(args[0]):null);
 LegSolverRegression.Run(Check,positions,args.Length>0?Path.GetFullPath(args[0]):null);
