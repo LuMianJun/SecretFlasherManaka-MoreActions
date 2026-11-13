@@ -8,8 +8,8 @@ Custom actions, Unity animation bundle import, MMD playback, and optional NPC sp
 
 | Plugin | Version | Purpose |
 | --- | --- | --- |
-| More Actions | 1.6.2 | Radial-menu playback, Unity animation bundle import, native animation replacements, and in-game settings. |
-| MMD | 1.4.0 | Direct VMD playback with separate expressions, lips, music, camera tracks, and timed lyrics. Requires More Actions. |
+| More Actions | 1.6.3 | Radial-menu playback, Unity animation bundle import, native animation replacements, and in-game settings. |
+| MMD | 1.4.8 | Direct VMD playback with separate expressions, lips, music, camera tracks, and timed lyrics. Requires More Actions. |
 | NPC Spectators | 1.0.1 | Lets eligible ordinary pedestrians approach and watch. Can be used independently. |
 
 Separate expression and lip files require MMD 1.4.0 or later.
@@ -21,6 +21,8 @@ Install **More Actions + MMD** for MMD playback. Add NPC Spectators if you want 
 Install the **IL2CPP version of BepInEx 6** first. Download the latest package from [Releases](https://github.com/LuMianJun/SecretFlasherManaka-MoreActions/releases), exit the game, extract the package, and merge its `BepInEx` folder into the game directory.
 
 Exit the game before updating, and update More Actions and MMD together. If upgrading from a version with the Seleka2 prefix, use the included `install-mods.ps1` to migrate actions and settings. The installer backs up and moves the legacy DLLs it handles out of the plugin loading directory. Use the SFM plugin folders after migration.
+
+Keep `BepInEx/plugins/SFMMoreActions/body-bones.json` alongside the DLLs. More Actions and MMD share this bone preset. The plugin validates and caches it at startup; a missing or invalid file produces a log error with its path and the reason.
 
 ## Import MMD motions
 
@@ -95,7 +97,8 @@ For features, field meanings, defaults, and complete examples, see:
 ## Known issues and reporting
 
 - Some actions may end early at certain locations in the shopping mall.
-- Differences between the game character's proportions and the motion author's model can affect precise contacts such as joined hands, touching the face, or kneeling.
+- Retargeting to the current game character can leave errors in precise contacts such as joined hands, touching the face, or kneeling.
+- Some sitting or hand/foot contact poses still pass through scene floors, and feet can turn unnaturally. Playback does not provide limb avoidance of scene geometry.
 
 When reporting a problem, include `BepInEx/LogOutput.log`, the action name, approximate playback time, and scene.
 
@@ -111,7 +114,7 @@ When reporting a problem, include `BepInEx/LogOutput.log`, the action name, appr
 | [mmdparser bundled with three.js r160](https://github.com/mrdoob/three.js/blob/r160/examples/jsm/libs/mmdparser.module.js) | VMD file structure and parsing. |
 | [blender_mmd_tools unit reference](https://github.com/powroupi/blender_mmd_tools/wiki/1-MMD-unit-in-real-world-units) | Checking the convention of 0.08 meters per MMD unit. Blender is not required to run the plugin. |
 
-These projects serve as algorithm, format, and behavior references. This repository uses its own C# VMD solver and implements game-derived skeleton generation, background preparation, skeleton caching, character controller collision integration, cancellation, and radial-menu/settings integration.
+These projects serve as algorithm, format, and behavior references. This repository uses its own C# VMD solver and implements a fixed character bone preset, reference rig preparation and reuse, background loading, character controller collision integration, cancellation, and radial-menu/settings integration.
 
 The referenced UnityVMDPlayer revision and MIT license are documented in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md). Other projects and user-supplied assets retain their own licenses. Check the relevant authors' terms before redistributing motions, cameras, models, or music.
 

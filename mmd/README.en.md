@@ -66,6 +66,10 @@ Opening a menu with Tab or Esc preserves the action. If the menu pauses the game
 
 Actions with movement use the game's character controller and retain collision. An obstruction stops playback, and the character stays at the position actually reached. Hair, skirt, and other secondary physics remain under game control.
 
+Leg IK uses the character's thigh and shin lengths and preserves authored crouching, raised feet, jumps, and kneeling. Unreachable goals use the closest position allowed by the joints, keeping leg lengths and the authored hip trajectory. Feet are not additionally snapped to the game floor.
+
+An extra knee-plane twist during large leg turns has been removed, reducing cases where the ankle reached its goal but the knee turned to the other side. Some sitting and hand/foot contact poses still clip through the floor, and feet can turn unnaturally; see Troubleshooting below.
+
 ### In-game settings
 
 Open **Settings → More Actions**:
@@ -85,9 +89,23 @@ Name music BGM.wav or BGM.mp3. If both exist, BGM.wav takes priority. Use audioF
 
 Supported audio is MP3 or mono/stereo PCM16 or float32 WAV. MP3 is decoded asynchronously by the game's native API. Give every motion folder a unique name and avoid ASCII commas.
 
-### Playback diagnostics
+### Bones and helper tracks
+
+Supports eye and toe tracks, toes EX, leg/knee/ankle D chains, and waist/shoulder cancellation. The avatar's upper-arm and forearm twist bones receive their corresponding twist rotations. Both standard two-joint thumbs and three-joint thumbs with thumb 0 are supported. Compressed torso joints transfer positional changes as well as rotation to compensate for chest, hand and head offsets caused by hierarchy differences.
+
+Unity actions and MMD validate `bonePaths` against the same fixed character preset. Supported additional MMD bones accept matching VMD names and are controlled only when corresponding tracks exist; arm twist bones follow their controlled arm. Explicit paths must belong to the shared preset and selected body scope. The target must also contain each selected bone and its bind reference data before playback. `BreastRotateL/R` are native breast control parents; MMD leaves those two nodes under game control.
+
+Bone paths and mappings come from the shared `BepInEx/plugins/SFMMoreActions/body-bones.json` supplied with More Actions. It loads once on first use and is validated at startup. Keep this file with the DLLs and replace it when updating. The plugin does not scan the avatar to generate or save a catalog. Reference rigs still use the current character's height, limb dimensions and bind data, then reuse them for matching targets and customization; these dynamic measurements are not written to the JSON file.
+
+`MMD_BONES_BOUND` lists unmatched tracks with meaningful animation. Model-specific hair, clothing and accessory bones are not assigned by approximate name. Replacing the base avatar requires corresponding adaptation.
+
+Authored raised feet, jumps, crouches and hip trajectories are preserved. Playback does not snap feet to the floor or avoid scene walls.
+
+### Playback logs
 
 When playback ends early, `ACTION_CANCEL_DIAGNOSTIC` records the cancellation reason, current input, and the three-dimensional difference in player position. A general Cancel value is a record of input at that moment.
+
+Motion loading failures, unmatched tracks and cancellation reasons remain in `BepInEx/LogOutput.log`. When reporting clipping, include the action name, playback time and scene.
 
 ### When to use JSON
 
@@ -204,7 +222,7 @@ Resource paths are relative to action.json and restricted to the motion folder a
 | `writeFaceMorphs` | `true` | Uses supported VMD expressions, such as blinking and mouth shapes. Not all MMD expressions have a matching game effect. |
 | `followFaceCamera` | `true` | Allows the native face camera to follow this action, subject to the settings switch. Independent of the supplied main camera. |
 | `showInRing` | `true` | Shows the action in the radial menu. false makes it unavailable for menu selection; normally keep the default. |
-| `bonePaths` | `[]` | Advanced option: only animate the specified bones. Empty uses all bones in bodyMask. Requires full game bone paths, not MMD bone names. Paths must be within the chosen body scope and unique. |
+| `bonePaths` | `[]` | Advanced option: control only the specified bones. When empty, the player selects bones from bodyMask and the motion tracks. Use full game bone paths from the shared character preset, not MMD bone names. Paths must be unique, inside the chosen body scope, and present on the target. |
 
 A leg-only loop without music or expressions:
 
@@ -390,6 +408,7 @@ More Actions supplies global music volume, expression overlay, and face-camera s
 - **No supplied camera:** check camera.vmd and enable **Use supplied camera**.
 - **Expressions still overlay or do not move:** check keepGameExpressions, writeFaceMorphs, and whether the VMD contains supported expression tracks.
 - **Playback stops without input:** some actions can stop early at certain shopping-mall locations, a known issue.
+- **Clipping while sitting or touching the floor, or unnatural foot turns:** these poses still have retargeting errors. Collision for character movement does not make hands, feet or legs avoid scene floors or walls. Playback does not provide limb avoidance or forced floor snapping. Report the motion, time and scene; reaching the foot goal or matching the adapted skeleton does not establish that the whole limb pose is correct.
 
 Include `BepInEx/LogOutput.log`, the action name, and approximate playback time when reporting a problem.
 

@@ -8,8 +8,8 @@
 
 | 插件 | 当前版本 | 用途 |
 | --- | --- | --- |
-| 更多动作 | 1.6.2 | 转盘播放、Unity 动画包导入、原动作替换及游戏内设置。 |
-| MMD | 1.4.0 | 直接播放 VMD，支持独立表情、口型、配乐、镜头和同步歌词。需要更多动作。 |
+| 更多动作 | 1.6.3 | 转盘播放、Unity 动画包导入、原动作替换及游戏内设置。 |
+| MMD | 1.4.8 | 直接播放 VMD，支持独立表情、口型、配乐、镜头和同步歌词。需要更多动作。 |
 | NPC 围观 | 1.0.1 | 让符合条件的普通行人走近围观；可独立使用。 |
 
 独立表情和口型文件需要 MMD 1.4.0 或更新版本。
@@ -21,6 +21,8 @@
 先安装 **BepInEx 6 的 IL2CPP 版本**。从本仓库 [Releases](https://github.com/LuMianJun/SecretFlasherManaka-MoreActions/releases) 下载最新安装包，退出游戏后解压，将包内的 `BepInEx` 文件夹合并到游戏根目录即可。
 
 更新前退出游戏，更多动作与 MMD 配套替换。Seleka2 前缀版本的用户请用包内 `install-mods.ps1` 迁移动作与配置；安装器会备份移走它负责迁移的旧 DLL，迁移后使用 SFM 目录中的插件。
+
+`BepInEx/plugins/SFMMoreActions/body-bones.json` 是更多动作与 MMD 共用的骨骼清单，请与 DLL 一起保留。插件启动时校验并缓存清单；文件缺失或损坏时，日志会报告路径与原因。
 
 ## 导入 MMD 动作
 
@@ -95,7 +97,8 @@ NPC 围观在 **设置 → 游戏系统** 中开启并选择触发方式。NPC �
 ## 已知问题与反馈
 
 - 在商场某些位置播放部分动作时，可能提前退出。
-- 游戏角色与动作作者模型的比例不同，合掌、摸脸、跪姿等精确接触可能存在偏差。
+- 适配当前游戏角色后，合掌、摸脸、跪姿等精确接触可能存在偏差。
+- 部分坐下或手脚触地动作仍会穿过场景地面，脚部也可能出现不自然翻转；当前不提供肢体的场景避障。
 
 反馈请附 `BepInEx/LogOutput.log`、动作名、大致时间点和场景。
 
@@ -111,7 +114,7 @@ NPC 围观在 **设置 → 游戏系统** 中开启并选择触发方式。NPC �
 | [mmdparser（three.js r160 内附版本）](https://github.com/mrdoob/three.js/blob/r160/examples/jsm/libs/mmdparser.module.js) | VMD 文件结构及数据读取参考。 |
 | [blender_mmd_tools 单位说明](https://github.com/powroupi/blender_mmd_tools/wiki/1-MMD-unit-in-real-world-units) | 核对 MMD 单位到米的 0.08 换算约定；运行插件不需要 Blender。 |
 
-上述项目提供算法、格式和行为参考。本仓库使用自己的 C# VMD 求解流程，并实现游戏骨架生成、后台准备、骨架缓存、角色碰撞控制器接入、动作取消、转盘与设置联动。
+上述项目提供算法、格式和行为参考。本仓库使用自己的 C# VMD 求解流程，并实现固定角色骨骼预设、参考骨架准备与复用、后台加载、角色碰撞控制器接入、动作取消、转盘与设置联动。
 
 UnityVMDPlayer 的参考版本和 MIT 许可见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。其他项目与玩家添加的素材各自遵循原许可；重新配布动作、镜头、模型或音乐前，请确认对应作者的条款。
 

@@ -9,7 +9,7 @@
 | more-actions | SFM.MoreActions.dll | 游戏、BepInEx、Il2CppInterop、HarmonyX、Unity |
 | mmd | SFM.VmdProbe.dll | 更多动作公共 API |
 | npc-spectators | SFM.NpcSpectators.dll | 可独立使用；可选接口联动更多动作与 MMD |
-| shared | 不单独生成 DLL | 公共设置源码与生产项目引用配置 |
+| shared | 不单独生成 DLL | 公共骨骼清单、设置源码与生产项目引用配置 |
 
 程序集名、公共命名空间、插件 GUID 和运行时资源目录保持稳定。源码中的 mmd 是生产模块；VmdProbe 是其程序集名。
 
@@ -47,6 +47,8 @@ more-actions/Plugin/
 - 会话容器在同一驱动器内持续存在；切换动作不会重置事件修订号或按帧去重记录。
 - ActionRequestQueue 和退出原动作的等待状态由驱动器管理，不混入姿势或媒体资源。
 - IActionSource 提供动作数据，IActionPose 负责单次采样和恢复；可选接口分别声明身体、表情、走位和预热能力。
+- ActionSamplingRigPool 按实际角色复用完整 Unity 采样树和解析引用，最多保留两个闲置代理。每次播放刷新当前 TRS，单次姿势独占代理，PlayableGraph、根运动及恢复租约独立；拓扑、Avatar 或脸部网格变化时淘汰旧条目，清理失败的代理不再复用。
+- ActionBodyPoseLease 按修正类别与嵌套深度复用状态数组，每次保护仍使用独立的幂等释放 token，避免旧引用误释放新的作用域。
 
 更新顺序保持为：
 
@@ -81,11 +83,12 @@ mmd/Plugin/
 └─ Camera/               镜头 VMD、配置和镜头生命周期
 ```
 
-- MmdMotion 的关键帧数据由动作源共享；每个播放实例使用自己的姿势状态。
+- MmdMotion 的关键帧数据由动作源共享；运行时使用数值采样结果，避免逐骨创建临时 Key。准备完成的只读动作可缓存轨道选择与别名绑定；公开可变输入继续动态取轨道。
 - MmdPackPreparation 在后台独立读取主动作、表情和口型；附加文件失败只跳过对应层。MmdMorphBindings.Compose 在准备动作源时按“主动作 → 表情 → 口型”组合 morph 轨道，口型限定嘴部通道；RuntimeVmdPose 使用主动作时间轴采样，附加文件不参与身体或镜头求解。
-- MmdTargetSnapshot 收集当前角色的绑定与体型；GameMmdSkeleton 生成对应参考姿势数据。
+- MotionRig 从公共 `body-bones.json` 读取固定角色预设，MmdBoneMap 按实际可用路径选取并缓存映射。公共 `MotionRig.MmdSource()` 从清单的 `Source` 与 `Fallback.WhenMissing/Source` 选择 MMD 源名。MmdTargetSnapshot 只绑定预设中的当前对象，收集真实绑定与体型；GameMmdSkeleton 生成对应参考姿势数据。角色快照仅保存在内存中，不生成或回写骨骼清单。
 - MmdRigPreparation 负责后台数据计算和主线程分帧构建；MmdRigCache 管理骨架租借、体型匹配、跨场景重绑和淘汰。
 - RuntimeVmdRig 保存可复用采样对象；RuntimeVmdPose 负责当次动作应用、表情、走位以及结束时归还和恢复。
+- 转盘显隐和别名变化只更新动作要求，不重采角色快照；体型、目标或绑定资源变化仍重新校验。固定源骨引用、静止偏移、捩转轴和轨道选择在准备时计算，当前姿态、朝向、原生基线与对象存活状态仍实时读取。
 - MmdCameraDriver 单独管理配套镜头，通过更多动作 API 对齐播放时间，不接管播放请求。
 - Plugin.Version 是 MMD 入口和准备完成日志共同使用的版本来源。
 
@@ -105,6 +108,7 @@ CrowdDriver 持有一轮聚集的固定中心、站位、招募与重试状态�
 
 ## 共享代码、构建与验证
 
+- shared/body-bones.json 是骨骼路径、必要骨骼标记与 MMD 映射的唯一源码数据，构建时复制为 SFMMoreActions/body-bones.json 随包分发，不在代码或 MMD 目录维护第二份清单。MotionRig 使用线程安全的 Lazy 缓存；Plugin.Load 早期调用 Initialize 主动校验，缺失或格式错误时报告实际文件路径。清单不保存游戏中角色的姿态、体型或绑定快照。
 - shared/ModOptions.cs 分别编译到三个插件，保证可选模块独立安装。
 - shared/PluginReferences.props 集中生产项目的 .NET 目标和共同游戏引用，各插件声明自己的额外模块与程序集名。
 - 三个生产项目显式列出编译文件，并保留既有补丁类型的相对顺序；新增补丁时应核对同一原生方法的执行顺序。
