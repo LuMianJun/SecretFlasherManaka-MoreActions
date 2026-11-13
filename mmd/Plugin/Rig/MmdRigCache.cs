@@ -11,6 +11,8 @@ internal static class MmdRigCache
     static readonly HashSet<(int Target, MmdReferencePose Pose)> ready = new();
     static readonly Dictionary<(int Target, MmdReferencePose Pose), Exception> failures = new();
     static readonly List<RuntimeVmdRig> idle = new();
+    static readonly List<int> deadTargets=new();
+    static readonly List<(int Target,MmdReferencePose Pose)> detachKeys=new();
     internal static int Revision { get; private set; }
     internal static int BuildCount { get; private set; }
     internal static string SkeletonKey(MmdReferencePose referencePose) => "game-bind-pose:" + referencePose;
@@ -98,24 +100,38 @@ internal static class MmdRigCache
         if (!rig.HelpersValid) { rig.Destroy(); return; }
         rig.Detach(); if (!idle.Contains(rig)) idle.Add(rig);
         // Keep at most two previous shapes per reference pose, besides live rigs.
-        var matching = idle.Where(r => r.ReferencePose == rig.ReferencePose).ToArray();
-        foreach (var old in matching.Take(Math.Max(0, matching.Length - 2))) { idle.Remove(old); old.Destroy(); }
+        int matching=0;
+        foreach(var candidate in idle)if(candidate.ReferencePose==rig.ReferencePose)matching++;
+        for(int i=0;matching>2&&i<idle.Count;)
+        {
+            var old=idle[i];
+            if(old.ReferencePose!=rig.ReferencePose){i++;continue;}
+            idle.RemoveAt(i);old.Destroy();matching--;
+        }
     }
     internal static void DetachTarget(int targetId)
     {
-        foreach (var key in rigs.Keys.Where(k => k.Target == targetId).ToArray())
+        detachKeys.Clear();
+        foreach(var key in rigs.Keys)if(key.Target==targetId)detachKeys.Add(key);
+        foreach (var key in detachKeys)
         { var rig = rigs[key]; rigs.Remove(key); ready.Remove(key); failures.Remove(key); Park(rig); }
+        detachKeys.Clear();
     }
     internal static void Prune()
     {
-        foreach (var id in rigs.Where(p => p.Value.target == null).Select(p => p.Key.Target).Distinct().ToArray()) DetachTarget(id);
-        foreach (var rig in idle.Where(r => !r.HelpersValid).ToArray()) { idle.Remove(rig); rig.Destroy(); }
+        deadTargets.Clear();
+        foreach(var pair in rigs)
+            if(pair.Value.target==null&&!deadTargets.Contains(pair.Key.Target))deadTargets.Add(pair.Key.Target);
+        foreach(var id in deadTargets)DetachTarget(id);
+        deadTargets.Clear();
+        for(int i=idle.Count-1;i>=0;i--)
+            if(!idle[i].HelpersValid){var rig=idle[i];idle.RemoveAt(i);rig.Destroy();}
     }
     // ReAdjust only requests shape validation. It is not proof of a shape change.
     internal static void Invalidate() { ready.Clear(); failures.Clear(); Revision++; }
     internal static void Clear()
     {
         foreach (var rig in rigs.Values.Concat(idle).Distinct()) { rig.Retired = true; if (!rig.Leased) rig.Destroy(); }
-        rigs.Clear(); idle.Clear(); ready.Clear(); failures.Clear(); Revision++;
+        rigs.Clear(); idle.Clear(); ready.Clear(); failures.Clear();deadTargets.Clear();detachKeys.Clear();MmdTargetSnapshot.ClearBindLayouts();Revision++;
     }
 }

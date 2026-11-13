@@ -46,6 +46,7 @@ internal static class BoneMappingRegression
             int bindReads=actor.renderer.sharedMesh.BindReads;
             var repeated=MmdTargetSnapshot.Read(actor.avatar);
             check(repeated.Rest.Keys.ToHashSet().SetEquals(snapshot.Rest.Keys)&&actor.renderer.sharedMesh.BindReads==bindReads,"A reduced model reuses static bind data without file caches or rediscovery");
+            check(ReferenceEquals(MmdBoneMap.Create(snapshot.Positions.Keys),MmdBoneMap.Create(snapshot.Positions.Keys.Reverse())),"Equivalent actual topologies reuse one immutable bone map");
             var fullBones=actor.renderer.bones.ToArray();
             int leftSlot=Array.FindIndex(fullBones,b=>b==actor.bones[head+"/LeftEye"]);
             int rightSlot=Array.FindIndex(fullBones,b=>b==actor.bones[head+"/RightEye"]);

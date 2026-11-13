@@ -34,8 +34,16 @@ internal sealed class MmdTargetSnapshot
         internal Mesh Mesh;
         internal string[] Slots=Array.Empty<string>();
         internal readonly List<(string Path,int Index,Matrix4x4 Matrix)> Bones=new();
+        internal readonly Dictionary<string,Matrix4x4> Rest=new(StringComparer.Ordinal);
+        internal readonly Dictionary<string,float[]> Values=new(StringComparer.Ordinal);
+        internal Vector3 Position,Scale;
+        internal Quaternion Rotation;
+        internal bool HasTransform;
     }
     static readonly Dictionary<int,BindLayout> bindLayouts=new();
+    static bool Same(Vector3 a,Vector3 b)=>a.x==b.x&&a.y==b.y&&a.z==b.z;
+    static bool Same(Quaternion a,Quaternion b)=>a.x==b.x&&a.y==b.y&&a.z==b.z&&a.w==b.w;
+    internal static void ClearBindLayouts()=>bindLayouts.Clear();
 
     internal IEnumerable<int> Capture()
     {
@@ -92,6 +100,7 @@ internal sealed class MmdTargetSnapshot
             Bones.Add(path, selected); resolved.Add(path, selected); yield return 0;
         }
         var byId=Bones.ToDictionary(p=>p.Value.GetInstanceID(),p=>p.Key);
+        var restValues=new Dictionary<string,float[]>(StringComparer.Ordinal);
         // The two original model paths supply bind poses. Never walk clothing,
         // physics bones or other meshes to discover renderers / morph names.
         foreach(string meshPath in new[]{"Body.001","Selestia_body"})
@@ -127,17 +136,30 @@ internal sealed class MmdTargetSnapshot
                 if(bindLayouts.Count>=16)bindLayouts.Remove(bindLayouts.Keys.First());
                 bindLayouts[id]=layout;
             }
-            var rootToMesh=Matrix4x4.TRS(node.localPosition,node.localRotation,node.localScale);
+            var meshPosition=node.localPosition;var meshRotation=node.localRotation;var meshScale=node.localScale;
+            if(!layout.HasTransform||!Same(layout.Position,meshPosition)||!Same(layout.Rotation,meshRotation)||!Same(layout.Scale,meshScale))
+            {
+                var rootToMesh=Matrix4x4.TRS(meshPosition,meshRotation,meshScale);
+                layout.Rest.Clear();layout.Values.Clear();
+                foreach(var entry in layout.Bones)
+                {
+                    var matrix=rootToMesh*entry.Matrix;layout.Rest.Add(entry.Path,matrix);
+                    var matrixValues=new float[12];
+                    for(int c=0;c<4;c++){Vector3 column=matrix.GetColumn(c);matrixValues[c*3]=column.x;matrixValues[c*3+1]=column.y;matrixValues[c*3+2]=column.z;}
+                    layout.Values.Add(entry.Path,matrixValues);
+                }
+                layout.Position=meshPosition;layout.Rotation=meshRotation;layout.Scale=meshScale;layout.HasTransform=true;
+            }
             foreach(var entry in layout.Bones)
-                if(!Rest.ContainsKey(entry.Path))Rest.Add(entry.Path,rootToMesh*entry.Matrix);
+                if(!Rest.ContainsKey(entry.Path)){Rest.Add(entry.Path,layout.Rest[entry.Path]);restValues.Add(entry.Path,layout.Values[entry.Path]);}
             yield return 0;
         }
         foreach (var path in requiredPaths) if (!Rest.ContainsKey(path)) throw new ArgumentException("Target bind pose missing: " + path);
         var values = new List<float>();
+        foreach(var path in presetPaths)if(restValues.TryGetValue(path,out var block))values.AddRange(block);
         foreach(var path in presetPaths)
         {
             if(!Rest.TryGetValue(path,out var matrix))continue;
-            for(int c=0;c<4;c++){Vector3 v=matrix.GetColumn(c);values.Add(v.x);values.Add(v.y);values.Add(v.z);}
             Vector3 local=matrix.GetColumn(3);
             int slash=path.LastIndexOf('/');string parentPath=path.Substring(0,slash);
             if(ReferencePositions.TryGetValue(parentPath,out var parentPosition))

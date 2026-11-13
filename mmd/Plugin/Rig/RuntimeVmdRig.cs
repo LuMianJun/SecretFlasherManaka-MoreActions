@@ -40,9 +40,16 @@ internal sealed class RuntimeVmdRig
     readonly Dictionary<MmdMotion,MmdMotion> boundMotions=new();
     readonly Queue<MmdMotion> motionOrder=new();
 
-    internal bool IsUsable => target != null && liveRoot != null && hip != null && proxy != null
-        && source?.root != null && bindings.All(b => b.live != null)
-        && meshes.All(m => m.renderer != null && m.renderer.sharedMesh == m.mesh);
+    internal bool IsUsable
+    {
+        get
+        {
+            if(target==null||liveRoot==null||hip==null||proxy==null||source?.root==null)return false;
+            foreach(var binding in bindings)if(binding.live==null)return false;
+            foreach(var mesh in meshes)if(mesh.renderer==null||mesh.renderer.sharedMesh!=mesh.mesh)return false;
+            return true;
+        }
+    }
 
     internal bool HelpersValid => proxy != null && source?.root != null;
     internal void Rebind(MmdTargetSnapshot snapshot)
@@ -87,7 +94,9 @@ internal sealed class RuntimeVmdRig
                 yield return 0;
             }
             hip = liveBones["Armature/Hips"];
-            source = template.CopyData();
+            // Each preparation creates and transfers this private data object.
+            // Mutable Transform state is never shared with another lease.
+            source = template;
             foreach (var step in source.CreateTransformSteps()) yield return step;
             source.useIk = true;
             var map = MmdBoneMap.Create(rest.Keys);

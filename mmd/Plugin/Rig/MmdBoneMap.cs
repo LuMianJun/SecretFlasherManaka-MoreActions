@@ -10,8 +10,21 @@ namespace SFM.Mmd;
 // Runtime renderer lists never expand that preset or admit accessory bones.
 internal static class MmdBoneMap
 {
+    static readonly object cacheLock=new();
+    static readonly Dictionary<string,IReadOnlyDictionary<string,string>> maps=new(StringComparer.Ordinal);
+    static readonly Queue<string> mapOrder=new();
     internal static IReadOnlyDictionary<string,string> Create(IEnumerable<string> paths)
-        => new ReadOnlyDictionary<string,string>(Build(paths.Distinct(StringComparer.Ordinal).OrderBy(p=>p,StringComparer.Ordinal).ToArray()));
+    {
+        var all=paths.Distinct(StringComparer.Ordinal).OrderBy(p=>p,StringComparer.Ordinal).ToArray();
+        string key=string.Join("\n",all);
+        lock(cacheLock)
+        {
+            if(maps.TryGetValue(key,out var cached))return cached;
+            var created=new ReadOnlyDictionary<string,string>(Build(all));
+            if(maps.Count>=16)maps.Remove(mapOrder.Dequeue());
+            maps.Add(key,created);mapOrder.Enqueue(key);return created;
+        }
+    }
     static Dictionary<string,string> Build(string[] all)
     {
         var availablePaths=new HashSet<string>(all,StringComparer.Ordinal);

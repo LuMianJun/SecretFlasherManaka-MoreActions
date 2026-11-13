@@ -891,6 +891,7 @@ foreach(var profile in new[]{(thigh:1.3f,shin:.8f,height:1.125f),(thigh:.8f,shin
 MmdRigCache.Clear();
 BoneMappingRegression.Run(Check,positions,Avatar,args.Length>0?Path.GetFullPath(args[0]):null);
 SamplingRegression.Run(Check,positions,args.Length>0?Path.GetFullPath(args[0]):null);
+PreparationCacheRegression.Run(Check,()=>Avatar());
 LegSolverRegression.Run(Check,positions,args.Length>0?Path.GetFullPath(args[0]):null);
 Console.WriteLine($"PASS {checks} assertions: production topology/parser/retargeter/cache/async pump; synthetic scene math boundary, not rendered game verification");
 
