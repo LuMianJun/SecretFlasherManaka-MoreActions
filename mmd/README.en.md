@@ -66,9 +66,9 @@ Opening a menu with Tab or Esc preserves the action. If the menu pauses the game
 
 Actions with movement use the game's character controller and retain collision. An obstruction stops playback, and the character stays at the position actually reached. Hair, skirt, and other secondary physics remain under game control.
 
-Leg IK uses the character's thigh and shin lengths and preserves authored crouching, raised feet, jumps, and kneeling. Unreachable goals use the closest position allowed by the joints, keeping leg lengths and the authored hip trajectory. Feet are not additionally snapped to the game floor.
+Leg and toe IK retain UnityVMDPlayer's architecture with confirmed corrections to target accuracy, native reference axes and sampling state. The solve uses the character's actual bone segments and preserves authored crouching, raised feet, jumps, kneeling and hip motion. The plugin adds no leg stretching or floor snapping.
 
-An extra knee-plane twist during large leg turns has been removed, reducing cases where the ankle reached its goal but the knee turned to the other side. Some sitting and hand/foot contact poses still clip through the floor, and feet can turn unnaturally; see Troubleshooting below.
+The game adapter keeps separate center, groove, waist, upper-body and lower-body controls. It reads explicit zero foot translations and samples foot and toe IK switches at the playback time. Contact positions can still differ between models, and some sitting or hand/foot contact poses may clip through the floor. Character movement collision does not provide limb avoidance.
 
 ### In-game settings
 
@@ -78,6 +78,7 @@ Open **Settings → More Actions**:
 - **Overlay game expressions:** on by default. Adds motion expressions to the game's expressions; turn it off to use only the motion's expressions.
 - **Face camera tracking:** lets the native face camera track the head during playback. Visibility still follows the game's settings.
 - **Use supplied camera:** enables or disables the motion's supplied camera.
+- **Hand and foot ground contact IK (experimental)** appears in builds with embedded contact plans and is off by default. It can reduce floor clipping during support poses and may change the resulting motion. The public package leaves plans to the [local generator](https://github.com/LuMianJun/SecretFlasherManaka-MoreActions/tree/main/mmd/ContactPlanGeneration).
 
 For an audience, install NPC Spectators, open **Settings → Game System**, enable spectators, **MMD actions**, and **All MMD actions**, then close settings and play a motion.
 
@@ -91,15 +92,21 @@ Supported audio is MP3 or mono/stereo PCM16 or float32 WAV. MP3 is decoded async
 
 ### Bones and helper tracks
 
-Supports eye and toe tracks, toes EX, leg/knee/ankle D chains, and waist/shoulder cancellation. The avatar's upper-arm and forearm twist bones receive their corresponding twist rotations. Both standard two-joint thumbs and three-joint thumbs with thumb 0 are supported. Compressed torso joints transfer positional changes as well as rotation to compensate for chest, hand and head offsets caused by hierarchy differences.
+Body playback uses UnityVMDPlayer's standard humanoid solve, including parent/center/groove, upper and lower body, arms and fingers, legs, and independent foot/toe IK. The sampling avatar uses the game's native bone axes, height and leg lengths. Each action can still select an A/T reference. A separate input adapter handles NUL padding and common bone-name spellings.
 
-Unity actions and MMD validate `bonePaths` against the same fixed character preset. Supported additional MMD bones accept matching VMD names and are controlled only when corresponding tracks exist; arm twist bones follow their controlled arm. Explicit paths must belong to the shared preset and selected body scope. The target must also contain each selected bone and its bind reference data before playback. `BreastRotateL/R` are native breast control parents; MMD leaves those two nodes under game control.
+Version 1.5.0 keeps the pinned UnityVMDPlayer FK, sampling stages and knee hinge constraints, with game-specific controls and foot keyframe fixes. A separate game layer supports authored eye, arm/wrist twist, waist/cancellation, shoulder P/C, upper-body 3, D-chain and forefoot EX tracks.
 
-Bone paths and mappings come from the shared `BepInEx/plugins/SFMMoreActions/body-bones.json` supplied with More Actions. It loads once on first use and is validated at startup. Keep this file with the DLLs and replace it when updating. The plugin does not scan the avatar to generate or save a catalog. Reference rigs still use the current character's height, limb dimensions and bind data, then reuse them for matching targets and customization; these dynamic measurements are not written to the JSON file.
+An explicit `親指０` track selects 0/1/2 numbering for that side's three native thumb joints. Without it, the standard upstream finger mapping remains active. Other native bones in the shared catalog accept matching motion deltas over their native baseline, preserving game dimensions. Eye-bone tracks and eye morphs are separate channels.
+
+The 80 catalog paths define available character bindings; the 51 standard Humanoid outputs are not the total support limit. Additional tracks still obey body scope, `bonePaths` masks and actual target bindings. Unity actions and MMD share the fixed path catalog. Model-specific hair, clothing and accessory tracks are not bound by approximate names.
+
+Bone paths and mappings come from the shared `BepInEx/plugins/SFMMoreActions/body-bones.json` supplied with More Actions. It loads once on first use and is validated at startup. Keep this file with the DLLs and replace it when updating. The plugin does not scan the avatar to generate or save a catalog. Reference rigs still use the current character's height, limb dimensions, neck length, shoulder width, leg spacing and bind data, then reuse them for matching targets and customization; these dynamic measurements are not written to the JSON file.
 
 `MMD_BONES_BOUND` lists unmatched tracks with meaningful animation. Model-specific hair, clothing and accessory bones are not assigned by approximate name. Replacing the base avatar requires corresponding adaptation.
 
 Authored raised feet, jumps, crouches and hip trajectories are preserved. Playback does not snap feet to the floor or avoid scene walls.
+
+The pinned path is compared offline against unmodified upstream sources. Separate compatibility checks cover changes in the game adapter. VMD does not contain the source PMX skeleton or skinning, so playback on the game character does not reproduce the author's original model. Native dimensions, authored displacement and scene contact can still affect poses. See the [implementation comparison](docs/UnityVMDPlayer功能对照.md) for scope and verification limits.
 
 ### Playback logs
 

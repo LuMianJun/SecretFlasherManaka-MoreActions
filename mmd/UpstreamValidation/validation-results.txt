@@ -1,0 +1,23 @@
+Historical fixed-upstream baseline, 2026-11-15
+Command (repository root):
+dotnet run --project mmd/UpstreamValidation -c Release -- --motions "<six-motion directory>"
+
+UPSTREAM_COMPARISON PASS cases=32 queries=1024 maxPositionM=0 maxRotationDegrees=0
+UPSTREAM_INPUT_COMPATIBILITY PASS canonicalTwist=true aliases=true independentBinary=true
+
+Real input pairs (literal / compatible), each with maxPositionM=0 and maxQuaternionComponentDistance=0:
+Shake: queries=150/150 supportedKeys=39530/39530 FrameCount=669/669
+addiction: queries=152/152 supportedKeys=0/39222 FrameCount=-1/5997
+queencard: queries=152/152 supportedKeys=249025/249025 FrameCount=4797/4797
+盛装登场: queries=152/152 supportedKeys=10639/10639 FrameCount=3525/3525
+腰振りダンス: queries=152/152 supportedKeys=19249/19249 FrameCount=5702/5702
+越南鼓甜舞: queries=148/148 supportedKeys=25601/25601 FrameCount=473/473
+
+UPSTREAM_ORACLE PASS checks=246553 originalPlayer=true fullBody=true integerPairLerp=true
+
+The compatible oracle uses independently rewritten binary name fields; candidate uses production UpstreamInputCompatibility.Apply on the original parsed file.
+Literal addiction is an empty supported-track case, not evidence of dancing-body recovery.
+Boundary: offline Unity math/Transform stand-in, not native Unity/rendering or in-game validation.
+
+Final run includes unchanged Evaluate semantics after ApplyInterpolatedPose extraction for the separate LoopEndpoint adapter.
+Compatible expected names retain canonical members from the unmodified original Reader before applying alias normalization; they do not call production BoneName.

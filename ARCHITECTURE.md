@@ -77,18 +77,21 @@ mmd/Plugin/
 ├─ Plugin.cs             插件入口与公共版本信息
 ├─ Api/                  可选的 MMD 播放通知
 ├─ Import/               MMD 配置、目录发现、后台动作准备与注册
-├─ Motion/               MmdMotion 数据读取/采样，MmdSkeleton 求解
-├─ Rig/                  游戏骨架映射、体型快照、生成、缓存与绑定
+├─ Motion/               MmdMotion 安全读取及共享关键帧数据
+├─ Upstream/             固定 UnityVMDPlayer 身体求解、Reader 与输入适配
+├─ Rig/                  游戏人形绑定、原生骨轴快照、缓存与重绑
 ├─ Playback/             RuntimeVmdSource 与单次 RuntimeVmdPose
 └─ Camera/               镜头 VMD、配置和镜头生命周期
 ```
 
-- MmdMotion 的关键帧数据由动作源共享；运行时使用数值采样结果，避免逐骨创建临时 Key。准备完成的只读动作可缓存轨道选择与别名绑定；公开可变输入继续动态取轨道。
+- MmdMotion 保留原始骨名、重复关键帧及 IK 帧边界和顺序。UpstreamInputCompatibility 只处理 C 字符串尾部填充及已有骨名拼写兼容；Reader 接收已做一次坐标转换的数据，沿用固定上游的位置／旋转 key 筛选、贝塞尔插值和游标更新语义。固定上游对照保留原有开关语义。实际游戏路径保留足 IK 的显式零位移，并按当前时间读取最近的开关记录。
 - MmdPackPreparation 在后台独立读取主动作、表情和口型；附加文件失败只跳过对应层。MmdMorphBindings.Compose 在准备动作源时按“主动作 → 表情 → 口型”组合 morph 轨道，口型限定嘴部通道；RuntimeVmdPose 使用主动作时间轴采样，附加文件不参与身体或镜头求解。
-- MotionRig 从公共 `body-bones.json` 读取固定角色预设，MmdBoneMap 按实际可用路径选取并缓存映射。公共 `MotionRig.MmdSource()` 从清单的 `Source` 与 `Fallback.WhenMissing/Source` 选择 MMD 源名。MmdTargetSnapshot 只绑定预设中的当前对象，收集真实绑定与体型；GameMmdSkeleton 生成对应参考姿势数据。角色快照仅保存在内存中，不生成或回写骨骼清单。
-- MmdRigPreparation 负责后台数据计算和主线程分帧构建；MmdRigCache 管理骨架租借、体型匹配、跨场景重绑和淘汰。
-- RuntimeVmdRig 保存可复用采样对象；RuntimeVmdPose 负责当次动作应用、表情、走位以及结束时归还和恢复。
-- 转盘显隐和别名变化只更新动作要求，不重采角色快照；体型、目标或绑定资源变化仍重新校验。固定源骨引用、静止偏移、捩转轴和轨道选择在准备时计算，当前姿态、朝向、原生基线与对象存活状态仍实时读取。
+- MotionRig 从公共 `body-bones.json` 读取80条固定角色路径；MmdTargetSnapshot 收集原生绑定轴、身高、长度包装，以及原生颈长、肩宽和腿间距。隐藏根与 Armature 使用单位变换，保留逐骨世界参考轴及米制尺寸。GameHumanoidMap 接入51个人体输出，MmdAdditionalTracks 按实际轨道补充眼、捩骨及其它原生可选骨。
+- MmdRigPreparation 在主线程分帧采集快照与创建原生骨轴采样树；文件读取仍在后台。MmdRigCache 管理租借、体型匹配、跨场景重绑与淘汰。快照仅存内存，不生成或回写骨骼清单。
+- UpstreamBodySolver 保留固定 UnityVMDPlayer 的 FK、嵌套腿部解算和 n/n+1 插值。游戏路径建立独立中心、槽、腰和上下半身支点，按父先子后写回，并在当前全亲坐标下计算腿形补偿及足部朝向。UpstreamValidation 对照未注入游戏控制层的路径，CompatibilityValidation 验证游戏适配。
+- MmdAdditionalTracks 在标准 FK 与 IK 之间接入腰／取消、肩P/C、上半身3和拇指0，IK 后叠加捩与 D/EX。这些轨道会改变有效姿势，必须先禁用附加层比较标准完整写回，再恢复附加层逐骨记录变化并核对扩展契约；不能仅凭代码分层认定输出差异合理。
+- RuntimeVmdPose 写回受控骨、表情、走位和原生租约；可选骨仅在有轨且遮罩允许时接管，以当前原生姿势叠加增量，保留父变换及尺寸。游戏 Animator 继续运行；水平走位由 CharacterController.Move 处理。带接触计划的试验构建可在走位后探测地面，按匹配的计划重解支撑手脚。设置默认关闭。
+- 转盘显隐和别名变化不重采角色快照；体型、目标或绑定资源变化重新校验。真体型变更会使旧的活动几何失效并归还原生控制；位置、朝向、原生基线和对象存活状态仍实时读取。
 - MmdCameraDriver 单独管理配套镜头，通过更多动作 API 对齐播放时间，不接管播放请求。
 - Plugin.Version 是 MMD 入口和准备完成日志共同使用的版本来源。
 
@@ -108,11 +111,12 @@ CrowdDriver 持有一轮聚集的固定中心、站位、招募与重试状态�
 
 ## 共享代码、构建与验证
 
-- shared/body-bones.json 是骨骼路径、必要骨骼标记与 MMD 映射的唯一源码数据，构建时复制为 SFMMoreActions/body-bones.json 随包分发，不在代码或 MMD 目录维护第二份清单。MotionRig 使用线程安全的 Lazy 缓存；Plugin.Load 早期调用 Initialize 主动校验，缺失或格式错误时报告实际文件路径。清单不保存游戏中角色的姿态、体型或绑定快照。
+- shared/body-bones.json 是固定角色路径、必要骨骼标记与共享来源元数据的唯一源码清单，构建时复制为 SFMMoreActions/body-bones.json 随包分发，不在代码或 MMD 目录维护第二份清单。MotionRig 使用线程安全的 Lazy 缓存；Plugin.Load 早期调用 Initialize 主动校验，缺失或格式错误时报告实际文件路径。清单不保存游戏中角色的姿态、体型或绑定快照。当前 MMD 身体轨道的 Humanoid 对应关系直接沿用上游字典，不再使用旧 D/EX 来源生成第二套求解拓扑。
 - shared/ModOptions.cs 分别编译到三个插件，保证可选模块独立安装。
 - shared/PluginReferences.props 集中生产项目的 .NET 目标和共同游戏引用，各插件声明自己的额外模块与程序集名。
 - 三个生产项目显式列出编译文件，并保留既有补丁类型的相对顺序；新增补丁时应核对同一原生方法的执行顺序。
 - 验证项目直接链接相应生产文件，夹具仅提供明确的游戏/Unity 边界；改变文件位置后必须同步这些链接。
+- 上游一致性门禁直接编译固定原始源码，与未附加游戏控制层的路径比较同一有效输入、参考骨架和查询历史。游戏路径的兼容回归验证控制、骨轴、写回和状态交接。
 - 验证项目中的简化模型不代表生产实现；JSON 验证、骨架数学、原生接口、安装器和实际游戏效果分别验证。
 
 普通 `.anim` 直接导入等延期事项见[更多动作待办](more-actions/docs/待办.md)。

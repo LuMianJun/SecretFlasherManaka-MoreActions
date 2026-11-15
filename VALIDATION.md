@@ -32,15 +32,15 @@ dotnet run --project more-actions/RingValidation -c Release
 dotnet run --project more-actions/RuntimeValidation -c Release
 dotnet run --project more-actions/StatsValidation -c Release
 dotnet run --project mmd/ImportValidation -c Release
-dotnet run --project mmd/InterpolationValidation -c Release
-dotnet run --project mmd/SkeletonValidation -c Release
+dotnet run --project mmd/UpstreamValidation -c Release
+dotnet run --project mmd/CompatibilityValidation -c Release
 dotnet run --project mmd/CameraValidation -c Release
 dotnet run --project npc-spectators/Validation -c Release
 ```
 
-测试自行生成临时样例。需要验证真实动作时，可给 SkeletonValidation 传入自备 Motions 目录；给 ImportValidation 传入自备 WAVEFILE/Shake 示例的父目录。素材均不随仓库提供。
+测试自行生成临时样例。真实动作对照使用 `mmd/UpstreamValidation -c Release -- --motions "动作目录"`；给 ImportValidation 传入自备 WAVEFILE/Shake 示例的父目录。素材均不随仓库提供。
 
-ImportValidation 覆盖顶层文件字段、旧 `camera.vmdFile` 兼容、冲突优先级和路径限制。SkeletonValidation 使用实际后台加载器与播放源，验证“主动作 → 表情 → 口型”按通道覆盖、缺省通道保留、零值覆盖、名称归一化、口型范围限制、时长截断与末帧保持、跳回零秒、重复采样、停止恢复，以及附加文件缺失、损坏、无可用轨道时的独立警告和回退；另覆盖自定义歌词路径与禁用。
+ImportValidation 覆盖顶层文件字段、旧 `camera.vmdFile` 兼容、冲突优先级和路径限制。UpstreamValidation 直接编译未修改的固定上游 Player/Reader，与未注入游戏控制层的路径比较。PlaybackParityValidation 测量游戏写回对固定上游的差异，CompatibilityValidation 检查扩展契约、游戏绑定、尺寸换算、走位、遮罩、缓存和原生恢复。范围及命令见各验证目录 README。
 
 相应入口还提供针对已安装游戏的接口检查。离线替身不能证明实际渲染、导航、碰撞或原生 Harmony 派发，仍需游戏内验收。
 
@@ -54,9 +54,71 @@ ImportValidation 覆盖顶层文件字段、旧 `camera.vmdFile` 兼容、冲突
 
 ## MMD 骨骼、求解与离线回归
 
-当前构建已移除 MMD 运行时的腿部、姿势、高度和蒙皮测量，包括采样配置、场景查询、辅助 FK 副本与网格烘焙。旧配置中的测量开关不再生效。骨骼路径和映射使用公共固定角色预设，源码仅保留 `shared/body-bones.json`，随包复制到 `BepInEx/plugins/SFMMoreActions/body-bones.json`。生产读取这份清单，不扫描或保存运行时骨骼目录；网格索引 JSON 已移除。
+当前构建已移除 MMD 运行时的腿部、姿势、高度和蒙皮测量，包括旧采样配置、诊断查询、辅助 FK 副本与网格烘焙。试验性接地仅调用支撑地面射线。旧配置中的测量开关不再生效。骨骼路径和映射使用公共固定角色预设，源码仅保留 `shared/body-bones.json`，随包复制到 `BepInEx/plugins/SFMMoreActions/body-bones.json`。生产读取这份清单，不扫描或保存运行时骨骼目录；网格索引 JSON 已移除。
 
 生产仍保留动作加载、未匹配轨道、取消原因及异常日志。更多动作的取消原因和镜头状态变化日志不属于本次移除范围。
+
+### v1.8.0 播放回归
+
+MMD 1.5.0 的上游对照覆盖 398,481 项原始与兼容输入检查。游戏兼容回归另检查六支动作的 A／T 播放、控制层级、足部零位移、IK 切换、原生所有权及停止恢复，共 35,782 项。原版跟随镜头的同帧走位由 EventValidation 覆盖。
+
+手脚接地原型以六支动作共 21,169 帧验证同一判定规则。盛装坐下段足底穿地超过 1 cm 的帧从 555 降至 39，腰振中段手部从 417 降至 8。原版角色的实机试验分别记录到盛装 484 帧、腰振完整播放 323 帧发生修正，这些是整段计数，无法定位到具体手脚或单帧。安装后的试验设置已恢复关闭。
+
+公开包省略本地计划。生成及构建命令见[接触计划生成](mmd/ContactPlanGeneration/README.md)。整包检查接受接地用的六参数射线查询，继续检查已退役的测量类型与 `BakeMesh`，并拒绝此游戏中不可调用的 `LayerMask.GetMask`。
+
+### 2026-11-15 上游对齐的历史验收（MMD 1.4.14 候选）
+
+标准身体求解、Reader 筛选和游标、全亲与上下半身补偿、Ghost 顺序、足／脚尖 IK、IK 开关及 n/n+1 插值恢复固定 UnityVMDPlayer 的原有行为。生产已删除替代求解分支，验证直接调用默认构造，不再定义 `UPSTREAM_VALIDATION` 或以旧模式通过代替生产输出一致。
+
+验证分两步执行。先去除附加轨道，比较标准求解核心及 RuntimeVmdPose 完整写回；基准通过后再恢复附加轨道，与同一上游输出逐骨比较，记录其位置和旋转变化，并用独立扩展契约检查这些变化。附加阶段出现非零差值不能直接当成通过，也不能与标准阶段的误差混成一个数字。
+
+标准核心直接使用未修改的固定上游源码。六支动作、A／T 参考、0.9／1.125／1.2 缩放，共36组合、380,970次采样、30,477,600个骨骼样点；局部／世界位置与旋转的最大差均为0。每个整数帧另采样 n+0.375 与 n+0.75，并检查终帧保持。另有64组合、2,048次合成查询，覆盖大角度全亲、复合控制旋转、零／稀疏／重复 key、下半身、头颈、IK开关及相同的前后查询历史。合成加真实原始／兼容输入的最终门禁通过398,481项检查。
+
+无附加层的完整写回使用原生80骨、A／T和1.125缩放，六支动作共12组合；在还原角色朝向及控制器水平位移后，最大位置差约0.002331 mm、旋转差约0.00004608°。只校准固定首帧水平起点，没有逐帧、逐骨或贴地校准。标准门禁容差为位置0.1 mm、旋转0.05°；完整回执记录每支动作和骨点的极值。
+
+恢复全部附加轨道后，另完成12组合、28,232次查询、2,258,560个骨骼样点的测量。相对原版标准输出的最大位置变化依动作约7.87～660.30 mm，最大旋转变化约13.46～180°，此阶段只记录变化，不标为上游一致或视觉修复通过。Shake的髋、腿和脚仍在标准门限内；盛装登场的足首D、腰振的腰与足先EX等确有非单位输入，必须分组定位其影响，不能把全部差异归给源动作或视为正常。
+
+同时修复全单位附加轨道仍注册前置回调、改变标准有效帧数和无效回写的问题。20组A／T、IK开关和附加组组合对照中，80骨位置及四元数分量差精确为0；微小但非单位的输入仍保留。CompatibilityValidation通过35,647项检查，其中六动作12条路径和5,600次同历史查询重放通过。最终Release构建零警告、零错误；NativePatchGuard扫描49条Harmony声明、43个独有原生入口，完整同址方法集合与入口字节和已审基线一致。
+
+附加层分组测量另完成50个有效组合：腰振182.8秒的左脚约179.449°差异可由腰／取消组单独重现；盛装71.2秒的右脚趾约70.46 mm变化来自D/EX组。Shake各分组腿足均在标准门限内。腕／手捩的独立轴和支点预测未发现重复施加，但没有原配PMX时不能据此认证源局部轴或grant语义。
+
+按用户后续指令，已从隔离源码快照构建并安装1.4.14无附加身体轨道测试版，启动标识为 `bodyExtensions=false build=core-only-test`；正式源码仍保留完整扩展。测试版使用完整六动作再跑12组合，80骨最大位置差0.002331 mm、旋转差0.00004608°；另通过原生入口复核、55项镜头和包接口检查。该记录对应当时的无附加层安装，之后已换为完整扩展测试版。
+
+addiction 的原始骨名带 NUL 后填充，固定上游无法识别。有效输入对照由原版独立读取名称兼容后的临时二进制，生产侧对原文件执行实际兼容；该动作有39,222个支持 key、末帧5,997，不能用双方空轨静止作为验收。A／T在相同参考几何下对照，原生身形测量与最终游戏写回另行验证。
+
+```powershell
+dotnet run --project mmd/UpstreamValidation -c Release -- --native-motions "动作目录" --summary "输出目录/native-parity-summary.json" --native-only
+
+dotnet run --project mmd/PlaybackParityValidation -c Release -- baseline "动作目录" "输出目录/playback-baseline.json"
+
+dotnet run --project mmd/PlaybackParityValidation -c Release -- extended "动作目录" "输出目录/playback-extended.json"
+```
+
+这些结果验证同一游戏参考骨架和同一查询历史下的输出一致性，不证明原作者 PMX 姿势、网格接触或游戏视觉效果。候选保留上游已有的目标残差和状态历史；坐下穿地是否改善仍需实机复测。这段记录的是该候选当时的离线验证。实现范围见[功能对照](mmd/docs/UnityVMDPlayer功能对照.md)。
+
+### 2026-11-15 求解改写的历史验收（MMD 1.4.13，已被取代）
+
+1.4.13 曾修改零位置 key、Reader 游标、最新 IK 状态、控制空间、下半身补偿、Ghost 父先子后写回及端点采样，并用真实两段向量重写腿 IK。独立反例中的约2～9.7mm可达目标残差降至数值精度内，但该验收未覆盖完整膝弯曲约束，也没有证明生产输出与上游一致。
+
+随后对坐下段的直接原版对照确认，新 IK 能命中踝目标，却可能偏离参考膝弯曲轴并产生额外膝姿势异常。这批标准算法改写已在1.4.14候选中撤回；原版差分取代了“优于上游”的几何和任意 seek 确定性断言。原生颈长、肩宽、腿间距等参考几何、缓存及原生姿势交接仍属于游戏适配范围。
+
+### 2026-11-15 上游一致求解测试版（MMD 1.4.11）
+
+身体求解改为固定 UnityVMDPlayer `2cee8abd56c68ad3e88bcf4086e33185aa5ca4e8` 的方法移植。旧 MmdSkeleton/GameMmdSkeleton、临时足部诊断及其专属验证工程已从活动源码移除；下面的旧版本记录保留为历史证据，不代表本版求解行为或验收结果。
+
+新的对照先核验原始上游源码哈希，分别比较原始 VMD 和经过明确输入兼容的 VMD；兼容组把清理后的名字写入临时二进制供原版读取，生产侧则读取原文件并执行实际输入适配。addiction 原始骨名带 NUL 后填充，原版不能识别；必须检查兼容后的非空轨道及实际舞蹈输出，不能以空轨静止作为通过依据。详见 [对照方法](mmd/UpstreamValidation/README.md) 与 [当前差异](mmd/docs/UnityVMDPlayer功能对照.md)。
+
+游戏适配回归使用真实生产 Rig/Pose/Cache 和原生姿势租约，检查原生骨轴、已支持体型参数、髋高、循环根位移、扩展隔离、停止恢复、分区遮罩、缓存复用及活动体型失效。离线 Unity 替身不能代替游戏内视觉验收。
+
+该轮记录246,553项原版源码对照检查（32组/1,024次夹具查询、六动作原始与兼容两组/1,812次真实查询），位置与旋转差为0；这些检查调用当时的旧模式，不能证明后续生产修正路径也与原版一致。另通过4,905项游戏适配、83项导入和55项镜头检查。候选程序集的原生接口、后台线程边界及旧求解器/测量代码移除检查通过。生产构建零警告、零错误；三个候选DLL共49条Harmony声明、43个原生目标，完整入口字节与同址方法集合均与已审基线相同，43个目标均为单一方法。该轮未进行游戏内视觉验收。
+
+### 2026-11-15 控制空间与附加轨道修复（MMD 1.4.12）
+
+隐藏根和Armature控制空间归一化，保留原生世界bind轴与已换算尺寸，修复Center重置局部旋转造成的90度错位及局部位移再次乘根缩放。采样树覆盖80条公共路径；眼、捩骨、腰／取消、肩P/C、上半身3、D/EX、拇指0和原名可选骨按实际轨道与遮罩启用。腰等虚拟控制进入原IK之前，D/EX在原IK之后叠加，不恢复旧自写腿部求解器。
+
+旧模式的标准上游对照246,553项通过，输出差为0。游戏接入和附加功能24,108项通过，六动作A/T共2,674个真实时间样点，包含Shake全片、盛装登场60～90秒和腰振末段的密集采样。逐点重复、有限值、原生root／Armature所有权和停止80骨局部TRS恢复通过；该历史版本另记录纯核心已有的头部／后代非单调查询历史依赖，未将任意seek确定性作为通过条件。1.4.13曾调整Ghost写回顺序处理该现象；该改写已撤回，当前按相同查询历史直接与原版比较。
+
+Release构建0警告、0错误；最终三DLL仍为49条Harmony声明、43个单一原生入口，与已审基线的入口字节及同址方法集合一致。本候选及六动作完整资源已安装，实际文件哈希与候选一致，原配置及更多动作／NPC／骨骼JSON依赖保持原内容。当前检查未代替游戏内蒙皮和视觉验收；原Avatar描述与bind的拇指参考差异，以及颈长、肩宽、腿间距等位置输入缺口仍见[功能对照](mmd/docs/UnityVMDPlayer功能对照.md)。
 
 ### 2026-11-13 腿部求解回归
 
@@ -116,13 +178,7 @@ dotnet run --project mmd/CameraValidation -c Release -- --package "游戏目录"
 
 当前三个插件生产构建零警告、零错误，候选包通过55项CameraValidation断言及公共JSON位置／内容、原生接口和后台Unity调用边界检查。随包只保留更多动作目录中的一份公共JSON；候选DLL仍为49条Harmony声明、43个目标，43条完整入口与此前基线一致，均为单一方法。
 
-保留的 `PoseTraceReplay` 只读取旧测试版已采集的日志，不依赖当前插件生成新测量。可用既有完整trace离线复算生产解，并与最多800次迭代的CCD对照：
-
-```powershell
-dotnet run --project mmd/SkeletonValidation -c Release -- --pose-trace "LogOutput.log" "pose-analysis.json"
-```
-
-输出记录各帧的生产解重放误差、CCD残差、膝盖平面差异、游戏内重定向误差及场景接触。先检查重放误差，再仅对收敛且弯膝平面明确的参考解判断方向差异；未收敛或接近伸直的参考结果不能据此判为求解错误。原始FK、适配骨架和独立CCD均不能替代原作者模型的最终姿势。
+该历史候选的 `PoseTraceReplay` 曾用于重放旧日志和对照 CCD；它随旧求解器专属验证一起归档，不再是当前工程入口。当前求解应使用上游源码对照及游戏兼容回归。
 
 ## 生成无素材安装包
 
