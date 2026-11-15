@@ -2,6 +2,7 @@ using System.Text.Json;
 using SFM.Actions;
 using SFM.Mmd;
 using SFM.Mmd.Upstream;
+using SFM.Mmd.Upstream.Reader;
 using UnityEngine;
 
 // Functional preservation checks use the original 80-path native hierarchy.
@@ -35,6 +36,8 @@ internal static class AdditionalTracksRegression
         CheckIndependentTorsoControls(check,fixture);
         CheckHeadWritebackOrder(check,fixture);
         CheckTurnedLegTargets(check,fixture);
+        CheckAuthoredFootDirection(check,fixture);
+        CheckFootIkKeyState(check,fixture);
         CheckHipAnchor(check,fixture);
         CheckWaistBeforeIk(check,fixture);
         CheckPureVirtualTracks(check,fixture);
@@ -513,6 +516,85 @@ internal static class AdditionalTracksRegression
             check(Vector3.Distance(turn*a.Toe,b.Toe)<.0001f,"Turning the root carries the toe target direction");
             check(Quaternion.Angle(turn*a.Ankle.Q,b.Ankle.Q)<.1f,"Turning the root carries the entire foot orientation");
         }
+    }
+
+    static void CheckAuthoredFootDirection(Action<bool,string> check,JsonElement fixture)
+    {
+        using var actor=new NativeBundleRegression.NativeActor(fixture,1.125f);
+        var heading=actor.Root.transform.rotation;
+        var authored=Quaternion.Euler(67,113,-79);
+        string footPath=Hips+"/UpperLeg_R/LowerLeg_R/Foot_R";
+        var foot=actor.Bones[footPath];
+        var toe=actor.Bones[footPath+"/Toe_R"];
+        var direction=toe.position-foot.position;
+        var expected=(heading*authored*Quaternion.Inverse(heading)*direction).normalized;
+        var motion=Motion();
+        motion.RawIkFrames.Clear();
+        Hold(motion,"右足ＩＫ",authored,new Vector3(.15f,.7f,-.2f));
+        using var pose=new RuntimeVmdPose(actor.Root,new ActionDefinition(),motion,MmdReferencePose.T);
+        foreach(float seconds in new[]{0f,1f/60f,.517f})
+        {
+            check(pose.Apply(seconds),"The authored multi-axis foot pose is evaluated");
+            check(Vector3.Distance((toe.position-foot.position).normalized,expected)<.0001f,
+                "The toe direction applies the authored foot IK quaternion in its original order");
+        }
+    }
+
+    static void CheckFootIkKeyState(Action<bool,string> check,JsonElement fixture)
+    {
+        var keyed=Motion();
+        var raised=new Vector3(0,.5f,0);
+        keyed.tracks["左足ＩＫ"]=[Key(0,p:raised),Key(15),Key(30,p:raised)];
+        keyed.tracks["右足ＩＫ"]=[Key(0,p:raised),Key(15),Key(30,p:raised)];
+        var reader=VMDReader.FromMotion(keyed,gameIk:true);
+        foreach(var bone in new[]{VMDReader.BoneKeyFrameGroup.BoneNames.左足ＩＫ,
+                                   VMDReader.BoneKeyFrameGroup.BoneNames.右足ＩＫ})
+        {
+            Vector3 Sample(int frame)
+            {
+                reader.GetBoneKeyFrame(bone,frame);
+                return VMDReader.InterporatePosition(reader,bone,frame);
+            }
+            var firstEnabled=Sample(1);
+            Sample(0);
+            check(firstEnabled.y>0&&firstEnabled==Sample(1),
+                "An IK track first visited at frame 1 matches a sequential sample: "+bone);
+            for(int frame=2;frame<14;frame++)Sample(frame);
+            var approaching=Sample(14);
+            check(approaching.y>0&&approaching.y<.1f&&Sample(15)==Vector3.zero,
+                "Sequential IK position sampling reaches the authored zero key: "+bone);
+            check(Sample(16).y>0&&Sample(22).y>.1f&&Sample(15)==Vector3.zero,
+                "IK position sampling interpolates out of zero and seeks back to it: "+bone);
+        }
+
+        var motion=Motion();
+        motion.RawIkFrames.Clear();
+        motion.RawIkFrames.Add((12,true,new(){new("右足ＩＫ",false)}));
+        motion.RawIkFrames.Add((15,true,new(){new("右つま先ＩＫ",false)}));
+        motion.RawIkFrames.Add((24,true,new(){new("右足ＩＫ",true)}));
+        var authored=Quaternion.Euler(-29,38,51);
+        Hold(motion,"右足首",authored);
+        Hold(motion,"右足ＩＫ",Quaternion.AngleAxis(50,Vector3.up),new(.25f,.4f,.3f));
+        Hold(motion,"右つま先ＩＫ",Quaternion.identity,new(.15f,.2f,.05f));
+
+        using var actor=new NativeBundleRegression.NativeActor(fixture,1.125f);
+        string path=Hips+"/UpperLeg_R/LowerLeg_R/Foot_R";
+        var foot=actor.Bones[path];
+        var heading=actor.Root.transform.rotation;
+        var expected=heading*authored*Quaternion.Inverse(heading)*foot.rotation;
+        using var pose=new RuntimeVmdPose(actor.Root,new ActionDefinition(),motion,MmdReferencePose.T);
+        pose.Apply(0);
+        var enabled=new World(foot);
+        for(int frame=1;frame<=20;frame++)pose.Apply(frame/30f);
+        var disabled=new World(foot);
+        check(Quaternion.Angle(expected,foot.rotation)<.1f,
+            "Disabling both foot and toe IK preserves the authored FK ankle rotation");
+        pose.Apply(.9f);
+        check(!disabled.Matches(foot),"The foot IK switch can turn back on while toe IK stays off");
+        pose.Apply(0);
+        check(enabled.Matches(foot),"Seeking before the switches restores the default enabled state");
+        pose.Apply(20f/30f);
+        check(disabled.Matches(foot),"Seeking over IK switches matches sequential ankle sampling");
     }
 
     static void CheckHipAnchor(Action<bool,string> check,JsonElement fixture)

@@ -1,6 +1,6 @@
 // Copyright (c) 2019 hobosore. MIT; see repository THIRD_PARTY_NOTICES.md.
-// Pinned UnityVMDReader sampling semantics; only namespace, in-memory input
-// construction and explicit lifetime reset differ from the upstream source.
+// Preserve the pinned reader for the raw comparison path. Game IK retains
+// explicit position keys and samples its switches by frame.
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -50,6 +50,7 @@ namespace SFM.Mmd.Upstream.Reader
             private static List<string> boneStringNames;
 
             public BoneNames Name { get; private set; }
+            bool keepZeroPositions;
 
             //全てのBoneKeyFrames
             public List<VMD.BoneKeyFrame> BoneKeyFrames = new List<VMD.BoneKeyFrame>();
@@ -73,11 +74,17 @@ namespace SFM.Mmd.Upstream.Reader
                 Name = name;
             }
 
-            // Reset returns this group to the same cursor state as a new
-            // pinned reader; it does not change its sampling rules.
+            internal void KeepExplicitPositionKeys()
+            {
+                keepZeroPositions=true;
+                ResetCursor();
+            }
+
             internal void ResetCursor()
             {
-                frameNumberCash=0;
+                // An unvisited game IK track needs a full lookup even when
+                // its first enabled frame is 1.
+                frameNumberCash=keepZeroPositions?int.MinValue:0;
                 CurrentKeyFrame=null;Interpolation=null;NextKeyFrame=null;
                 LastPositionKeyFrame=null;LastRotationKeyFrame=null;
                 NextPositionKeyFrame=null;NextRotationKeyFrame=null;
@@ -103,7 +110,7 @@ namespace SFM.Mmd.Upstream.Reader
                     return null;
                 }
 
-                if (CurrentKeyFrame != null && CurrentKeyFrame.Position != Vector3.zero)
+                if (CurrentKeyFrame != null && (keepZeroPositions || CurrentKeyFrame.Position != Vector3.zero))
                 {
                     LastPositionKeyFrame = CurrentKeyFrame;
                     NextPositionKeyFrame = BonePositionKeyFrames.Find(x => x.FrameNumber > frameNumber);
@@ -183,7 +190,7 @@ namespace SFM.Mmd.Upstream.Reader
             public void AddKeyFrame(VMD.BoneKeyFrame vmdBoneFrame)
             {
                 BoneKeyFrames.Add(vmdBoneFrame);
-                if (vmdBoneFrame.Position != Vector3.zero) { BonePositionKeyFrames.Add(vmdBoneFrame); }
+                if (keepZeroPositions || vmdBoneFrame.Position != Vector3.zero) { BonePositionKeyFrames.Add(vmdBoneFrame); }
                 if (vmdBoneFrame.Rotation != ZeroQuaternion) { BoneRotationKeyFrames.Add(vmdBoneFrame); }
             }
 
@@ -251,6 +258,12 @@ namespace SFM.Mmd.Upstream.Reader
         }
 
         public VMD RawVMD { get; private set; }
+        static readonly BoneKeyFrameGroup.BoneNames[] GameIkBones =
+        {
+            BoneKeyFrameGroup.BoneNames.左足ＩＫ, BoneKeyFrameGroup.BoneNames.右足ＩＫ,
+            BoneKeyFrameGroup.BoneNames.左つま先ＩＫ, BoneKeyFrameGroup.BoneNames.右つま先ＩＫ
+        };
+        Dictionary<BoneKeyFrameGroup.BoneNames,(int Frame,bool Enabled)[]> gameIkSwitches;
 
         public int FrameCount { get; private set; } = -1;
 
@@ -281,9 +294,14 @@ namespace SFM.Mmd.Upstream.Reader
 
         // The shared parser has already converted coordinates. Populate the
         // original reader's groups without another file read or conversion.
-        internal static VMDReader FromMotion(global::SFM.Mmd.MmdMotion motion)
+        internal static VMDReader FromMotion(global::SFM.Mmd.MmdMotion motion,bool gameIk=false)
         {
             var result=new VMDReader();
+            if(gameIk)
+            {
+                result.GetBoneKeyFrameGroup(BoneKeyFrameGroup.BoneNames.左足ＩＫ).KeepExplicitPositionKeys();
+                result.GetBoneKeyFrameGroup(BoneKeyFrameGroup.BoneNames.右足ＩＫ).KeepExplicitPositionKeys();
+            }
             result.RawVMD.MotionName=motion.modelName;
             IEnumerable<(string Name,global::SFM.Mmd.MmdMotion.Key Key)> keys=motion.RawBoneKeys.Count>0
                 ?motion.RawBoneKeys:motion.tracks.SelectMany(track=>track.Value.Select(key=>(track.Key,key)));
@@ -328,7 +346,40 @@ namespace SFM.Mmd.Upstream.Reader
                 }
                 result.RawVMD.IKFrames.AddRange(switches.Values);
             }
+            if(gameIk)result.BuildGameIkSwitches();
             return result;
+        }
+
+        void BuildGameIkSwitches()
+        {
+            // Keep the first record at a duplicate frame and the first switch
+            // for a bone within that record, as the pinned reader did.
+            var records=RawVMD.IKFrames.GroupBy(key=>key.Frame).Select(group=>group.First()).OrderBy(key=>key.Frame).ToArray();
+            gameIkSwitches=new();
+            foreach(var bone in GameIkBones)
+            {
+                string name=bone.ToString();
+                var timeline=new List<(int Frame,bool Enabled)>();
+                foreach(var key in records)
+                {
+                    var entry=key.IKEnable.Find(item=>item.IKName==name);
+                    if(entry!=null)timeline.Add((key.Frame,entry.Enable));
+                }
+                gameIkSwitches.Add(bone,timeline.ToArray());
+            }
+        }
+
+        internal bool GameIkEnabledAt(BoneKeyFrameGroup.BoneNames bone,int frame)
+        {
+            var timeline=gameIkSwitches[bone];
+            int lo=0,hi=timeline.Length;
+            while(lo<hi)
+            {
+                int mid=(lo+hi)/2;
+                if(timeline[mid].Frame<=frame)lo=mid+1;
+                else hi=mid;
+            }
+            return lo==0||timeline[lo-1].Enabled;
         }
 
         public VMDReader(string filePath)

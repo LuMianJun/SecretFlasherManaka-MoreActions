@@ -160,14 +160,14 @@ internal sealed class UpstreamBodySolver : IDisposable
                 //{ BoneNames.右つま先,   (animator.GetBoneTransform(HumanBodyBones.RightToes))}
         };
         EnforceInitialPose(avatar,aPose);
-        VMDReader=VMDReader.FromMotion(motion);
+        bool gameIk=controlWaistPivot.HasValue;
+        VMDReader=VMDReader.FromMotion(motion,gameIk);
         boneGhost=new BoneGhost(avatar,humanBoneTransformDictionary,controlWaistPivot);
         upperBodyAnimation=new UpperBodyAnimation(avatar,VMDReader,boneGhost,leftTwist,rightTwist);
         lowerBodyAnimation=new LowerBodyAnimation(avatar,VMDReader,boneGhost);
         if(boneGhost.Controls==null)centerAnimation=new CenterAnimation(VMDReader,avatar,boneGhost);
-        bool followRootFrame=boneGhost.Controls!=null;
-        leftFootIK=new FootIK(VMDReader,avatar,FootIK.Feet.LeftFoot,Vector3.zero,followRootFrame);
-        rightFootIK=new FootIK(VMDReader,avatar,FootIK.Feet.RightFoot,Vector3.zero,followRootFrame);
+        leftFootIK=new FootIK(VMDReader,avatar,FootIK.Feet.LeftFoot,Vector3.zero,gameIk);
+        rightFootIK=new FootIK(VMDReader,avatar,FootIK.Feet.RightFoot,Vector3.zero,gameIk);
         // Missing native toes have no physical contact segment.
         if(avatar.GetBoneTransform(HumanBodyBones.LeftToes)!=null)
             leftToeIK=new ToeIK(VMDReader,avatar,boneGhost,ToeIK.Toes.LeftToe);
@@ -826,19 +826,19 @@ internal sealed class UpstreamBodySolver : IDisposable
         private Vector3 firstHipRight;
         readonly Quaternion initialHipCorrection, inverseInitialParentRotation;
         readonly Transform targetParent;
-        readonly bool followRootFrame;
+        readonly bool gameIk;
 
         private float upperLegLength = 0;
         private float lowerLegLength = 0;
         private float legLength = 0;
         private float targetDistance = 0;
 
-        public FootIK(VMDReader vmdReader, UpstreamAvatar animator, Feet foot, Vector3 offset,bool followRootFrame)
+        public FootIK(VMDReader vmdReader, UpstreamAvatar animator, Feet foot, Vector3 offset,bool gameIk)
         {
             VMDReader = vmdReader;
             Foot = foot;
             Animator = animator;
-            this.followRootFrame = followRootFrame;
+            this.gameIk = gameIk;
             firstHipDown = -animator.transform.up;
             firstHipRight = animator.transform.right;
             //注意！オフセットのy座標を逆にしている
@@ -927,7 +927,7 @@ internal sealed class UpstreamBodySolver : IDisposable
             Vector3 hipDown = HipTransform.rotation * Quaternion.Inverse(boneOriginalRotationDictionary[HipTransform]) * firstHipDown;
             HipTransform.RotateAround(HipTransform.position, Vector3.Cross(hipDown, targetVector), Vector3.Angle(hipDown, targetVector));
             var correction = initialHipCorrection;
-            if (followRootFrame)
+            if (gameIk)
             {
                 // The bind-leg correction starts in world axes. Carry it
                 // with the same root rotation that moves the IK target.
@@ -950,6 +950,7 @@ internal sealed class UpstreamBodySolver : IDisposable
 
             VMD.BoneKeyFrame footIKFrame = VMDReader.GetBoneKeyFrame(footBoneName, frameNumber);
 
+            // InterpolateIK handles explicit zero keys from the game reader.
             if (footIKFrame == null || footIKFrame.Position == Vector3.zero) { return; }
 
             FootTransform.localRotation = boneOriginalLocalRotationDictionary[FootTransform];
@@ -1015,6 +1016,11 @@ internal sealed class UpstreamBodySolver : IDisposable
         //内部でIKのEnableの値を設定している
         private void SetIKEnable(int frame)
         {
+            if (gameIk)
+            {
+                Enable = VMDReader.GameIkEnabledAt(footBoneName, frame);
+                return;
+            }
             VMD.IKKeyFrame currentIKFrame = VMDReader.RawVMD.IKFrames.Find(x => x.Frame == frame);
             if (currentIKFrame != null)
             {
@@ -1055,7 +1061,7 @@ internal sealed class UpstreamBodySolver : IDisposable
         Quaternion footOriginalRotation = Quaternion.identity;
         Quaternion toeIKOriginalRotation = Quaternion.identity;
         Vector3 footToeOriginalVector = Vector3.one;
-        readonly bool followRootFrame;
+        readonly bool gameIk;
 
         public Transform ToeIKParent { get; private set; }
         public Transform FootRotator { get; private set; }
@@ -1070,7 +1076,7 @@ internal sealed class UpstreamBodySolver : IDisposable
             VMDReader = vmdReader;
             Animator = animator;
             BoneGhost = boneGhost;
-            followRootFrame = boneGhost.Controls != null;
+            gameIk = boneGhost.Controls != null;
             Toe = toe;
 
             if (Toe == Toes.LeftToe)
@@ -1136,6 +1142,7 @@ internal sealed class UpstreamBodySolver : IDisposable
         public void IK(int frameNumber)
         {
             SetIKEnable(frameNumber);
+            if (gameIk && !FootIKEnable && !ToeIKEnable) return;
 
             FootTransform.localRotation = Quaternion.identity;
             ToeIKParent.localRotation = Quaternion.identity;
@@ -1154,6 +1161,7 @@ internal sealed class UpstreamBodySolver : IDisposable
                     ToeIKTarget.localRotation = Quaternion.FromToRotation(footToeOriginalVector, footToeOriginalVector + toeIKFrame.Position * DefaultBoneAmplifier);
                 }
             }
+            else if (gameIk) ToeIKTarget.localRotation = Quaternion.identity;
 
             IK();
 
@@ -1170,6 +1178,7 @@ internal sealed class UpstreamBodySolver : IDisposable
         public void InterpolateIK(int frameNumber)
         {
             SetIKEnable(frameNumber);
+            if (gameIk && !FootIKEnable && !ToeIKEnable) return;
 
             FootTransform.localRotation = Quaternion.identity;
             ToeIKParent.localRotation = Quaternion.identity;
@@ -1183,6 +1192,7 @@ internal sealed class UpstreamBodySolver : IDisposable
                 ToeIKTarget.localRotation
                     = Quaternion.FromToRotation(footToeOriginalVector, footToeOriginalVector + moveVector * DefaultBoneAmplifier);
             }
+            else if (gameIk) ToeIKTarget.localRotation = Quaternion.identity;
 
             IK();
 
@@ -1195,10 +1205,22 @@ internal sealed class UpstreamBodySolver : IDisposable
 
         private void ApplyFootIkDirection(Quaternion rotation)
         {
-            var targetVector = Quaternion.AngleAxis(rotation.eulerAngles.x, Vector3.right) * footToeOriginalVector;
-            targetVector = Quaternion.AngleAxis(rotation.eulerAngles.y, Vector3.up) * targetVector;
-            targetVector = Quaternion.AngleAxis(rotation.eulerAngles.z, Vector3.forward) * targetVector;
-            if (followRootFrame) targetVector = ParentOfAll.rotation * targetVector;
+            Vector3 targetVector;
+            if (gameIk)
+            {
+                // The game's sampling root starts at identity. Rotate the
+                // reference foot direction by the authored quaternion, then
+                // carry it into the current root frame.
+                targetVector = ParentOfAll.rotation * (rotation.normalized * footToeOriginalVector);
+            }
+            else
+            {
+                // Keep the original Euler reconstruction for the pinned
+                // upstream comparison path.
+                targetVector = Quaternion.AngleAxis(rotation.eulerAngles.x, Vector3.right) * footToeOriginalVector;
+                targetVector = Quaternion.AngleAxis(rotation.eulerAngles.y, Vector3.up) * targetVector;
+                targetVector = Quaternion.AngleAxis(rotation.eulerAngles.z, Vector3.forward) * targetVector;
+            }
             Vector3 footToeVector = ToeTransform.position - FootTransform.position;
             FootTransform.rotation = Quaternion.FromToRotation(footToeVector, targetVector) * FootTransform.rotation;
         }
@@ -1212,6 +1234,12 @@ internal sealed class UpstreamBodySolver : IDisposable
         //内部でIKのEnableの値を設定している
         private void SetIKEnable(int frame)
         {
+            if (gameIk)
+            {
+                FootIKEnable = VMDReader.GameIkEnabledAt(footIKBoneName, frame);
+                ToeIKEnable = VMDReader.GameIkEnabledAt(toeIKBoneName, frame);
+                return;
+            }
             VMD.IKKeyFrame currentIKFrame = VMDReader.RawVMD.IKFrames.Find(x => x.Frame == frame);
             if (currentIKFrame != null)
             {
