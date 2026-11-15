@@ -29,6 +29,7 @@ public sealed class RuntimeVmdSource : IActionSource, IPreparedActionSource
     }
     readonly MmdMotion motion;
     readonly MmdMotion faceMotion;
+    readonly MmdGroundContactPlan groundContact;
     public float Duration => motion.lastFrame / 30f;
     public int RetainedTracks => motion.tracks.Count;
     public int IgnoredTracks => 0;
@@ -48,6 +49,8 @@ public sealed class RuntimeVmdSource : IActionSource, IPreparedActionSource
         motion.PreparedForPlayback=true;
         this.faceMotion = MmdMorphBindings.Compose(motion, faceMotion, lipMotion);
         if (motion.tracks.Count == 0 || Duration <= 0) throw new InvalidDataException("VMD contains no playable bone motion");
+        try { groundContact = MmdGroundContactPlan.Load(vmdPath, motion.lastFrame); }
+        catch (Exception e) { global::Plugin.LogSource?.LogWarning($"MMD_GROUND_IK_PLAN_REJECTED file={vmdPath} reason={e.Message}"); }
         {
             var tracks=UpstreamMotionSupport.Tracks(motion).ToDictionary(track=>track.Key,track=>track.Value,StringComparer.Ordinal);
             var ignored = tracks.Keys.Where(n => !UpstreamMotionSupport.Contains(n)).ToArray();
@@ -59,5 +62,19 @@ public sealed class RuntimeVmdSource : IActionSource, IPreparedActionSource
             global::Plugin.LogSource?.LogInfo("MMD_TRACK_AUDIT file="+vmdPath+" standard="+(tracks.Count-ignored.Length)+" additional="+(ignored.Length-unsupported.Length)+" unknown="+unsupported.Length+" unsupportedAnimated="+string.Join(",",unsupported.Where(n=>MmdBoneMap.Animated(tracks[n])).OrderBy(n=>n,StringComparer.Ordinal)));
         }
     }
-    public IActionPose CreatePose(GameObject target, ActionDefinition definition) => new RuntimeVmdPose(target, definition, motion, ReferencePose, faceMotion);
+    public IActionPose CreatePose(GameObject target, ActionDefinition definition)
+    {
+        var pose = new RuntimeVmdPose(target, definition, motion, ReferencePose, faceMotion);
+        try
+        {
+            pose.AttachGroundContact(target, definition, groundContact);
+            return pose;
+        }
+        catch (Exception e)
+        {
+            pose.DetachGroundContact();
+            global::Plugin.LogSource?.LogWarning($"MMD_GROUND_IK_DISABLED id={definition.Id} phase=bind reason={e}");
+            return pose;
+        }
+    }
 }

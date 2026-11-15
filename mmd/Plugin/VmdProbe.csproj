@@ -21,6 +21,9 @@
     <Compile Include="Playback/RuntimeVmdSource.cs" />
     <Compile Include="Rig/RuntimeVmdRig.cs" />
     <Compile Include="Playback/RuntimeVmdPose.cs" />
+    <Compile Include="Playback/RuntimeVmdPose.GroundContact.cs" />
+    <Compile Include="Playback/MmdGroundContactPlan.cs" />
+    <Compile Include="Playback/MmdContactSolver.cs" />
     <Compile Include="Playback/MmdAdditionalTracks.cs" />
     <Compile Include="Rig/MmdRigCache.cs" />
     <Compile Include="Rig/MmdTargetSnapshot.cs" />
@@ -29,7 +32,14 @@
     <Compile Include="Import/MmdPackPreparation.cs" />
     <Compile Include="../../shared/ModOptions.cs" Link="ModOptions.cs" />
   </ItemGroup>
+  <ItemGroup Condition="'$(MmdGroundContactPlans)' != ''">
+    <EmbeddedResource Include="$(MmdGroundContactPlans)/*.bin" LogicalName="SFM.Mmd.ContactPlans.%(Filename)" />
+  </ItemGroup>
   <ItemGroup>
+    <Reference Include="UnityEngine.PhysicsModule">
+      <HintPath>$(GameDir)/BepInEx/interop/UnityEngine.PhysicsModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
     <Reference Include="UnityEngine.AnimationModule">
       <HintPath>$(GameDir)/BepInEx/interop/UnityEngine.AnimationModule.dll</HintPath>
       <Private>false</Private>

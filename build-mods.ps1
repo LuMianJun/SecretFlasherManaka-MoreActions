@@ -1,13 +1,23 @@
 param(
     [Parameter(Mandatory=$true)][string]$GameDir,
-    [string]$OutputDir = (Join-Path $PSScriptRoot 'releases/SFM-MoreActions-v1.7.8')
+    [string]$OutputDir = (Join-Path $PSScriptRoot 'releases/SFM-MoreActions-v1.7.8'),
+    [string]$MmdGroundContactPlans
 )
 $ErrorActionPreference = 'Stop'
 $gameRoot = (Resolve-Path -LiteralPath $GameDir).Path
 $destination = [IO.Path]::GetFullPath($OutputDir)
 if ((Test-Path -LiteralPath $destination) -or (Test-Path -LiteralPath ($destination + '.zip'))) { throw 'Use a new output directory to preserve prior packages.' }
+$planDirectory = ''
+if ($MmdGroundContactPlans) {
+    $planDirectory = (Resolve-Path -LiteralPath $MmdGroundContactPlans).Path
+    if (-not (Get-ChildItem -LiteralPath $planDirectory -File -Filter '*.bin')) {
+        throw 'The MMD ground contact plan directory contains no plans.'
+    }
+}
 foreach ($project in @('mmd/Plugin/VmdProbe.csproj','npc-spectators/Plugin/SFM.NpcSpectators.csproj')) {
-    & dotnet build (Join-Path $PSScriptRoot $project) -c Release "-p:GameDir=$gameRoot"
+    $buildOptions = @("-p:GameDir=$gameRoot")
+    if ($project -eq 'mmd/Plugin/VmdProbe.csproj') { $buildOptions += "-p:MmdGroundContactPlans=$planDirectory" }
+    & dotnet build (Join-Path $PSScriptRoot $project) -c Release @buildOptions
     if ($LASTEXITCODE -ne 0) { throw "Compilation failed: $project" }
 }
 $files = @(

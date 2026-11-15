@@ -17,6 +17,7 @@ public sealed class Plugin : BasePlugin
     public const string Guid = "local.sfm.vmdprobe";
     internal static ManualLogSource LogSource;
     internal static ConfigEntry<bool> UseCamera;
+    internal static ConfigEntry<bool> UseGroundContact;
     public override void Load()
     {
         LogSource = Log;
@@ -26,6 +27,13 @@ public sealed class Plugin : BasePlugin
         UseCamera = Config.Bind("Camera", "EnableDistribution", true, "Use the optional Camera VMD in an MMD action pack. Change in game settings.");
         ModOptions.Log = text => Log.LogWarning(text);
         ActionSettingsApi.Toggle("mmd.camera", "[MMD] 使用配布镜头", "[MMD] Use distributed camera", UseCamera, "动作包含镜头 VMD 时，使用配布镜头。关闭后使用原版游戏镜头，动作与音乐照常播放。", "Use the camera VMD supplied with the motion. Turn off to use the game's camera while motion and music continue.");
+        if (MmdGroundContactPlan.HasPlans)
+        {
+            UseGroundContact = Config.Bind("Experimental", "GroundContactIK", false, "Apply the trial ground contact plans.");
+            ActionSettingsApi.Toggle("mmd.groundContact", "手脚接地IK（试验性）", "Hand and foot ground contact IK (experimental)",
+                UseGroundContact, "手脚明显穿过地面时可以尝试开启，能一定程度上减少穿模，但是可能导致实际动作与原动作产生差异",
+                "Try enabling this if hands or feet visibly pass through the floor. It can reduce clipping, but the resulting motion may differ from the original.");
+        }
         int count = AddComponent<MmdPackPreparation>().Configure(Path.GetFullPath(Path.Combine(directory, packs.Value)));
         AddComponent<MmdRigPreparation>();
         ActionPlaybackApi.PlaybackChanged += ForwardCompatibilityEvent;

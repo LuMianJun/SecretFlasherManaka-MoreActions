@@ -180,7 +180,23 @@ internal static class InstalledCameraContract
         }
         if (!controllerMove) throw new Exception("Root motion must use CharacterController.Move");
         if (mmdRefs.Contains("UnityEngine.AssetBundleModule")) throw new Exception("MMD must use the direct VMD implementation");
-        if (mmdRefs.Contains("UnityEngine.PhysicsModule")) throw new Exception("Retired MMD scene measurement dependency still compiled");
+        var groundPhysics = new Dictionary<string, string[]>(StringComparer.Ordinal)
+        {
+            ["Physics"] = new[] { "Raycast" },
+            ["CharacterController"] = Array.Empty<string>(),
+            ["Collider"] = new[] { "get_enabled" },
+            ["RaycastHit"] = new[] { "get_collider", "get_point", "get_normal" },
+            ["QueryTriggerInteraction"] = Array.Empty<string>(),
+        };
+        foreach (var handle in m.TypeReferences)
+        {
+            var type = m.GetTypeReference(handle);
+            if (type.ResolutionScope.Kind == HandleKind.AssemblyReference
+                && m.GetString(m.GetAssemblyReference((AssemblyReferenceHandle)type.ResolutionScope).Name) == "UnityEngine.PhysicsModule"
+                && (m.GetString(type.Namespace) != "UnityEngine" || !groundPhysics.ContainsKey(m.GetString(type.Name))))
+                throw new Exception("Unexpected MMD physics type: " + m.GetString(type.Name));
+        }
+        int groundRaycasts = 0;
         var retiredMeasurements=new HashSet<string>(StringComparer.Ordinal){"MmdHandDiagnostics","MmdLegDiagnostics","MmdPoseDiagnostics","MmdHeightDiagnostics","MmdSurfaceDiagnostics","MmdSceneProbe","MmdBoneCatalog","MmdFootDiagnostics","MmdSkeleton","GameMmdSkeleton"};
         foreach (var typeHandle in m.TypeDefinitions)
         {
@@ -195,6 +211,21 @@ internal static class InstalledCameraContract
             if(member.Parent.Kind==HandleKind.TypeReference)
             {
                 var owner=m.GetTypeReference((TypeReferenceHandle)member.Parent);
+                string typeName = m.GetString(owner.Name), memberName = m.GetString(member.Name);
+                if (m.GetString(owner.Namespace) == "UnityEngine")
+                {
+                    if (groundPhysics.TryGetValue(typeName, out var allowed) && !allowed.Contains(memberName))
+                        throw new Exception("Unexpected MMD physics call: " + typeName + "." + memberName);
+                    if (typeName == "LayerMask" && memberName == "GetMask")
+                        throw new Exception("MMD must use the native layer lookup available in the shipped runtime.");
+                    if (typeName == "Physics" && memberName == "Raycast")
+                    {
+                        var signature = m.GetBlobReader(member.Signature);
+                        signature.ReadSignatureHeader();
+                        if (signature.ReadCompressedInteger() != 6) throw new Exception("Unexpected ground Raycast overload.");
+                        groundRaycasts++;
+                    }
+                }
                 // AnimationModule supplies HumanBodyBones only. The native
                 // Animator is still owned by the game's body-pose lease.
                 if(m.GetString(owner.Namespace)=="UnityEngine"&&new[]{"Animator","Avatar","AvatarBuilder","Animation","AnimationClip"}.Contains(m.GetString(owner.Name)))
@@ -204,6 +235,8 @@ internal static class InstalledCameraContract
             if (member.Parent.Kind == HandleKind.TypeReference && m.GetString(m.GetTypeReference((TypeReferenceHandle)member.Parent).Name) == "ActionRegistry" && m.GetString(member.Name) == "Register")
                 throw new Exception("Old MMD bundle registration branch still compiled");
         }
+        if (mmdRefs.Contains("UnityEngine.PhysicsModule") && groundRaycasts != 1)
+            throw new Exception("MMD scene physics must be limited to the ground contact probe.");
         string root = Path.GetDirectoryName(mmdDll)!;
         foreach (string retired in new[] { "vmd-probe.bundle", "wavefile.action.json", "wavefile_camera.vmd", "runtime-skeleton.txt" })
             if (File.Exists(Path.Combine(root, retired))) throw new Exception("Retired installed resource: " + retired);

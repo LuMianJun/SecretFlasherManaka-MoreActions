@@ -10,7 +10,7 @@ namespace SFM.Mmd;
 
 // Upstream owns the complete hidden-avatar solve. This class only transfers
 // selected outputs, native-body ownership, expressions and controller motion.
-public sealed class RuntimeVmdPose : IActionPose,IActionRootMotionPose,IActionFacePose,IActionBodyPose
+public sealed partial class RuntimeVmdPose : IActionPose,IActionRootMotionPose,IActionFacePose,IActionBodyPose
 {
     readonly RuntimeVmdRig rig;
     readonly MmdMotion motion,faceMotion;
@@ -134,8 +134,11 @@ public sealed class RuntimeVmdPose : IActionPose,IActionRootMotionPose,IActionFa
         face?.Begin();
         if(face!=null)foreach(var m in morphs)
             if(m.Renderer!=null)face.Write(m.Renderer,m.Index,faceMotion.Morph(m.Source,seconds));
+        MarkGroundContactFrame(seconds);
         return true;
     }
+    partial void MarkGroundContactFrame(float seconds);
+    partial void ReleaseGroundContact();
     public void RestoreNativeFace()=>face?.RestoreNativeFace();
     public void RestoreNativeBody()=>body.RestoreNativeBody();
     public void BeginNativeBody()=>body.BeginNativeBody();
@@ -145,6 +148,7 @@ public sealed class RuntimeVmdPose : IActionPose,IActionRootMotionPose,IActionFa
     public void Dispose()
     {
         if(disposed)return;disposed=true;
+        ReleaseGroundContact();
         try
         {
             try{body?.Dispose();}
