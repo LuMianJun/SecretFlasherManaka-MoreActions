@@ -376,6 +376,60 @@ try
     Check(!driver.Playing&&walk.Disposed&&Math.Abs(player.transform.position.x-.25f)<1e-5,"A wall stops playback at a reachable position without disabling collision");
     cancellation=LastCancellation();
     Check(cancellation.GetProperty("positionReference").GetString()=="root motion goal"&&Math.Abs(cancellation.GetProperty("expected")[0].GetSingle()-.5f)<1e-5&&Math.Abs(cancellation.GetProperty("actual")[0].GetSingle()-.25f)<1e-5&&!cancellation.GetProperty("externalDisplacement").GetBoolean(),"Collision diagnostic retains the intended root goal without mislabeling blocked travel as an external push");
+
+    void CameraAfterRootMotion(bool blocked)
+    {
+        Start(Definition(),playbackPose:new RootPose());
+        AudioSettings.dspTime=.6;Time.frameCount++;
+        var movement=player.Pca.PlayerLocomotion;
+        var observed=new List<(string Name,float Position)>();
+        void NativeTick(string name, MonoBehaviour camera)
+        {
+            Check(NativeFollowCameraOrder.RunOriginal(camera,true),"Deferred camera enters its native method once without requeueing");
+            observed.Add((name,player.transform.position.x));
+        }
+        movement.tpCameraController.Tick=()=>NativeTick("TP",movement.tpCameraController);
+        movement.fpCameraController.Tick=()=>NativeTick("FP",movement.fpCameraController);
+        movement.baseCameraController.Tick=()=>NativeTick("Base",movement.baseCameraController);
+        if(blocked)
+            player.Pca.CharacterController.Resolve=d=>new Vector3(Math.Min(d.x,.25f-player.transform.position.x),0,d.z);
+        Check(NativeFollowCameraOrder.RunOriginal(new ExposureUnnoticed2.Object3D.Camera.TPCameraController(),true),
+            "Unrelated native cameras keep their normal invocation");
+        Check(!NativeFollowCameraOrder.RunOriginal(movement.tpCameraController,false),
+            "A native tick suppressed by another camera owner is not queued");
+        driver.FlushNativeFollowCamera();
+        Check(observed.Count==0,"Flushing cannot revive a suppressed native tick");
+        movement.baseCameraController.IsLockCamera=true;
+        Check(NativeFollowCameraOrder.RunOriginal(movement.tpCameraController,true),"Locked cameras are outside native follow deferral");
+        movement.baseCameraController.IsLockCamera=false;
+        Check(!NativeFollowCameraOrder.RunOriginal(movement.tpCameraController,true)
+            && !NativeFollowCameraOrder.RunOriginal(movement.fpCameraController,true)
+            && !NativeFollowCameraOrder.RunOriginal(movement.baseCameraController,true), "Only active native player camera ticks are deferred");
+        Check(observed.Count==0&&player.transform.position.x==0,"Original view waits for this frame's root movement");
+        Hook(typeof(ActionOutputPatch),"Postfix",Array.Empty<object>());
+        float expected=blocked ? .25f : .5f;
+        Check(observed.Select(x=>x.Name).SequenceEqual(new[]{"TP","FP","Base"})
+            && observed.All(x=>Math.Abs(x.Position-expected)<.00001f),
+            "Native camera ticks use the reached player position in their original order");
+        driver.FlushNativeFollowCamera();
+        Check(observed.Count==3,"Follow ticks flush once per frame");
+    }
+    CameraAfterRootMotion(false);
+    CameraAfterRootMotion(true);
+
+    Start(Definition(),playbackPose:new RootPose());
+    AudioSettings.dspTime=.6;Time.frameCount++;
+    var view=player.Pca.PlayerLocomotion;
+    int lateNativeWrites=0;
+    view.baseCameraController.Tick=()=>lateNativeWrites++;
+    Check(!NativeFollowCameraOrder.RunOriginal(view.baseCameraController,true),"A native main-camera tick queues before an authored-camera takeover");
+    void AcquireAuthoredCamera(string id,double seconds)=>view.baseCameraController.IsLockCamera=true;
+    ActionPlaybackApi.PoseApplied+=AcquireAuthoredCamera;
+    try { Hook(typeof(ActionOutputPatch),"Postfix",Array.Empty<object>()); }
+    finally { ActionPlaybackApi.PoseApplied-=AcquireAuthoredCamera; }
+    Check(lateNativeWrites==0&&Math.Abs(player.transform.position.x-.5f)<.00001f,
+        "A camera claimed during pose publication keeps ownership while root motion completes");
+
     walk=new RootPose();Start(Definition(),playbackPose:walk);player.Pca.CharacterController.Resolve=d=>{driver.Stop("controller callback");return d;};Frame(.6);
     Check(!driver.Playing&&walk.Disposed&&player.Pca.CharacterController.Moves.Count==1,"Reentrant native/controller cancellation prevents all remaining sweep steps");
     walk=new RootPose();Start(Definition(),playbackPose:walk);player.Pca.CharacterController.Resolve=_=>new Vector3(float.NaN,0,0);Frame(.3);

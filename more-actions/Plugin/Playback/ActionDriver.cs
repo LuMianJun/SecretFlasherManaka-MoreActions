@@ -25,6 +25,7 @@ public sealed class ActionDriver : MonoBehaviour
     internal bool Playing => session.Action != null;
     readonly ActionRequestQueue requests = new();
     readonly PlaybackSession session = new();
+    readonly ActionFollowCamera followCamera = new();
     int tickFrame = -1;
     internal bool CheckingAvailability;
     int requestRevision;
@@ -408,6 +409,13 @@ public sealed class ActionDriver : MonoBehaviour
 
     [HideFromIl2Cpp]
     internal bool DeferFaceCamera(FaceCameraController camera) => Playing && Plugin.FollowCamera.Value && Definition.FollowFaceCamera && session.FaceCamera.ShouldDefer(camera);
+
+    [HideFromIl2Cpp]
+    internal bool DeferNativeFollowCamera(MonoBehaviour controller) =>
+        Playing && session.RootMotion != null && followCamera.Defer(Owner, controller);
+
+    [HideFromIl2Cpp]
+    internal void FlushNativeFollowCamera() => followCamera.Flush();
     [HideFromIl2Cpp]
     internal IActionBodyPose BeginNativeBody(PlayerController player)
     {

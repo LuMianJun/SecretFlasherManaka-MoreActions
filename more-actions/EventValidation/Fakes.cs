@@ -36,6 +36,9 @@ namespace BepInEx.Unity.IL2CPP
 namespace HarmonyLib
 {
     [AttributeUsage(AttributeTargets.Class)] public sealed class HarmonyPatch(Type owner, string method) : Attribute {}
+    [AttributeUsage(AttributeTargets.Class)] public sealed class HarmonyAfter(params string[] owners) : Attribute {}
+    [AttributeUsage(AttributeTargets.Class)] public sealed class HarmonyPriority(int value) : Attribute {}
+    public static class Priority { public const int Last = 0; }
     public sealed class Harmony(string id) { public void PatchAll(System.Reflection.Assembly assembly) {} }
 }
 namespace UnityEngine
@@ -126,7 +129,22 @@ namespace ExposureUnnoticed2.Object3D.IngameManager
         public bool IsOpenSomeUi {get=>allowInputUi||IsOpenSomeCancelInputUi;set=>allowInputUi=value;}
     }
 }
-namespace ExposureUnnoticed2.Object3D.Camera { public sealed class FaceCameraController {} }
+namespace ExposureUnnoticed2.Object3D.Camera
+{
+    public sealed class FaceCameraController {}
+    public sealed class TPCameraController() : UnityEngine.MonoBehaviour(IntPtr.Zero)
+    { public Action Tick; public void OnLateUpdate()=>Tick?.Invoke(); }
+    public sealed class FPCameraController() : UnityEngine.MonoBehaviour(IntPtr.Zero)
+    { public Action Tick; public void OnLateUpdate()=>Tick?.Invoke(); }
+    public sealed class BaseCameraController() : UnityEngine.MonoBehaviour(IntPtr.Zero)
+    {
+        public sealed class RenderCamera { public bool isActiveAndEnabled = true; }
+        public RenderCamera Camera = new();
+        public bool IsLockCamera;
+        public Action Tick;
+        public void OnLateUpdate()=>Tick?.Invoke();
+    }
+}
 namespace ExposureUnnoticed2.ObjectUI.InGame.RingMenu
 {
     public sealed class RingMenuParentView { public enum RingItemType { None } public static RingMenuParentView Instance = new(); public bool IsOpenRing; }
@@ -161,6 +179,13 @@ namespace ExposureUnnoticed2.Object3D.Player.Scripts
     {
         public PlayerStateModel PlayerState = new(); public UnityEngine.Animator Animator = new(); public PlayerAction PlayerAction = new(); public UnityEngine.CharacterController CharacterController=new();
         public PlayerSoundManager PlayerSoundManager = new(); public PlayerAnimationReceiver PlayerAnimationReceiver = new();
+        public CameraRig PlayerLocomotion=new();
+        public sealed class CameraRig
+        {
+            public Object3D.Camera.TPCameraController tpCameraController = new();
+            public Object3D.Camera.FPCameraController fpCameraController = new();
+            public Object3D.Camera.BaseCameraController baseCameraController = new();
+        }
     }
     public sealed class PlayerStateModel
     {

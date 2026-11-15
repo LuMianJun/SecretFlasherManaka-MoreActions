@@ -17,6 +17,7 @@
     <Compile Include="../Plugin/Native/ActionPlaybackPatches.cs" Link="ActionPlaybackPatches.cs" />
     <Compile Include="../Plugin/Native/NativeBodyPose.cs" Link="NativeBodyPose.cs" />
     <Compile Include="../Plugin/Playback/ActionRootMotion.cs" Link="ActionRootMotion.cs" />
+    <Compile Include="../Plugin/Playback/ActionFollowCamera.cs" Link="ActionFollowCamera.cs" />
     <Compile Include="../Plugin/Playback/ActionEvents.cs" Link="ActionEvents.cs" />
     <Compile Include="../Plugin/Native/NativeActionEvents.cs" Link="NativeActionEvents.cs" />
     <Compile Include="../Plugin/Actions/ActionDefinition.cs" Link="ActionDefinition.cs" />

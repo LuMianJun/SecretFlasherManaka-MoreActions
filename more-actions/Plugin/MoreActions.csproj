@@ -52,6 +52,7 @@
     <Compile Include="Import/ActionPackLoader.cs" />
     <Compile Include="Actions/ActionRegistry.cs" />
     <Compile Include="Playback/ActionRootMotion.cs" />
+    <Compile Include="Playback/ActionFollowCamera.cs" />
     <Compile Include="UI/ActionSettingsApi.cs" />
     <Compile Include="Actions/ActionStats.cs" />
     <Compile Include="Rig/AnimatorClipSampler.cs" />

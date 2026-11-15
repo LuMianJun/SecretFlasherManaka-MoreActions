@@ -3,6 +3,7 @@ using HarmonyLib;
 using ExposureUnnoticed2.Object3D.Player.Scripts;
 using ExposureUnnoticed2.Object3D.Camera;
 using ExposureUnnoticed2.Scripts.InGame;
+using UnityEngine;
 
 namespace SFM.Actions;
 
@@ -17,11 +18,55 @@ static class ActionOutputPatch
 {
     static void Postfix()
     {
-        string id = ActionDriver.Current?.Definition?.Id;
-        try { ActionDriver.Current?.Apply(); }
-        catch (Exception e) { Plugin.LogSource.LogError("ACTION_OUTPUT_FAILED id=" + id + " " + e); ActionDriver.Current?.Stop("pose/event error"); }
-        finally { CameraTransitionDiagnostics.EndFrame(); }
+        var driver = ActionDriver.Current;
+        string id = driver?.Definition?.Id;
+        try { driver?.Apply(); }
+        catch (Exception e) { Plugin.LogSource.LogError("ACTION_OUTPUT_FAILED id=" + id + " " + e); driver?.Stop("pose/event error"); }
+        finally
+        {
+            driver?.FlushNativeFollowCamera();
+            CameraTransitionDiagnostics.EndFrame();
+        }
     }
 }
 [HarmonyPatch(typeof(FaceCameraController), "OnLateUpdate")]
 static class FaceCameraOrderPatch { static bool Prefix(FaceCameraController __instance) => !(ActionDriver.Current?.DeferFaceCamera(__instance) ?? false); }
+
+// The VMD camera retains first refusal. Do not queue an original that has
+// already been suppressed by a camera owner.
+static class NativeFollowCameraOrder
+{
+    internal static bool RunOriginal(MonoBehaviour controller, bool runOriginal)
+    {
+        if (!runOriginal) return false;
+        try { return !(ActionDriver.Current?.DeferNativeFollowCamera(controller) ?? false); }
+        catch (Exception e) { Plugin.LogSource?.LogWarning("ACTION_NATIVE_CAMERA_DEFER_FAILED " + e.Message); return true; }
+    }
+}
+
+[HarmonyPatch(typeof(TPCameraController), "OnLateUpdate")]
+[HarmonyAfter("local.sfm.vmdprobe")]
+[HarmonyPriority(Priority.Last)]
+static class ThirdPersonFollowOrderPatch
+{
+    static bool Prefix(TPCameraController __instance, bool __runOriginal) =>
+        NativeFollowCameraOrder.RunOriginal(__instance, __runOriginal);
+}
+
+[HarmonyPatch(typeof(FPCameraController), "OnLateUpdate")]
+[HarmonyAfter("local.sfm.vmdprobe")]
+[HarmonyPriority(Priority.Last)]
+static class FirstPersonFollowOrderPatch
+{
+    static bool Prefix(FPCameraController __instance, bool __runOriginal) =>
+        NativeFollowCameraOrder.RunOriginal(__instance, __runOriginal);
+}
+
+[HarmonyPatch(typeof(BaseCameraController), "OnLateUpdate")]
+[HarmonyAfter("local.sfm.vmdprobe")]
+[HarmonyPriority(Priority.Last)]
+static class MainCameraFollowOrderPatch
+{
+    static bool Prefix(BaseCameraController __instance, bool __runOriginal) =>
+        NativeFollowCameraOrder.RunOriginal(__instance, __runOriginal);
+}
