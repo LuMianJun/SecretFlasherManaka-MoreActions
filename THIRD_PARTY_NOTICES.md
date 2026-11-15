@@ -1,9 +1,9 @@
-﻿# Third-party references
+# Third-party references
 
 ## nanoem semi-standard bone behavior
 
 - [Semi-standard bone plugin source](https://github.com/hkrn/nanoem/blob/main/emapp/plugins/ssb/ssb.cc) and [bone evaluation](https://github.com/hkrn/nanoem/blob/main/emapp/src/model/Bone.cc) were inspected to verify waist/shoulder cancellation, the post-IK D deformation chain, and user-rotation times inherited-rotation ordering.
-- These are behavioral references for the local synthetic skeleton and retargeter. The plugin does not embed nanoem's implementation or model assets. The game toe joint is used as the adapted EX pivot; this does not reproduce another model's forefoot mesh weights.
+- These were behavioral references for the retired local synthetic skeleton and retargeter. That implementation used the game toe joint as an adapted EX pivot; it is not part of the current UnityVMDPlayer-based body solve. The plugin does not embed nanoem's implementation or model assets.
 
 ## AnimReplacer
 
@@ -39,13 +39,15 @@ SOFTWARE.
 
 ## UnityVMDPlayer
 
-- Project: https://github.com/hobosore/UnityVMDPlayer
-- Reviewed revision: `2cee8abd56c68ad3e88bcf4086e33185aa5ca4e8`
-- Source: `UnityVMDPlayer.cs`, notably `CenterAnimation`, parent-of-all position handling, and `DefaultBoneAmplifier = 0.08f`.
-- Additional reference from 0.9.4: `UnityVMDReader.cs` bone interpolation control layout, using channel blocks at offsets 0/16/32/48 and controls at block offsets 0/4/8/12. The existing Bezier evaluation and quaternion sampling implementation remain local.
-- Additional reference from 0.9.9: `UnityVMDPlayer.cs`, `EnforceInitialPose`, uses mirrored 30-degree upper-arm rotations to establish an A-pose before building its mapping. The local implementation applies this reference adjustment to managed virtual-rig geometry and recalculates retarget calibration, preserving native Animator ownership, live bind data and collision handling. Per-action A/T selection and independent preparation/cache entries are local additions.
-- Additional reference from 0.11.0: `UnityVMDPlayer.cs`, `MorphPlayer`, binds model blend shapes to VMD morph names. From 0.11.1 the local implementation uses a fixed base-model path/name/index table instead of hierarchy discovery or arbitrary substring matching; only VMD spelling normalization is retained. Native expression overlay/restoration, customization protection, layout verification and reload reuse are local integration. The table includes channel identifiers only, not model assets.
-- Use: algorithmic reference for composing MMD center/groove/parent displacements and coordinate direction. The local plugin retains its own sparse VMD solver and derives root displacement from the solved hierarchy. It does not embed the entire UnityVMDPlayer component or its Animator ownership. Controller collision, cancellation, asynchronous loading, rig caching and game integration are local adaptations.
+- Project: [hobosore/UnityVMDPlayer](https://github.com/hobosore/UnityVMDPlayer).
+- Pinned revision: [`2cee8abd56c68ad3e88bcf4086e33185aa5ca4e8`](https://github.com/hobosore/UnityVMDPlayer/tree/2cee8abd56c68ad3e88bcf4086e33185aa5ca4e8).
+- Adapted sources: `UnityVMDPlayer.cs`, `UnityVMDReader.cs` and `UnityVMDQuaternionExtentions.cs`. Source locations and hashes are recorded in `mmd/Plugin/Upstream/upstream-source.json`.
+- MMD derives its body solver, reader and quaternion helpers from these sources under `mmd/Plugin/Upstream`. The game adapter adds independent control pivots, parent-first output, explicit zero foot positions and time-based IK switches. The pinned comparison path preserves the original behavior.
+- The shared parser preserves duplicate bone keys and original IK frame/entry ordering. An explicit `UpstreamInputCompatibility` layer strips content after the first NUL in bone names and retains the existing full-width/half-width and common-spelling normalization. It supplies already-converted keys to the strict adapted reader without a second file read or coordinate conversion; this input adaptation does not replace the upstream sampling or body formulas. A managed `UpstreamAvatar` supplies the Humanoid references and initial skeleton data required by the extracted solver. Per-action A/T selection and nullable native toe controllers are integration adaptations.
+- The body solve runs on a hidden hierarchy built from the game's bind data, native bone axes and supported body dimensions. The plugin retains game Animator ownership and transfers selected output through its native-pose lease. Rig preparation/cache lifecycle, expression layers, audio, camera, controller collision, cancellation and restoration remain local integration. A separate optional-track layer handles waist/cancellation, shoulder P/C, upper-body 3, eyes, twist, thumb numbering and D/EX grants. Active grants can change final poses; they do not replace the pinned standard solver routines.
+- The loop-endpoint adapter obtains controller cycle displacement from the original final playable frame's saved n+1 pose using the same local-pose interpolation, then resets sampling state. Native neck, shoulder and leg-spacing customization participates in cached reference geometry.
+- The fixed base-model morph table is a local adaptation of the upstream `MorphPlayer` concept. It uses verified path/name/index identifiers instead of hierarchy discovery or substring matching. Native expression overlay/restoration, customization protection and layout verification remain local. The table contains identifiers only, not model assets.
+- `mmd/UpstreamValidation/reference` retains the pinned original sources for offline comparison against the path without game controls. `PlaybackParityValidation` measures native output against the original with extensions excluded or restored. The original MonoBehaviour, Animator enable/disable policy and UI are not used by the installed plugin. Game/Unity assemblies and model or animation assets are not distributed with these sources.
 
 The upstream license is retained below for attribution and any adapted portions:
 

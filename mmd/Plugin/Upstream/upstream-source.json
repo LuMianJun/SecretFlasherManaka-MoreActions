@@ -1,0 +1,29 @@
+{
+  "reference": [
+    {
+      "file": "UnityVMDPlayer.cs",
+      "url": "https://raw.githubusercontent.com/hobosore/UnityVMDPlayer/2cee8abd56c68ad3e88bcf4086e33185aa5ca4e8/UnityVMDPlayer.cs",
+      "bytes": 90244,
+      "sha256": "f9d7b7f59d983575eaa7c69960246c892f1d3d9ccdbb9c2855b1c4f856c11aaf"
+    },
+    {
+      "file": "UnityVMDQuaternionExtentions.cs",
+      "url": "https://raw.githubusercontent.com/hobosore/UnityVMDPlayer/2cee8abd56c68ad3e88bcf4086e33185aa5ca4e8/UnityVMDQuaternionExtentions.cs",
+      "bytes": 465,
+      "sha256": "ff77d848fd72ebe306f662c740235c4696ff60bc17f1a394e950b9d8af10f88e"
+    },
+    {
+      "file": "UnityVMDReader.cs",
+      "url": "https://raw.githubusercontent.com/hobosore/UnityVMDPlayer/2cee8abd56c68ad3e88bcf4086e33185aa5ca4e8/UnityVMDReader.cs",
+      "bytes": 40885,
+      "sha256": "e6b60154bffb8178612b5d3d4111103568177f7d6acdf026cecc1889c7e97834"
+    }
+  ],
+  "adaptation": {
+    "body": "Mechanical extraction of AnimateBody through BoneGhost; Animator parameter type replaced by UpstreamAvatar; enable setters opened internally for Reset.",
+    "clock": "Managed Evaluate reproduces original Update frame-end guard, n+n1 and local pose Lerp; game clock owns loop/end lifecycle. Explicit game-only EvaluateLoopEndpoint evaluates FrameCount-1 then applies its saved next pose with the same original Lerp at rate 1 for whole-cycle root displacement. Reset restores captured post-construction TRS and original reader cursors/default enables.",
+    "input": "Explicit game-only UpstreamInputCompatibility removes data after the first NUL and normalizes established bone-name spellings before the strict reader bridge; no additional solver tracks are introduced. FromMotion builds original reader groups from shared already-converted raw-name keys, retaining key order and duplicate keys; original Raw IKFrames boundaries/order/display/entries are retained. Unknown/numeric bone names remain ignored.",
+    "compatibility": "Nullable native toe controllers; no MonoBehaviour/Animator/Avatar asset construction; fixed 0.08 metre unit.",
+    "unsupported": "Extra bone tracks are not added to the upstream standard mapping."
+  }
+}

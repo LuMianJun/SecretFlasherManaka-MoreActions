@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Threading.Tasks;
 using HarmonyLib;
 using SFM.Actions;
 using ExposureUnnoticed2.Object3D.Player.Scripts;
@@ -17,7 +16,6 @@ public sealed class MmdRigPreparation : MonoBehaviour
     RuntimeVmdSource[] sources = Array.Empty<RuntimeVmdSource>();
     MmdTargetSnapshot snapshot;
     IEnumerator<int> capture, build;
-    Task<MmdSkeleton> data;
     RuntimeVmdRig building;
 
     bool Advance(IEnumerator<int> work,int maxSteps)
@@ -34,8 +32,7 @@ public sealed class MmdRigPreparation : MonoBehaviour
     void CancelBuild()
     {
         build?.Dispose();build=null;
-        if (data != null) data.ContinueWith(t => { var ignored = t.Exception; }, TaskContinuationOptions.OnlyOnFaulted | TaskContinuationOptions.ExecuteSynchronously);
-        building?.Destroy(); building = null; data = null;
+        building?.Destroy(); building = null;
     }
     void CancelWork()
     {
@@ -84,22 +81,14 @@ public sealed class MmdRigPreparation : MonoBehaviour
                 if (!Advance(capture,256)) return;
                 capture.Dispose(); capture = null; return;
             }
-            if (data == null && build == null)
+            if (build == null)
             {
                 if (MmdRigCache.TryRebind(snapshot, source.ReferencePose))
                 {
                     global::Plugin.LogSource.LogInfo("MMD_RIG_READY skeleton=" + source.SkeletonKey + " mode=rebind");
                     index++;return;
                 }
-                var positions = snapshot.Positions; var referencePose = source.ReferencePose;
-                data = Task.Run(() => GameMmdSkeleton.CreateData(positions, referencePose));
-                return;
-            }
-            if (data != null)
-            {
-                if (!data.IsCompleted) return;
-                var template = data.GetAwaiter().GetResult(); data = null;
-                building = new RuntimeVmdRig(); build = building.BuildSteps(snapshot, template, source.ReferencePose).GetEnumerator();
+                building = new RuntimeVmdRig(); build = building.BuildSteps(snapshot, source.ReferencePose).GetEnumerator();
             }
             if (!Advance(build,8)) return;
             build.Dispose(); build = null;
@@ -117,7 +106,7 @@ public sealed class MmdRigPreparation : MonoBehaviour
             }
             else
             {
-                build?.Dispose(); build = null; building?.Destroy(); building = null; data = null;
+                build?.Dispose(); build = null; building?.Destroy(); building = null;
                 MmdRigCache.Fail(target, e, source.ReferencePose); index++;
             }
         }

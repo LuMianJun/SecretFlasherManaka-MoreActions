@@ -131,8 +131,6 @@ internal static class InstalledCameraContract
         { ["AudioSource"] = new[] { "Pause", "UnPause", "PlayScheduled" } });
         VerifyWorkerMethods(baseDll, "WaveAudio", new[] { "Decode" });
         VerifyWorkerMethods(mmdDll, "MmdMotion", new[] { "Read", "ConvertPosition", "ConvertRotation" });
-        VerifyWorkerMethods(mmdDll, "MmdSkeleton", new[] { "CopyData" });
-        VerifyWorkerMethods(mmdDll, "GameMmdSkeleton", new[] { "CreateData" });
         VerifyWorkerMethods(mmdDll, "RuntimeVmdSource", new[] { ".ctor" });
         VerifyWorkerMethods(mmdDll, "MmdPackPreparation", new[] { "ReadFace", "ReadLip", "ReadMorphFile" });
         VerifyWorkerMethods(mmdDll, "MmdMorphBindings", new[] { "Compose", "IsMouthMorph" });
@@ -181,9 +179,9 @@ internal static class InstalledCameraContract
                 throw new Exception("Root motion cannot disable collision or warp the player");
         }
         if (!controllerMove) throw new Exception("Root motion must use CharacterController.Move");
-        if (mmdRefs.Contains("UnityEngine.AssetBundleModule") || mmdRefs.Contains("UnityEngine.AnimationModule")) throw new Exception("MMD must use the direct VMD implementation");
+        if (mmdRefs.Contains("UnityEngine.AssetBundleModule")) throw new Exception("MMD must use the direct VMD implementation");
         if (mmdRefs.Contains("UnityEngine.PhysicsModule")) throw new Exception("Retired MMD scene measurement dependency still compiled");
-        var retiredMeasurements=new HashSet<string>(StringComparer.Ordinal){"MmdHandDiagnostics","MmdLegDiagnostics","MmdPoseDiagnostics","MmdHeightDiagnostics","MmdSurfaceDiagnostics","MmdSceneProbe","MmdBoneCatalog"};
+        var retiredMeasurements=new HashSet<string>(StringComparer.Ordinal){"MmdHandDiagnostics","MmdLegDiagnostics","MmdPoseDiagnostics","MmdHeightDiagnostics","MmdSurfaceDiagnostics","MmdSceneProbe","MmdBoneCatalog","MmdFootDiagnostics","MmdSkeleton","GameMmdSkeleton"};
         foreach (var typeHandle in m.TypeDefinitions)
         {
             var type = m.GetTypeDefinition(typeHandle);
@@ -194,6 +192,14 @@ internal static class InstalledCameraContract
         foreach (var handle in m.MemberReferences)
         {
             var member = m.GetMemberReference(handle);
+            if(member.Parent.Kind==HandleKind.TypeReference)
+            {
+                var owner=m.GetTypeReference((TypeReferenceHandle)member.Parent);
+                // AnimationModule supplies HumanBodyBones only. The native
+                // Animator is still owned by the game's body-pose lease.
+                if(m.GetString(owner.Namespace)=="UnityEngine"&&new[]{"Animator","Avatar","AvatarBuilder","Animation","AnimationClip"}.Contains(m.GetString(owner.Name)))
+                    throw new Exception("MMD cannot create/sample/disable a native Animator: "+m.GetString(owner.Name)+"."+m.GetString(member.Name));
+            }
             if (m.GetString(member.Name)=="BakeMesh") throw new Exception("Retired MMD mesh measurement call still compiled");
             if (member.Parent.Kind == HandleKind.TypeReference && m.GetString(m.GetTypeReference((TypeReferenceHandle)member.Parent).Name) == "ActionRegistry" && m.GetString(member.Name) == "Register")
                 throw new Exception("Old MMD bundle registration branch still compiled");

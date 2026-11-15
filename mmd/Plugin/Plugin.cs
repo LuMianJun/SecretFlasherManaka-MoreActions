@@ -13,7 +13,7 @@ using SFM.ModSettings;
 [BepInDependency(SFM.Actions.Plugin.Guid)]
 public sealed class Plugin : BasePlugin
 {
-    internal const string Version = "1.4.8";
+    internal const string Version = "1.4.14";
     public const string Guid = "local.sfm.vmdprobe";
     internal static ManualLogSource LogSource;
     internal static ConfigEntry<bool> UseCamera;
@@ -32,7 +32,7 @@ public sealed class Plugin : BasePlugin
         var cameraDriver = AddComponent<MmdCameraDriver>(); cameraDriver.Bind();
         AddComponent<MmdLyricsView>().Bind();
         new Harmony(Guid).PatchAll(typeof(Plugin).Assembly);
-        Log.LogInfo("MMD_ACTIONS_LOADING version=" + Version + " queued=" + count + " directVmd=true cameraDistribution=true settings=true base=" + SFM.Actions.Plugin.Guid);
+        Log.LogInfo("MMD_ACTIONS_LOADING version=" + Version + " solver=UnityVMDPlayer@2cee8abd queued=" + count + " directVmd=true cameraDistribution=true settings=true base=" + SFM.Actions.Plugin.Guid);
     }
     static void ForwardCompatibilityEvent(string id, bool active)
     {

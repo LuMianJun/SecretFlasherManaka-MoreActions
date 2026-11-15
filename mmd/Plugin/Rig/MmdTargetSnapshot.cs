@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using UnityEngine;
 using SFM.Actions;
+using ExposureUnnoticed2.Scripts.InGame;
 using NVector = System.Numerics.Vector3;
 
 namespace SFM.Mmd;
@@ -156,6 +157,14 @@ internal sealed class MmdTargetSnapshot
         }
         foreach (var path in requiredPaths) if (!Rest.ContainsKey(path)) throw new ArgumentException("Target bind pose missing: " + path);
         var values = new List<float>();
+        // Capture stable native parameters once; animated bone positions are
+        // never reference geometry. Native LateUpdate offsets are world metres.
+        var custom=GameState.PlayerCustomData;
+        float neck=((custom==null?50:custom.CustomizeNeck)-50)*.0005f;
+        float shoulder=((custom==null?50:custom.CustomizeShoulder)-50)*.001f;
+        float legInterval=((custom==null?50:custom.CustomizeLegInterval)-50)*.0004f;
+        values.AddRange(new[]{neck,shoulder,legInterval});
+        var nativeOffsets=new Dictionary<string,Vector3>(StringComparer.Ordinal);
         foreach(var path in presetPaths)if(restValues.TryGetValue(path,out var block))values.AddRange(block);
         foreach(var path in presetPaths)
         {
@@ -178,13 +187,22 @@ internal sealed class MmdTargetSnapshot
                 values.Add(length);
             }
             ReferencePositions.Add(path,local);
+            Vector3 offset=nativeOffsets.TryGetValue(parentPath,out var inherited)?inherited:Vector3.zero;
+            string leaf=path.Substring(slash+1);
+            if(leaf=="Neck")offset+=matrix.rotation*Vector3.up*neck;
+            else if(leaf=="Shoulder_L"||leaf=="Shoulder_R")offset+=matrix.rotation*Vector3.up*shoulder;
+            else if(leaf=="UpperLeg_L")offset-=matrix.rotation*Vector3.right*legInterval;
+            else if(leaf=="UpperLeg_R")offset+=matrix.rotation*Vector3.right*legInterval;
+            nativeOffsets.Add(path,offset);
             Vector3 p=MetricX*local.x+MetricY*local.y+MetricZ*local.z;
+            p+=offset;
             Positions.Add(path, new NVector(p.x, p.y, p.z)); yield return 0;
         }
         values.AddRange(new[] { ArmaturePosition.x, ArmaturePosition.y, ArmaturePosition.z, ArmatureRotation.x, ArmatureRotation.y, ArmatureRotation.z, ArmatureRotation.w, ArmatureScale.x, ArmatureScale.y, ArmatureScale.z });
         values.AddRange(new[] { MetricX.x,MetricX.y,MetricX.z,MetricY.x,MetricY.y,MetricY.z,MetricZ.x,MetricZ.y,MetricZ.z });
         if (values.Any(v => !float.IsFinite(v))) throw new ArgumentException("Nonfinite target shape");
-        Shape = values.ToArray(); ShapePaths = string.Join("|", Rest.Keys.OrderBy(p => p, StringComparer.Ordinal));
+        Shape = values.ToArray(); ShapePaths = string.Join("|", Bones.Keys.OrderBy(p => p, StringComparer.Ordinal))
+            +";bind:"+string.Join("|", Rest.Keys.OrderBy(p=>p,StringComparer.Ordinal));
     }
     internal bool Matches(float[] shape, string paths)
     {

@@ -1,0 +1,36 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType><TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings><Nullable>disable</Nullable>
+    <DefineConstants>$(DefineConstants);PRODUCTION_AVAILABLE</DefineConstants>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="../UpstreamValidation/UnityBoundary.cs" Link="boundary/UnityBoundary.cs" />
+    <Compile Include="../UpstreamValidation/UnityUpstreamBoundary.cs" Link="boundary/UnityUpstreamBoundary.cs" />
+    <Compile Include="../Plugin/Upstream/**/*.cs" Link="production/%(Filename)%(Extension)" />
+    <Compile Include="../Plugin/Motion/MmdMotion.cs" Link="production/MmdMotion.cs" />
+    <Compile Include="../Plugin/Rig/MmdBoneMap.cs" Link="production/MmdBoneMap.cs" />
+    <Compile Include="../Plugin/Rig/MmdReferencePose.cs" Link="production/MmdReferencePose.cs" />
+    <Compile Include="../Plugin/Rig/MmdTargetSnapshot.cs" Link="production/MmdTargetSnapshot.cs" />
+    <Compile Include="../Plugin/Rig/GameHumanoidMap.cs" Link="production/GameHumanoidMap.cs" />
+    <Compile Include="../Plugin/Rig/RuntimeVmdRig.cs" Link="production/RuntimeVmdRig.cs" />
+    <Compile Include="../Plugin/Rig/MmdRigCache.cs" Link="production/MmdRigCache.cs" />
+    <Compile Include="../Plugin/Rig/MmdMorphBindings.cs" Link="production/MmdMorphBindings.cs" />
+    <Compile Include="../Plugin/Playback/RuntimeVmdPose.cs" Link="production/RuntimeVmdPose.cs" />
+    <Compile Include="../Plugin/Playback/MmdAdditionalTracks.cs" Link="production/MmdAdditionalTracks.cs" />
+    <Compile Include="../../more-actions/Plugin/Rig/MotionRig.cs" Link="production/MotionRig.cs" />
+    <Compile Include="../../more-actions/Plugin/Rig/FixedModelFace.cs" Link="production/FixedModelFace.cs" />
+    <Compile Include="../../more-actions/Plugin/Rig/ActionFaceMorphLayer.cs" Link="production/ActionFaceMorphLayer.cs" />
+    <Compile Include="../../more-actions/Plugin/Rig/ActionBodyPoseLease.cs" Link="production/ActionBodyPoseLease.cs" />
+    <Compile Include="../../more-actions/Plugin/Actions/ActionPolicy.cs" Link="production/ActionPolicy.cs" />
+    <Compile Include="../../more-actions/Plugin/Api/RuntimeActionSource.cs" Link="production/RuntimeActionSource.cs" />
+    <None Include="../../shared/body-bones.json" Link="body-bones.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="../CompatibilityValidation/Fixtures/native-model-bind.json" Link="Fixtures/native-model-bind.json" CopyToOutputDirectory="PreserveNewest" />
+    <Compile Include="../CompatibilityValidation/ActionsBoundary.cs" Link="boundary/ActionsBoundary.cs" />
+    <Compile Include="../CompatibilityValidation/NativeBundleRegression.cs" Link="fixture/NativeBundleRegression.cs" />
+    <Compile Include="../CompatibilityValidation/AdapterGeometryRegression.cs" Link="boundary/AdapterGeometryRegression.cs" />
+    <Compile Include="../UpstreamValidation/reference/*.cs" Link="original/%(Filename)%(Extension)" />
+    <Compile Include="../UpstreamValidation/CompatibleVmd.cs" Link="fixture/CompatibleVmd.cs" />
+    <Compile Include="../UpstreamValidation/OracleFixture.cs" Link="fixture/OracleFixture.cs" />
+  </ItemGroup>
+</Project>

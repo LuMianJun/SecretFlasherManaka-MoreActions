@@ -4,3 +4,5 @@
 *.md text eol=lf
 *.ps1 text eol=lf
 *.txt text eol=lf
+# The upstream oracle verifies the original source bytes, including CRLF.
+mmd/UpstreamValidation/reference/*.cs -text whitespace=cr-at-eol,-blank-at-eol,-blank-at-eof,-space-before-tab

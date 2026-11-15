@@ -15,7 +15,7 @@ internal static class MmdRigCache
     static readonly List<(int Target,MmdReferencePose Pose)> detachKeys=new();
     internal static int Revision { get; private set; }
     internal static int BuildCount { get; private set; }
-    internal static string SkeletonKey(MmdReferencePose referencePose) => "game-bind-pose:" + referencePose;
+    internal static string SkeletonKey(MmdReferencePose referencePose) => "unityvmdplayer-2cee8abd:" + referencePose;
     static (int Target, MmdReferencePose Pose) Key(GameObject target, MmdReferencePose referencePose = MmdReferencePose.A)
     {
         if (target == null) throw new ArgumentException("VMD target missing");
@@ -26,6 +26,8 @@ internal static class MmdRigCache
         var key = Key(snapshot.Target, referencePose);
         if (rigs.TryGetValue(key, out var rig))
         {
+            if(rig.Leased&&rig.HelpersValid&&snapshot.Matches(rig.Shape,rig.ShapePaths))
+            {ready.Add(key);failures.Remove(key);return true;}
             if (!rig.Leased && rig.HelpersValid && snapshot.Matches(rig.Shape, rig.ShapePaths))
             { rig.Rebind(snapshot); ready.Add(key); failures.Remove(key); return true; }
             if (rig.Leased) return false;
@@ -38,7 +40,13 @@ internal static class MmdRigCache
     internal static void Publish(MmdTargetSnapshot snapshot, RuntimeVmdRig rig, MmdReferencePose referencePose = MmdReferencePose.A)
     {
         var key = Key(snapshot.Target, referencePose);
-        if (rigs.TryGetValue(key, out var old)) Park(old);
+        if (rigs.TryGetValue(key, out var old))
+        {
+            // A changed native shape replaces the active geometry atomically;
+            // the old pose will return false and hand control back next Apply.
+            if(old.Leased&&!snapshot.Matches(old.Shape,old.ShapePaths)){old.Retired=true;old.GeometryInvalidated=true;}
+            Park(old);
+        }
         rigs[key] = rig; ready.Add(key); failures.Remove(key); BuildCount++;
     }
     internal static void Fail(GameObject target, Exception error, MmdReferencePose referencePose = MmdReferencePose.A) => failures[Key(target, referencePose)] = error;
@@ -53,8 +61,7 @@ internal static class MmdRigCache
             var rig = new RuntimeVmdRig();
             try
             {
-                var data = GameMmdSkeleton.CreateData(snapshot.Positions, referencePose);
-                foreach (var _ in rig.BuildSteps(snapshot, data, referencePose)) { }
+                foreach (var _ in rig.BuildSteps(snapshot, referencePose)) { }
                 Publish(snapshot, rig, referencePose);
             }
             catch { rig.Destroy(); throw; }
@@ -80,8 +87,7 @@ internal static class MmdRigCache
             var temporary = new RuntimeVmdRig { Retired = true };
             try
             {
-                var data = GameMmdSkeleton.CreateData(snapshot.Positions, referencePose);
-                foreach (var _ in temporary.BuildSteps(snapshot, data, referencePose)) { }
+                foreach (var _ in temporary.BuildSteps(snapshot, referencePose)) { }
             }
             catch { temporary.Destroy(); throw; }
             rig = temporary; BuildCount++;

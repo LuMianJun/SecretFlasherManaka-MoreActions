@@ -14,13 +14,14 @@
     <Compile Include="Lyrics/MmdLyricTrack.cs" />
     <Compile Include="Lyrics/MmdLyricsView.cs" />
     <Compile Include="Motion/MmdMotion.cs" />
-    <Compile Include="Motion/MmdSkeleton.cs" />
-    <Compile Include="Rig/GameMmdSkeleton.cs" />
+    <Compile Include="Upstream/**/*.cs" />
+    <Compile Include="Rig/GameHumanoidMap.cs" />
     <Compile Include="Rig/MmdBoneMap.cs" />
     <Compile Include="Rig/MmdReferencePose.cs" />
     <Compile Include="Playback/RuntimeVmdSource.cs" />
     <Compile Include="Rig/RuntimeVmdRig.cs" />
     <Compile Include="Playback/RuntimeVmdPose.cs" />
+    <Compile Include="Playback/MmdAdditionalTracks.cs" />
     <Compile Include="Rig/MmdRigCache.cs" />
     <Compile Include="Rig/MmdTargetSnapshot.cs" />
     <Compile Include="Rig/MmdMorphBindings.cs" />
@@ -29,6 +30,10 @@
     <Compile Include="../../shared/ModOptions.cs" Link="ModOptions.cs" />
   </ItemGroup>
   <ItemGroup>
+    <Reference Include="UnityEngine.AnimationModule">
+      <HintPath>$(GameDir)/BepInEx/interop/UnityEngine.AnimationModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
     <ProjectReference Include="../../more-actions/Plugin/MoreActions.csproj">
       <Private>false</Private>
     </ProjectReference>

@@ -16,16 +16,16 @@ public class Object
     public override bool Equals(object o) => ReferenceEquals(this,o); public override int GetHashCode()=>System.Runtime.CompilerServices.RuntimeHelpers.GetHashCode(this);
 }
 public enum HideFlags { HideAndDontSave }
-public class MonoBehaviour : Object {public MonoBehaviour(IntPtr pointer) {}}
+public class MonoBehaviour : Object { public GameObject gameObject=new("Behaviour"); public Transform transform=>gameObject.transform; public T GetComponent<T>() where T:class=>gameObject.GetComponent<T>(); public MonoBehaviour(){} public MonoBehaviour(IntPtr pointer) {} }
 public sealed class GameObject : Object
 {
     public static int CreatedCount, RendererQueries;
     public string name; public int layer; public HideFlags hideFlags; public readonly Transform transform; readonly List<object> components=[];
-    public GameObject(string name) { CreatedCount++; this.name=name; transform=new Transform(this); }
+    public GameObject(string name="GameObject") { CreatedCount++; this.name=name; transform=new Transform(this); }
     bool active=true;
     public bool activeInHierarchy=>active&&(transform.parent==null||transform.parent.gameObject.activeInHierarchy);
     public void SetActive(bool active) {this.active=active;}
-    public T AddComponent<T>() where T:new() { var c=new T(); if(c is SkinnedMeshRenderer r) r.transform=transform; components.Add(c); return c; }
+    public T AddComponent<T>() where T:new() { var c=new T(); if(c is SkinnedMeshRenderer r) r.transform=transform; if(c is Animator a) a.gameObject=this; components.Add(c); return c; }
     public T GetComponent<T>() where T:class => components.OfType<T>().FirstOrDefault();
     public T[] GetComponentsInChildren<T>(bool includeInactive)
     {
@@ -34,9 +34,9 @@ public sealed class GameObject : Object
         foreach(var child in transform.Children) result.AddRange(child.gameObject.GetComponentsInChildren<T>(includeInactive)); return result.ToArray();
     }
 }
-public sealed class Transform : Object
+public sealed partial class Transform : Object, System.Collections.IEnumerable
 {
-    public readonly GameObject gameObject; public string name => gameObject.name; public Transform parent; internal readonly List<Transform> Children=[];
+    public readonly GameObject gameObject; public string name {get=>gameObject.name;set=>gameObject.name=value;} Transform parentValue; public Transform parent { get=>parentValue; set=>SetParent(value,true); } internal readonly List<Transform> Children=[];
     public Vector3 localPosition, localScale=Vector3.one; public Quaternion localRotation=Quaternion.identity;
     public Transform(GameObject owner) { gameObject=owner; }
     public int childCount=>Children.Count; public Transform GetChild(int i)=>Children[i];
@@ -46,7 +46,7 @@ public sealed class Transform : Object
     public Quaternion rotation { get=>parent==null?localRotation:parent.rotation*localRotation; set=>localRotation=parent==null?value:Quaternion.Inverse(parent.rotation)*value; }
     public void SetParent(Transform p,bool worldPositionStays)
     {
-        var pos=position; var rot=rotation; parent?.Children.Remove(this); parent=p; p?.Children.Add(this); if(worldPositionStays) { position=pos; rotation=rot; }
+        var pos=position; var rot=rotation; parentValue?.Children.Remove(this); parentValue=p; p?.Children.Add(this); if(worldPositionStays) { position=pos; rotation=rot; }
     }
     public Transform Find(string path) { var current=this; foreach(var part in path.Split('/')) { current=current.Children.FirstOrDefault(c=>c.name==part); if(current==null) return null; } return current; }
     public bool IsChildOf(Transform root) { for(var t=this;t!=null;t=t.parent) if(t==root) return true; return false; }
@@ -55,7 +55,7 @@ public sealed class Transform : Object
     public T[] GetComponentsInChildren<T>(bool inactive)=>gameObject.GetComponentsInChildren<T>(inactive);
 }
 public enum AnimatorCullingMode { AlwaysAnimate, CullUpdateTransforms, CullCompletely }
-public sealed class Animator : Object
+public sealed partial class Animator : Object
 {
     public AnimatorCullingMode cullingMode=AnimatorCullingMode.CullUpdateTransforms;
     public static int StringToHash(string name)
@@ -97,7 +97,7 @@ public struct BoneWeight
     public float weight0,weight1,weight2,weight3;
 }
 public readonly struct Keyframe(float time,float value) { public readonly float time=time,value=value; }
-public struct Vector3(float x,float y,float z)
+public partial struct Vector3(float x,float y,float z)
 {
     public float x=x,y=y,z=z;
     internal N.Vector3 N=>new(x,y,z); internal static Vector3 From(N.Vector3 v)=>new(v.X,v.Y,v.Z);
@@ -107,10 +107,10 @@ public struct Vector3(float x,float y,float z)
     public static Vector3 operator *(Vector3 a,float b)=>From(a.N*b); public static Vector3 operator /(Vector3 a,float b)=>From(a.N/b);
     public static float Dot(Vector3 a,Vector3 b)=>System.Numerics.Vector3.Dot(a.N,b.N); public static Vector3 Cross(Vector3 a,Vector3 b)=>From(System.Numerics.Vector3.Cross(a.N,b.N));
     public static float Distance(Vector3 a,Vector3 b)=>(a-b).magnitude;
-    public static float Angle(Vector3 a,Vector3 b)=>MathF.Acos(Math.Clamp(Dot(a.normalized,b.normalized),-1,1))*Mathf.Rad2Deg;
+    public static float Angle(Vector3 a,Vector3 b)=>a.magnitude*b.magnitude<1e-15f?0:MathF.Acos(Math.Clamp(Dot(a.normalized,b.normalized),-1,1))*Mathf.Rad2Deg;
     public static Vector3 Lerp(Vector3 a,Vector3 b,float t)=>From(System.Numerics.Vector3.Lerp(a.N,b.N,t));
 }
-public struct Quaternion(float x,float y,float z,float w)
+public partial struct Quaternion(float x,float y,float z,float w)
 {
     public float x=x,y=y,z=z,w=w;
     internal N.Quaternion N=>new(x,y,z,w); internal static Quaternion From(N.Quaternion q)=>new(q.X,q.Y,q.Z,q.W);
@@ -118,7 +118,7 @@ public struct Quaternion(float x,float y,float z,float w)
     public static Quaternion operator *(Quaternion a,Quaternion b)=>From(a.N*b.N);
     public static Vector3 operator *(Quaternion a,Vector3 b)=>Vector3.From(System.Numerics.Vector3.Transform(b.N,a.N));
     public static Quaternion Inverse(Quaternion q)=>From(System.Numerics.Quaternion.Inverse(q.N));
-    public static Quaternion AngleAxis(float angle,Vector3 axis)=>From(System.Numerics.Quaternion.CreateFromAxisAngle(axis.normalized.N,angle/Mathf.Rad2Deg));
+    public static Quaternion AngleAxis(float angle,Vector3 axis)=>axis.sqrMagnitude<1e-20f?identity:From(System.Numerics.Quaternion.CreateFromAxisAngle(axis.normalized.N,angle/Mathf.Rad2Deg));
     public static Quaternion FromToRotation(Vector3 a,Vector3 b)
     {
         var x=a.normalized; var y=b.normalized; var dot=Vector3.Dot(x,y);
@@ -141,7 +141,7 @@ public readonly struct Matrix4x4(N.Matrix4x4 value)
     public Vector3 Point(Vector3 p)=>Vector3.From(N.Vector3.Transform(p.N,value)); public Vector3 Vector(Vector3 p)=>Vector3.From(N.Vector3.TransformNormal(p.N,value));
     public Vector3 MultiplyPoint3x4(Vector3 p)=>Point(p);
 }
-public static class Mathf
+public static partial class Mathf
 {
     public const float Rad2Deg=180f/MathF.PI;
     public static float Clamp(float v,float a,float b)=>Math.Clamp(v,a,b); public static float Clamp01(float v)=>Clamp(v,0,1);

@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup><OutputType>Exe</OutputType><TargetFramework>net10.0</TargetFramework><ImplicitUsings>enable</ImplicitUsings><Nullable>disable</Nullable></PropertyGroup>
+  <PropertyGroup Condition="Exists('../Plugin/Upstream/UpstreamBodySolver.cs')"><DefineConstants>$(DefineConstants);PRODUCTION_AVAILABLE</DefineConstants></PropertyGroup>
+  <ItemGroup Condition="Exists('../Plugin/Upstream/UpstreamBodySolver.cs')">
+    <Compile Include="../Plugin/Upstream/**/*.cs" Link="production/%(Filename)%(Extension)" />
+    <Compile Include="../Plugin/Motion/MmdMotion.cs" Link="production/MmdMotion.cs" />
+    <Compile Include="../Plugin/Rig/MmdBoneMap.cs" Link="production/MmdBoneMap.cs" />
+    <Compile Include="../Plugin/Rig/GameHumanoidMap.cs" Link="production/GameHumanoidMap.cs" />
+    <None Include="../CompatibilityValidation/Fixtures/native-model-bind.json" Link="Fixtures/native-model-bind.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+</Project>

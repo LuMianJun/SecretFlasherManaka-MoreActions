@@ -14,14 +14,19 @@ public sealed class MmdMotion
 {
     public sealed class Key { public uint frame; public Vector3 p; public Quaternion q; public byte[] interpolation; }
     public readonly Dictionary<string,List<Key>> tracks=new Dictionary<string,List<Key>>();
+    internal readonly List<(string Name,Key Key)> RawBoneKeys=new();
     public readonly record struct MorphKey(float time, float value);
     public readonly Dictionary<string,List<MorphKey>> morphs=new Dictionary<string,List<MorphKey>>();
     readonly Dictionary<string,List<KeyValuePair<uint,bool>>> ikSwitches=new Dictionary<string,List<KeyValuePair<uint,bool>>>();
+    internal IEnumerable<KeyValuePair<string,List<KeyValuePair<uint,bool>>>> IkSwitches => ikSwitches;
+    // Preserve the upstream Find-first semantics, including duplicate/empty
+    // frames and entry order. The per-track lookup is only a legacy API view.
+    internal readonly List<(uint Frame,bool Display,List<KeyValuePair<string,bool>> Entries)> RawIkFrames=new();
     public string modelName;public uint lastFrame;
-    internal bool ExactBoneSamples;
     // RuntimeVmdSource marks its fully parsed keys immutable for shared binding
     // caches. Public/offline callers can continue editing their own motions.
     internal bool PreparedForPlayback;
+    internal bool BodyInputCompatible;
     internal readonly struct BoneSample
     {
         internal readonly Vector3 p;
@@ -31,27 +36,36 @@ public sealed class MmdMotion
     internal readonly HashSet<string> ResolvedAliases=new(StringComparer.Ordinal);
     internal MmdMotion BindAliases(IEnumerable<KeyValuePair<string,string>> aliases)
     {
-        var result=new MmdMotion{modelName=modelName,lastFrame=lastFrame,ExactBoneSamples=ExactBoneSamples,PreparedForPlayback=PreparedForPlayback};
+        var result=new MmdMotion{modelName=modelName,lastFrame=lastFrame,PreparedForPlayback=PreparedForPlayback,BodyInputCompatible=BodyInputCompatible};
         foreach(var p in tracks)result.tracks.Add(p.Key,p.Value);
+        result.RawBoneKeys.AddRange(RawBoneKeys);
         foreach(var p in morphs)result.morphs.Add(p.Key,p.Value);
         foreach(var p in ikSwitches)result.ikSwitches.Add(p.Key,p.Value);
+        result.RawIkFrames.AddRange(RawIkFrames);
         foreach(var group in aliases.GroupBy(p=>p.Key,StringComparer.Ordinal))
         {
             var targets=group.Select(p=>p.Value).Distinct().ToArray();
-            if(targets.Length!=1||!tracks.TryGetValue(group.Key,out var keys))continue;
+            if(targets.Length!=1)continue;
+            var keys=RawBoneKeys.Count>0?RawBoneKeys.Where(key=>key.Name==group.Key).Select(key=>key.Key).ToList():tracks.GetValueOrDefault(group.Key);
+            if(keys==null||keys.Count==0)continue;
             if(!result.tracks.ContainsKey(targets[0]))result.tracks.Add(targets[0],keys);
+            if(RawBoneKeys.Count>0&&!RawBoneKeys.Any(key=>key.Name==targets[0]))
+            {
+                foreach(var key in keys)result.RawBoneKeys.Add((targets[0],key));
+            }
             result.ResolvedAliases.Add(group.Key);
         }
         return result;
     }
     static string ReadText(BinaryReader r,int size) { var bytes=r.ReadBytes(size); if(bytes.Length!=size)throw new EndOfStreamException(); return Encoding.GetEncoding(932).GetString(bytes).Split('\0')[0]; }
+    static string ReadUpstreamName(BinaryReader r,int size) { var bytes=r.ReadBytes(size); if(bytes.Length!=size)throw new EndOfStreamException(); return Encoding.GetEncoding(932).GetString(bytes).TrimEnd('\0').TrimEnd('?').TrimEnd('\0'); }
     static bool Finite(float v)=>!float.IsNaN(v)&&!float.IsInfinity(v);
+    static float RotationMagnitudeSquared(Quaternion q)=>q.x*q.x+q.y*q.y+q.z*q.z+q.w*q.w;
     static void CheckSection(BinaryReader r,uint count,int size) { if(count>2000000||count*(long)size>r.BaseStream.Length-r.BaseStream.Position)throw new InvalidDataException("Truncated or excessive VMD section"); }
     public static Vector3 ConvertPosition(Vector3 v)=>new Vector3{x=-v.x,y=v.y,z=-v.z};
     public static Quaternion ConvertRotation(Quaternion q)
     {
-        float inverse=1f/MathF.Sqrt(q.x*q.x+q.y*q.y+q.z*q.z+q.w*q.w);
-        return new Quaternion{x=-q.x*inverse,y=q.y*inverse,z=-q.z*inverse,w=q.w*inverse};
+        return new Quaternion{x=-q.x,y=q.y,z=-q.z,w=q.w};
     }
     public static MmdMotion Read(string path)
     {
@@ -62,9 +76,10 @@ public sealed class MmdMotion
             motion.modelName=ReadText(r,header.EndsWith("0002")?20:10);var count=r.ReadUInt32();CheckSection(r,count,111);
             for(int i=0;i<count;i++)
             {
-                var name=MmdBoneMap.Normalize(ReadText(r,15));var key=new Key{frame=r.ReadUInt32(),p=new Vector3{x=r.ReadSingle(),y=r.ReadSingle(),z=r.ReadSingle()},q=new Quaternion{x=r.ReadSingle(),y=r.ReadSingle(),z=r.ReadSingle(),w=r.ReadSingle()},interpolation=r.ReadBytes(64)};
-                if(key.interpolation.Length!=64||key.frame>1080000||!Finite(key.p.x)||!Finite(key.p.y)||!Finite(key.p.z)||!Finite(key.q.x)||!Finite(key.q.y)||!Finite(key.q.z)||!Finite(key.q.w)||!Finite(key.q.sqrMagnitude())||key.q.sqrMagnitude()<0.0001f)throw new Exception("Invalid VMD bone key");
+                var rawName=ReadUpstreamName(r,15);var name=MmdBoneMap.Normalize(rawName.Split('\0')[0]);var key=new Key{frame=r.ReadUInt32(),p=new Vector3{x=r.ReadSingle(),y=r.ReadSingle(),z=r.ReadSingle()},q=new Quaternion{x=r.ReadSingle(),y=r.ReadSingle(),z=r.ReadSingle(),w=r.ReadSingle()},interpolation=r.ReadBytes(64)};
+                if(key.interpolation.Length!=64||key.frame>1080000||!Finite(key.p.x)||!Finite(key.p.y)||!Finite(key.p.z)||!Finite(key.q.x)||!Finite(key.q.y)||!Finite(key.q.z)||!Finite(key.q.w)||!Finite(RotationMagnitudeSquared(key.q)))throw new Exception("Invalid VMD bone key");
                 key.p=ConvertPosition(key.p);key.q=ConvertRotation(key.q);
+                motion.RawBoneKeys.Add((rawName,key));
                 if(!motion.tracks.ContainsKey(name))motion.tracks[name]=new List<Key>();motion.tracks[name].Add(key);motion.lastFrame=Math.Max(motion.lastFrame,key.frame);
             }
             count=r.ReadUInt32();CheckSection(r,count,23);
@@ -82,12 +97,14 @@ public sealed class MmdMotion
                 count=r.ReadUInt32();CheckSection(r,count,9);
                 for(int i=0;i<count;i++)
                 {
-                    var frame=r.ReadUInt32();r.ReadByte();var entries=r.ReadUInt32();CheckSection(r,entries,21);
-                    for(int j=0;j<entries;j++){var name=MmdBoneMap.Normalize(ReadText(r,20));var enabled=r.ReadByte()!=0;if(!motion.ikSwitches.ContainsKey(name))motion.ikSwitches[name]=new List<KeyValuePair<uint,bool>>();motion.ikSwitches[name].Add(new KeyValuePair<uint,bool>(frame,enabled));}
+                    var frame=r.ReadUInt32();var display=r.ReadByte()!=0;var entries=r.ReadUInt32();CheckSection(r,entries,21);
+                    var rawEntries=new List<KeyValuePair<string,bool>>();
+                    for(int j=0;j<entries;j++){var rawName=ReadUpstreamName(r,20);var name=MmdBoneMap.Normalize(rawName.Split('\0')[0]);var enabled=r.ReadByte()!=0;rawEntries.Add(new(rawName,enabled));if(!motion.ikSwitches.ContainsKey(name))motion.ikSwitches[name]=new List<KeyValuePair<uint,bool>>();motion.ikSwitches[name].Add(new KeyValuePair<uint,bool>(frame,enabled));}
+                    motion.RawIkFrames.Add((frame,display,rawEntries));
                 }
             }
         }
-        foreach(var name in motion.tracks.Keys.ToArray())motion.tracks[name]=motion.tracks[name].Select((key,index)=>new {key,index}).OrderBy(v=>v.key.frame).ThenBy(v=>v.index).GroupBy(v=>v.key.frame).Select(g=>g.Last().key).ToList();
+        foreach(var name in motion.tracks.Keys.ToArray())motion.tracks[name]=motion.tracks[name].OrderBy(key=>key.frame).ToList();
         foreach(var name in motion.morphs.Keys.ToArray())motion.morphs[name]=motion.morphs[name].GroupBy(k=>k.time).OrderBy(g=>g.Key).Select(g=>g.Last()).ToList();
         foreach(var list in motion.ikSwitches.Values)list.Sort((a,b)=>a.Key.CompareTo(b.Key));
         return motion;
@@ -113,18 +130,6 @@ public sealed class MmdMotion
         int low=0,high=keys.Count-1;while(high-low>1){int mid=(low+high)/2;if(keys[mid].frame<=frame)low=mid;else high=mid;}
         var value=Interpolate(keys[low],keys[high],frame);
         return new Key{p=value.p,q=value.q};
-    }
-    internal BoneSample SampleValue(string name,float frame)
-        =>SampleValue(tracks.TryGetValue(name,out var keys)?keys:null,frame);
-    internal static BoneSample SampleValue(List<Key> keys,float frame)
-    {
-        if(keys==null||keys.Count==0)return new BoneSample(Vector3.zero,Quaternion.identity);
-        if(frame<=keys[0].frame)return new BoneSample(keys[0].p,keys[0].q);
-        int last=keys.Count-1;
-        if(frame>=keys[last].frame)return new BoneSample(keys[last].p,keys[last].q);
-        int low=0,high=last;
-        while(high-low>1){int mid=low+(high-low)/2;if(keys[mid].frame<=frame)low=mid;else high=mid;}
-        return Interpolate(keys[low],keys[high],frame);
     }
     static BoneSample Interpolate(Key a,Key b,float frame)
     {
