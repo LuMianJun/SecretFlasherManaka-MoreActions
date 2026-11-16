@@ -1,6 +1,6 @@
 # UnityVMDPlayer 功能对照
 
-本文对应 MMD 插件 1.5.0。标准身体解算源自 [hobosore/UnityVMDPlayer `2cee8abd56c68ad3e88bcf4086e33185aa5ca4e8`](https://github.com/hobosore/UnityVMDPlayer/tree/2cee8abd56c68ad3e88bcf4086e33185aa5ca4e8) 的 Player、Reader 和 QuaternionExtensions，固定来源与文件校验记录见 `Plugin/Upstream/upstream-source.json`。
+本文对应 MMD 插件 1.5.1。标准身体解算源自 [hobosore/UnityVMDPlayer `2cee8abd56c68ad3e88bcf4086e33185aa5ca4e8`](https://github.com/hobosore/UnityVMDPlayer/tree/2cee8abd56c68ad3e88bcf4086e33185aa5ca4e8) 的 Player、Reader 和 QuaternionExtensions，固定来源与文件校验记录见 `Plugin/Upstream/upstream-source.json`。
 
 未注入游戏控制层的路径与固定上游进行同输入差分。实际游戏路径使用独立的中心、槽、腰及上下半身，补充足部朝向换算、显式零位移关键帧和跨帧 IK 开关。隐藏参考骨架、原生姿势租约、表情、音乐、镜头及走位由游戏适配层负责。
 
@@ -23,7 +23,7 @@
 | 暂停与 API | 提供 Play、Stop、Pause、JumpToFrame、SetFPS 及开始／结束回调。 | 游戏暂停冻结公共时钟、暂停／重排音乐并停止事件和位移。对外使用 `ActionPlaybackApi.Request/Stop`、播放状态和通知；MMD 另有 `MotionPlaybackApi`，不提供同形组件 API。 |
 | 身体调用顺序 | 全亲、上身、下身、Center/Complement、Ghost、腿 IK、脚尖 IK，部分阶段重复执行 exact 与 interpolate。 | 游戏路径在 Ghost 写回前求独立控制层级。腰／取消、肩 P/C、上半身3及拇指转换在 IK 前处理，D/EX 与捩转在 IK 后处理。 |
 | 腿 IK | 由髋、膝、踝几何及参考轴计算髋膝角度，沿参考换算的单轴弯膝。 | 保留上游两段公式和膝轴。初始腿形补偿随当前全亲旋转换算，并保留原有目标残差。 |
-| 脚踝与脚尖 IK | 按原 Foot/Ghost 参考与欧拉／四元数组合处理脚踝、脚尖和足 IK。 | 足 IK 目标方向直接使用源四元数并转换到当前全亲坐标。缺少原生 Toe 时跳过该侧 ToeIK。 |
+| 脚踝与脚尖 IK | 按原 Foot/Ghost 参考与欧拉／四元数组合处理脚踝、脚尖和足 IK。 | 有活动父轨道时，按全亲、足 IK 父、足 IK、脚尖 IK 的顺序计算目标。其余情况沿用全亲坐标下的足 IK 方向。缺少原生 Toe 时跳过该侧 ToeIK。 |
 | IK 开关 | 当前整数帧命中记录时更新，之后保留状态。 | 游戏路径按各侧、各链读取当前帧或之前最近的记录，无记录时默认开启。足与脚尖均关闭时保留 FK 踝姿态。 |
 | 下半身补偿 | Complement 按原关键帧分支与欧拉加减处理上下半身位移和旋转。 | 游戏路径把上半身、下半身分别挂在腰支点下，两侧大腿经过各自的腰取消节点。 |
 | Ghost 到原生骨轴 | 换算为 `inverse(父worldQ) * GhostWorldQ * inverse(Ghost初始worldQ) * 骨初始worldQ`。 | 沿用骨轴变换公式，按父先子后写回；游戏侧再施加角色当前朝向。 |

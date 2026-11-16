@@ -13,7 +13,7 @@ using SFM.ModSettings;
 [BepInDependency(SFM.Actions.Plugin.Guid)]
 public sealed class Plugin : BasePlugin
 {
-    internal const string Version = "1.5.0";
+    internal const string Version = "1.5.1";
     public const string Guid = "local.sfm.vmdprobe";
     internal static ManualLogSource LogSource;
     internal static ConfigEntry<bool> UseCamera;

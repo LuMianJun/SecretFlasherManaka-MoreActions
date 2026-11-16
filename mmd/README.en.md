@@ -96,6 +96,8 @@ Body playback uses UnityVMDPlayer's standard humanoid solve, including parent/ce
 
 Version 1.5.0 keeps the pinned UnityVMDPlayer FK, sampling stages and knee hinge constraints, with game-specific controls and foot keyframe fixes. A separate game layer supports authored eye, arm/wrist twist, waist/cancellation, shoulder P/C, upper-body 3, D-chain and forefoot EX tracks.
 
+Version 1.5.1 restores left and right foot IK parent tracks. Foot and toe IK inherit the parent track's translation and rotation. Direct toe FK tracks drive the native toe bones, and trailing half-width or full-width spaces are removed when matching VMD bone names.
+
 An explicit `親指０` track selects 0/1/2 numbering for that side's three native thumb joints. Without it, the standard upstream finger mapping remains active. Other native bones in the shared catalog accept matching motion deltas over their native baseline, preserving game dimensions. Eye-bone tracks and eye morphs are separate channels.
 
 The 80 catalog paths define available character bindings; the 51 standard Humanoid outputs are not the total support limit. Additional tracks still obey body scope, `bonePaths` masks and actual target bindings. Unity actions and MMD share the fixed path catalog. Model-specific hair, clothing and accessory tracks are not bound by approximate names.
