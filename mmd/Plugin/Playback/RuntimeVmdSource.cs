@@ -18,7 +18,7 @@ public sealed class RuntimeVmdSource : IActionSource, IPreparedActionSource
         var names=paths.SelectMany(path=>new[]{path.Substring(path.LastIndexOf('/')+1),MotionRig.MmdSource(path,paths)})
             .Where(name=>name!=null).Concat(new[]{"腰","上半身3","両目"}).ToList();
         foreach(string side in new[]{"左","右"})
-            foreach(string control in new[]{"肩P","肩C","腕捩","手捩","足D","ひざD","足首D","足先EX","親指０"})names.Add(side+control);
+            foreach(string control in new[]{"肩P","肩C","腕捩","手捩","足D","ひざD","足首D","足先EX","つま先","親指０"})names.Add(side+control);
         names.AddRange(new[]{"腰キャンセル左","腰キャンセル右"});
         var encoding=System.Text.Encoding.GetEncoding(932);
         return names.SelectMany(name=>

@@ -8,9 +8,12 @@ namespace SFM.Mmd.Upstream;
 // enum membership alone does not mean an eye/twist/extension track is driven.
 internal static class UpstreamMotionSupport
 {
+    internal const string LeftFootIkParent = "左足IK親";
+    internal const string RightFootIkParent = "右足IK親";
     static readonly HashSet<string> names=new(
         UpstreamBodySolver.StandardMapping.Values.Select(name=>name.ToString())
-        .Concat(new[]{"全ての親","グルーブ","下半身","左足ＩＫ","右足ＩＫ","左つま先ＩＫ","右つま先ＩＫ"}),
+        .Concat(new[]{"全ての親","グルーブ","下半身","左足ＩＫ","右足ＩＫ","左つま先ＩＫ","右つま先ＩＫ",
+            LeftFootIkParent,RightFootIkParent}),
         StringComparer.Ordinal);
     internal static bool Contains(string name)=>names.Contains(name);
     internal static IEnumerable<KeyValuePair<string,List<MmdMotion.Key>>> Tracks(MmdMotion motion)

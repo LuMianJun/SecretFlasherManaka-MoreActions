@@ -43,27 +43,15 @@ internal sealed class MmdAdditionalTracks
         float lastFrame=float.NaN;
         Sample last;
         internal Track(List<MmdMotion.Key> keys)
-        {this.keys=keys;Active=keys.Any(key=>!Neutral(new Sample(key.p,Valid(key.q))));}
+        {this.keys=keys;Active=keys.Any(key=>!Neutral(new Sample(key.p,MmdMotion.ControlRotation(key.q))));}
         internal bool SameKeys(Track other)=>other!=null&&ReferenceEquals(keys,other.keys);
         internal Sample At(float frame)
         {
             if(frame==lastFrame)return last;
             lastFrame=frame;
-            MmdMotion.Key a,b;
-            if(frame<=keys[0].frame)a=b=keys[0];
-            else if(frame>=keys[keys.Count-1].frame)a=b=keys[keys.Count-1];
-            else
-            {
-                int lo=0,hi=keys.Count-1;
-                while(hi-lo>1){int mid=(lo+hi)/2;if(keys[mid].frame<=frame)lo=mid;else hi=mid;}
-                a=keys[lo];b=keys[hi];
-            }
-            if(ReferenceEquals(a,b))return last=new(a.p,Valid(a.q));
-            float t=(frame-a.frame)/(b.frame-a.frame);
-            var p=new Vector3(Mathf.Lerp(a.p.x,b.p.x,Curve(b,0,t)),Mathf.Lerp(a.p.y,b.p.y,Curve(b,1,t)),Mathf.Lerp(a.p.z,b.p.z,Curve(b,2,t)));
-            return last=new(p,Quaternion.Slerp(Valid(a.q),Valid(b.q),Curve(b,3,t)));
+            var sample=MmdMotion.SampleControl(keys,frame);
+            return last=new(sample.p,sample.q);
         }
-        static float Curve(MmdMotion.Key key,int channel,float t)=>key.interpolation==null||key.interpolation.Length<64?t:MmdMotion.Bezier(key.interpolation,channel,t);
     }
     sealed class NativeTrack
     {
@@ -76,7 +64,7 @@ internal sealed class MmdAdditionalTracks
         internal int Shoulder=-1,Arm=-1,Elbow=-1,Hand=-1,Leg=-1,Knee=-1,Foot=-1,Toe=-1;
         internal int Thumb0=-1,Thumb1=-1,Thumb2=-1;
         internal Track ShoulderP,ShoulderC,Cancel,ArmTwist,HandTwist;
-        internal Track DeformLeg,DeformKnee,DeformFoot,DeformToe;
+        internal Track DeformLeg,DeformKnee,DeformFoot,DeformToe,ToeFk;
         internal Track ThumbTrack0,ThumbTrack1,ThumbTrack2;
         internal bool RemapThumb;
         internal Vector3 ArmAxis,HandAxis;
@@ -145,6 +133,7 @@ internal sealed class MmdAdditionalTracks
                 DeformLeg=Find(side+"足D"),DeformKnee=Find(side+"ひざD"),DeformFoot=Find(side+"足首D"),DeformToe=Find(side+"足先EX"),
                 ThumbTrack0=Find(side+"親指０")
             };
+            if(value.Toe>=0)value.ToeFk=Find(side+"つま先");
             if(value.ThumbTrack0!=null)
             {
                 value.ThumbTrack1=Find(side+"親指１");value.ThumbTrack2=Find(side+"親指２");
@@ -159,7 +148,7 @@ internal sealed class MmdAdditionalTracks
         }
         HasWaistControls=Active(waist)||sides.Any(s=>Active(s.Cancel));
         HasBeforeIk=HasWaistControls||Active(upper3)||sides.Any(s=>Active(s.ShoulderP)||Active(s.ShoulderC)||s.RemapThumb);
-        hasAfter=sides.Any(s=>Active(s.ArmTwist)||Active(s.HandTwist)||Active(s.DeformLeg)||Active(s.DeformKnee)||Active(s.DeformFoot)||Active(s.DeformToe)||s.RemapThumb);
+        hasAfter=sides.Any(s=>Active(s.ArmTwist)||Active(s.HandTwist)||Active(s.DeformLeg)||Active(s.DeformKnee)||Active(s.DeformFoot)||Active(s.DeformToe)||Active(s.ToeFk)||s.RemapThumb);
         for(int i=0;i<count;i++)
         {
             var b=rig.bindings[i];string source=b.presetSource;
@@ -204,11 +193,6 @@ internal sealed class MmdAdditionalTracks
     static bool Neutral(Sample value)=>Zero(value.Position)&&Identity(value.Rotation);
     int Human(HumanBodyBones role)=>humans.TryGetValue(role,out var i)?i:-1;
     Vector3 Axis(int a,int b)=>a<0||b<0?Vector3.zero:(referencePosition[b]-referencePosition[a]).normalized;
-    static Quaternion Valid(Quaternion q)
-    {
-        float length=q.x*q.x+q.y*q.y+q.z*q.z+q.w*q.w;
-        return length<1e-16f?Quaternion.identity:q.normalized;
-    }
     static Sample At(Track track,float frame)=>track==null?Sample.Identity:track.At(frame);
     Quaternion Frame(int i)=>i<0?rig.proxy.transform.rotation:rig.bindings[i].sample.rotation*Quaternion.Inverse(reference[i]);
     Quaternion NativeParentFrame(int i,float frame)
@@ -230,7 +214,7 @@ internal sealed class MmdAdditionalTracks
     {
         if(axis.sqrMagnitude<1e-12f)return Quaternion.identity;
         var vector=axis*Vector3.Dot(new Vector3(q.x,q.y,q.z),axis);
-        return Valid(new Quaternion(vector.x,vector.y,vector.z,q.w));
+        return MmdMotion.ControlRotation(new Quaternion(vector.x,vector.y,vector.z,q.w));
     }
     void Rigid(int index,Vector3 pivot,Quaternion rotation,Vector3 offset)
     {
@@ -318,6 +302,7 @@ internal sealed class MmdAdditionalTracks
             if(side.DeformLeg!=null)LocalGrant(side.Leg,At(side.DeformLeg,frame),Frame(hips)*cancel);
             if(side.DeformKnee!=null)LocalGrant(side.Knee,At(side.DeformKnee,frame),Frame(side.Leg));
             if(side.DeformFoot!=null)LocalGrant(side.Foot,At(side.DeformFoot,frame),Frame(side.Knee));
+            if(Active(side.ToeFk))SourceChild(side.Toe,side.Foot,At(side.ToeFk,frame));
             if(side.DeformToe!=null)LocalGrant(side.Toe,At(side.DeformToe,frame),Frame(side.Foot));
             if(side.RemapThumb)SourceChild(side.Thumb2,side.Thumb1,At(side.ThumbTrack2,frame));
         }

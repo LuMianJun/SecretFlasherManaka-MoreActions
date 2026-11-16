@@ -126,10 +126,37 @@ public sealed class MmdMotion
     public Key Sample(string name,float frame)
     {
         if(!tracks.TryGetValue(name,out var keys)||keys.Count==0)return new Key{q=Quaternion.identity};
-        if(frame<=keys[0].frame)return keys[0];if(frame>=keys[keys.Count-1].frame)return keys[keys.Count-1];
-        int low=0,high=keys.Count-1;while(high-low>1){int mid=(low+high)/2;if(keys[mid].frame<=frame)low=mid;else high=mid;}
-        var value=Interpolate(keys[low],keys[high],frame);
+        var (a,b)=SampleBounds(keys,frame);
+        if(ReferenceEquals(a,b))return a;
+        var value=Interpolate(a,b,frame);
         return new Key{p=value.p,q=value.q};
+    }
+    internal static BoneSample SampleControl(List<Key> keys,float frame)
+    {
+        if(keys==null||keys.Count==0)return new BoneSample(Vector3.zero,Quaternion.identity);
+        var (a,b)=SampleBounds(keys,frame);
+        var rotation=ControlRotation(a.q);
+        if(ReferenceEquals(a,b))return new BoneSample(a.p,rotation);
+        float t=(frame-a.frame)/(b.frame-a.frame);
+        float Curve(int channel)=>b.interpolation==null||b.interpolation.Length<64?t:Bezier(b.interpolation,channel,t);
+        var position=new Vector3(Mathf.Lerp(a.p.x,b.p.x,Curve(0)),Mathf.Lerp(a.p.y,b.p.y,Curve(1)),Mathf.Lerp(a.p.z,b.p.z,Curve(2)));
+        return new BoneSample(position,Quaternion.Slerp(rotation,ControlRotation(b.q),Curve(3)));
+    }
+    internal static Quaternion ControlRotation(Quaternion value)
+        =>RotationMagnitudeSquared(value)<1e-16f?Quaternion.identity:value.normalized;
+
+    static (Key Start,Key End) SampleBounds(List<Key> keys,float frame)
+    {
+        if(frame<=keys[0].frame)return (keys[0],keys[0]);
+        int low=0,high=keys.Count-1;
+        if(frame>=keys[high].frame)return (keys[high],keys[high]);
+        while(high-low>1)
+        {
+            int mid=(low+high)/2;
+            if(keys[mid].frame<=frame)low=mid;
+            else high=mid;
+        }
+        return (keys[low],keys[high]);
     }
     static BoneSample Interpolate(Key a,Key b,float frame)
     {
