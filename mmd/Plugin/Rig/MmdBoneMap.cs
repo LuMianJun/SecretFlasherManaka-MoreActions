@@ -8,8 +8,11 @@ namespace SFM.Mmd;
 // in GameHumanoidMap; standard solve mapping stays in the upstream core.
 internal static class MmdBoneMap
 {
+    static readonly char[] NamePadding={' ','\u3000'};
+
     internal static string Normalize(string name)
     {
+        name=name.TrimEnd(NamePadding);
         name=name.Replace("ＩＫ親","IK親").Replace("足IK","足ＩＫ").Replace("つま先IK","つま先ＩＫ");
         // IK parents use ASCII IK in the semi-standard convention.
         name=name.Replace("足ＩＫ親","足IK親").Replace("人差指","人指").Replace("捩れ","捩");
