@@ -1097,9 +1097,11 @@ internal sealed class UpstreamBodySolver : IDisposable
         Quaternion toeIKOriginalRotation = Quaternion.identity;
         Vector3 footToeOriginalVector = Vector3.one;
         readonly bool gameIk;
-        readonly Transform inheritedToeGoal;
-        readonly Vector3 inheritedToeRest;
-        readonly List<MmdMotion.Key> inheritedToeTrack;
+        readonly bool animatedFootParent;
+        readonly Transform toePositionGoal;
+        readonly Vector3 toePositionRest;
+        readonly List<MmdMotion.Key> toePositionTrack;
+        bool UsesToePositionGoal => toePositionGoal != null && (animatedFootParent || (FootIKEnable && ToeIKEnable));
 
         public Transform ToeIKParent { get; private set; }
         public Transform FootRotator { get; private set; }
@@ -1135,13 +1137,15 @@ internal sealed class UpstreamBodySolver : IDisposable
             }
 
             ParentOfAll = Animator.GetBoneTransform(HumanBodyBones.Hips).parent;
-            if (leg.HasAnimatedParent)
+            animatedFootParent = leg.HasAnimatedParent;
+            if (gameIk)
+                motion.tracks.TryGetValue(toeIKBoneName.ToString(), out toePositionTrack);
+            if (animatedFootParent || (gameIk && HasPositionalToeMotion(motion)))
             {
-                inheritedToeGoal = new GameObject(toeIKBoneName.ToString()).transform;
-                inheritedToeGoal.SetParent(leg.Target,false);
-                inheritedToeGoal.position = ToeTransform.position;
-                inheritedToeRest = inheritedToeGoal.localPosition;
-                motion.tracks.TryGetValue(toeIKBoneName.ToString(),out inheritedToeTrack);
+                toePositionGoal = new GameObject(toeIKBoneName.ToString()).transform;
+                toePositionGoal.SetParent(leg.Target,false);
+                toePositionGoal.position = ToeTransform.position;
+                toePositionRest = toePositionGoal.localPosition;
             }
 
             footOriginalLocalRotation = FootTransform.localRotation;
@@ -1185,11 +1189,22 @@ internal sealed class UpstreamBodySolver : IDisposable
                 = Quaternion.Inverse(ToeIKParent.rotation) * FootGhost.rotation;
         }
 
+        bool HasPositionalToeMotion(MmdMotion motion)
+        {
+            // Ignore sub-millimetre export noise. Select this path for the
+            // whole track so an authored zero toe key cannot change solvers.
+            return toePositionTrack != null
+                && toePositionTrack.Any(k => k.p.x*k.p.x + k.p.y*k.p.y + k.p.z*k.p.z > 1e-6f)
+                && motion.tracks.TryGetValue(footIKBoneName.ToString(), out var footTrack)
+                && !footTrack.Any(k => k.q.x*k.q.x + k.q.y*k.q.y + k.q.z*k.q.z > 1e-8f);
+        }
+
         public void IK(int frameNumber)
         {
-            if (inheritedToeGoal != null) return;
+            if (animatedFootParent) return;
             SetIKEnable(frameNumber);
             if (gameIk && !FootIKEnable && !ToeIKEnable) return;
+            if (UsesToePositionGoal) return;
 
             FootTransform.localRotation = Quaternion.identity;
             ToeIKParent.localRotation = Quaternion.identity;
@@ -1227,18 +1242,23 @@ internal sealed class UpstreamBodySolver : IDisposable
             SetIKEnable(frameNumber);
             if (gameIk && !FootIKEnable && !ToeIKEnable) return;
 
-            if (inheritedToeGoal != null)
+            if (UsesToePositionGoal)
             {
                 FootTransform.localRotation = Quaternion.identity;
                 ToeIKParent.localRotation = Quaternion.identity;
+                ToeIKTarget.localRotation = Quaternion.identity;
                 FootRotator.localRotation = VMDReader.InterporateRotation(VMDReader,footBoneName,frameNumber);
                 IK();
-                var toe = MmdMotion.SampleControl(inheritedToeTrack,frameNumber);
-                inheritedToeGoal.localPosition = inheritedToeRest + toe.p * DefaultBoneAmplifier;
+                // The toe goal is a child of the foot IK target, including
+                // when the foot IK parent has no animation. Aim from the
+                // solved ankle once; a neutral foot IK rotation adds no aim.
+                var toe = MmdMotion.SampleControl(toePositionTrack,frameNumber);
+                toePositionGoal.localPosition = toePositionRest + toe.p * DefaultBoneAmplifier;
                 var direction = ToeIKEnable
-                    ? inheritedToeGoal.position - FootTransform.position
-                    : inheritedToeGoal.parent.rotation * footToeOriginalVector;
-                AlignFoot(direction);
+                    ? toePositionGoal.position - FootTransform.position
+                    : toePositionGoal.parent.rotation * footToeOriginalVector;
+                if (direction.sqrMagnitude > 1e-12f)
+                    AlignFoot(direction);
                 return;
             }
             FootTransform.localRotation = Quaternion.identity;
