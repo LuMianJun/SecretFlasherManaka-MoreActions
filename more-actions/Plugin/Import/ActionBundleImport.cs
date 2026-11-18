@@ -21,6 +21,7 @@ internal static class ActionBundleImport
     static Queue<string> assets;
     static string asset;
     static string overrideJson;
+    static AnimationClip ikuClip;
     static AssetBundleRequest loading;
     static readonly List<AnimationClip> clips = new();
     static int registered;
@@ -98,7 +99,12 @@ internal static class ActionBundleImport
                 bundle = opening.assetBundle; opening = null;
                 if (bundle == null) throw new InvalidDataException("Bundle could not load; check duplicate internal bundle names");
                 overrideJson = UnityActionOverrides.Read(file);
-                assets = new Queue<string>(bundle.GetAllAssetNames().Where(n => n.EndsWith(".anim", StringComparison.OrdinalIgnoreCase)).OrderBy(n => n, StringComparer.Ordinal));
+                var names = bundle.GetAllAssetNames().ToArray();
+                var reference = ActionIkuAssets.BundleSetting(overrideJson, file);
+                ikuClip = ActionIkuAssets.Load(bundle, names, reference, file, out var ikuPath);
+                if (ikuClip != null) { ikuClip.hideFlags = HideFlags.HideAndDontSave; clips.Add(ikuClip); }
+                assets = new Queue<string>(names.Where(n => n != ikuPath && n.EndsWith(".anim", StringComparison.OrdinalIgnoreCase))
+                    .OrderBy(n => n, StringComparer.Ordinal));
             }
             if (loading != null)
             {
@@ -108,7 +114,7 @@ internal static class ActionBundleImport
                 if (clip == null || !float.IsFinite(clip.length) || clip.length < 0) throw new InvalidDataException("Invalid animation clip");
                 clip.hideFlags = HideFlags.HideAndDontSave;
                 string relative = Path.GetRelativePath(root, file);
-                var source = new AnimatorActionSource(clip, relative);
+                var source = new AnimatorActionSource(clip, relative, ikuClip);
                 var definition = new ActionDefinition
                 {
                     Id = UnityActionIdentity.ForClip(root,Path.GetDirectoryName(file),clip.name),
@@ -140,7 +146,7 @@ internal static class ActionBundleImport
                     loading = bundle.LoadAssetAsync<AnimationClip>(asset);
                     return;
                 }
-                bundle.Unload(false); bundle = null; assets = null;
+                bundle.Unload(false); bundle = null; assets = null; ikuClip = null;
             }
             if (pending.Count > 0) { file = pending.Dequeue(); opening = AssetBundle.LoadFromFileAsync(file); return; }
             if (!announced)
@@ -154,7 +160,7 @@ internal static class ActionBundleImport
         {
             Plugin.LogSource.LogWarning("ACTION_BUNDLE_IMPORT_FAILED file=" + file + " asset=" + asset + " " + e);
             try { bundle?.Unload(false); } catch { }
-            bundle = null; assets = null; loading = null; opening = null;
+            bundle = null; assets = null; loading = null; opening = null; ikuClip = null;
             if (discovery != null) { discovery = null; pending = new Queue<string>(); }
         }
     }
@@ -166,7 +172,7 @@ internal static class ActionBundleImport
         try { bundle?.Unload(false); }
         finally
         {
-            bundle = null; assets = null; loading = null;
+            bundle = null; assets = null; loading = null; ikuClip = null;
             if (opening != null && opening.isDone && opening.assetBundle != null) opening.assetBundle.Unload(true);
             opening = null;
             foreach (var clip in clips) if (clip != null) UnityEngine.Object.Destroy(clip);

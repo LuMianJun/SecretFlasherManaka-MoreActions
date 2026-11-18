@@ -34,8 +34,10 @@
   <!-- Preserve the existing Harmony patch declaration order when adding files. -->
   <ItemGroup>
     <Compile Include="Import/ActionAssets.cs" />
+    <Compile Include="Import/ActionIkuAssets.cs" />
     <Compile Include="Import/NativeAudioLoad.cs" />
     <Compile Include="Rig/ActionPose.cs" />
+    <Compile Include="Rig/ActionIkuPose.cs" />
     <Compile Include="Rig/ActionSamplingRigPool.cs" />
     <Compile Include="Rig/ActionBodyPoseLease.cs" />
     <Compile Include="Import/ActionBundleImport.cs" />
@@ -78,6 +80,7 @@
     <Compile Include="Plugin.cs" />
     <Compile Include="Playback/ActionDriver.cs" />
     <Compile Include="Playback/PlaybackSession.cs" />
+    <Compile Include="Playback/NativeIkuPlayback.cs" />
     <Compile Include="Native/ActionPlaybackPatches.cs" />
     <Compile Include="UI/ReplacementBrowserModel.cs" />
     <Compile Include="UI/ReplacementBrowserView.cs" />

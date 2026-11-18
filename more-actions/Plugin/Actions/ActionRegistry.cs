@@ -46,6 +46,7 @@ public static class ActionRegistry
         // Own a snapshot so a provider cannot mutate a running action's rules.
         var owned = JsonSerializer.Deserialize<ActionDefinition>(JsonSerializer.Serialize(definition));
         owned.BundlePath = files.Bundle; owned.AudioPath = files.Audio; owned.ProviderId = providerId ?? ""; owned.RuntimeSource = source;
+        owned.ResolvedIkuClipAsset = definition.ResolvedIkuClipAsset;
         entries.Add(owned.Id, owned); Revision++; Notify();
     }
 

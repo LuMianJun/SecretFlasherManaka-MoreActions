@@ -13,6 +13,7 @@ public sealed class ActionDefinition
     public string Description { get; set; } = "";
     public string Bundle { get; set; } = "";
     public string ClipAsset { get; set; } = "";
+    public string IkuClipAsset { get; set; } = "";
     public string AudioAsset { get; set; } = "";
     public string AudioFile { get; set; } = "";
     public double AudioDelaySeconds { get; set; }
@@ -38,6 +39,8 @@ public sealed class ActionDefinition
     public string ProviderId { get; internal set; } = "";
     public string BundlePath { get; internal set; } = "";
     public string AudioPath { get; internal set; } = "";
+    [System.Text.Json.Serialization.JsonIgnore]
+    internal string ResolvedIkuClipAsset { get; set; }
     [System.Text.Json.Serialization.JsonIgnore]
     public IActionSource RuntimeSource { get; internal set; }
 }

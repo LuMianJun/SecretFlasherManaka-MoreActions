@@ -67,9 +67,9 @@ public sealed class ActionDriver : MonoBehaviour
         requests.Request(id); requestRevision++; AbandonNativeExit("new request");
     }
     [HideFromIl2Cpp]
-    internal bool Owns(PlayerStateModel state) => Playing && Owner != null && Owner.Pca?.PlayerState?.Pointer == state?.Pointer;
+    internal bool Owns(PlayerStateModel state) => Playing && session.Iku == null && Owner != null && Owner.Pca?.PlayerState?.Pointer == state?.Pointer;
     [HideFromIl2Cpp]
-    internal bool Owns(PlayerFacade facade) => Playing && Owner != null && facade?.pca?.PlayerState?.Pointer == Owner.Pca?.PlayerState?.Pointer;
+    internal bool Owns(PlayerFacade facade) => Playing && session.Iku == null && Owner != null && facade?.pca?.PlayerState?.Pointer == Owner.Pca?.PlayerState?.Pointer;
     [HideFromIl2Cpp]
     internal bool Owns(PlayerAction action) => Playing && Owner != null && Owner.Pca?.PlayerAction?.Pointer == action?.Pointer;
 
@@ -93,12 +93,12 @@ public sealed class ActionDriver : MonoBehaviour
     bool NativeOperationInputBlocked => PlayerInputBlocked || InGameUiManager.Instance?.IsOpenSomeUi == true;
 
     [HideFromIl2Cpp]
-    void SyncPause()
+    void SyncPause(double? dspTime = null)
     {
         if (!Playing) return;
-        bool paused = Time.timeScale <= 0;
+        bool paused = Time.timeScale <= 0 || session.Iku != null;
         if (paused == session.Clock.Paused) return;
-        double now = AudioSettings.dspTime;
+        double now = dspTime ?? AudioSettings.dspTime;
         if (paused) session.AudioPendingWhenPaused = session.Action.Audio != null && now < session.Clock.AudioStartDsp;
         session.Clock.SetPaused(now, paused);
         if (session.Audio == null || session.Action.Audio == null) return;
@@ -116,21 +116,69 @@ public sealed class ActionDriver : MonoBehaviour
         && (int)state.CurrentAction.Type >= 50000 && (int)state.CurrentAction.Type < 60001 && !state.IsGamanBaibu;
 
     [HideFromIl2Cpp]
-    internal string Reason(ActionDefinition definition, PlayerController player, bool uiOpen, bool allowNativeExit = false)
+    internal string Reason(ActionDefinition definition, PlayerController player, bool uiOpen, bool allowNativeExit = false, bool allowIku = false)
     {
         var state = player == null ? null : player.Pca?.PlayerState;
         var game = InGameManager.Instance;
         var temp = game == null ? null : game.TempInGameState;
         bool skipPlayingAction = allowNativeExit && SwitchablePose(state);
         var availability = new ActionAvailability(state?.CurrentAction != null, state != null && (int)state.CurrentState == 0,
-            !skipPlayingAction && state?.CurrentAction != null && (int)state.CurrentAction.Type != -1, state != null && state.IsEcstasyMotion,
+            !skipPlayingAction && state?.CurrentAction != null && (int)state.CurrentAction.Type != -1, !allowIku && state != null && state.IsEcstasyMotion,
             state != null && state.IsCrouch, state != null && state.IsSit,
             GameState.GameStateData != null && GameStateFacade.IsAttachSomeHandcuffs(), SexManager.Instance != null && SexManager.Instance.IsSexMode,
             !PlayerInputBlocked && InputManager.GetVector3(InputManager.InputType.Move).sqrMagnitude > 0.0001f, uiOpen && !Playing,
             player == null || !player.gameObject.activeInHierarchy || temp == null || temp.IsGameOver || temp.IsPlayingSomePerformance || temp.IsTimeStop);
         var reason = ActionPolicy.BlockReason(definition, availability);
         if (reason != null) return reason;
+        // The original gate also rejects its own IKU state; all other native
+        // hand/posture/state conditions are already represented above.
+        if (allowIku && state.IsEcstasyMotion) return null;
         return CanUseNativeHands(definition, false, skipPlayingAction) ? null : "native hand/action gate";
+    }
+
+    [HideFromIl2Cpp]
+    bool ObserveIku(bool uiOpen)
+    {
+        if (session.Iku != null) return true;
+        var accessor = Owner?.Pca;
+        if (session.Pose is not ActionPose pose || !pose.CanPlayIku || accessor?.PlayerState?.IsEcstasyMotion != true
+            || Reason(Definition, Owner, uiOpen, allowIku: true) != null) return false;
+        var iku = NativeIkuPlayback.TryStart(accessor.Animator);
+        if (iku == null) return false;
+        double now = AudioSettings.dspTime;
+        session.Iku = iku;
+        SyncPause(now);
+        try { session.FaceCamera.End(); }
+        catch (Exception error) { Plugin.LogSource.LogWarning("ACTION_CAMERA_END_FAILED " + error.Message); }
+        Plugin.LogSource.LogInfo(FormattableString.Invariant(
+            $"ACTION_IKU_BEGIN id={Definition.Id} asset={Definition.IkuClipAsset} mainSeconds={session.Clock.Elapsed(now):F6}"));
+        return true;
+    }
+
+    [HideFromIl2Cpp]
+    bool ApplyIku()
+    {
+        var accessor = Owner?.Pca;
+        var status = session.Iku.Read(accessor?.Animator, accessor?.PlayerState?.IsEcstasyMotion == true, out var progress, out var weight);
+        if (status == NativeIkuPlayback.Status.Sampling)
+        {
+            if (!((ActionPose)session.Pose).ApplyIku(progress, weight))
+                StopWithDiagnostics("IKU pose", "IKU pose unavailable");
+            return true;
+        }
+        if (status == NativeIkuPlayback.Status.Interrupted)
+        {
+            StopWithDiagnostics("IKU pose", "native IKU interrupted");
+            return true;
+        }
+        double now = AudioSettings.dspTime;
+        session.Iku = null;
+        SyncPause(now);
+        if (Plugin.FollowCamera.Value && Definition.FollowFaceCamera)
+            try { session.FaceCamera.Begin(Owner); } catch (Exception error) { Plugin.LogSource.LogWarning("ACTION_CAMERA_BEGIN_FAILED " + error.Message); }
+        Plugin.LogSource.LogInfo(FormattableString.Invariant(
+            $"ACTION_IKU_RESUME id={Definition.Id} mainSeconds={session.Clock.Elapsed(now):F6}"));
+        return false;
     }
 
     [HideFromIl2Cpp]
@@ -251,7 +299,8 @@ public sealed class ActionDriver : MonoBehaviour
         (session.Pose as IActionBodyPose)?.RestoreNativeBody();
         (session.Pose as IActionFacePose)?.RestoreNativeFace();
         var ui = InGameUiManager.Instance;
-        var reason = Reason(Definition, player, ui != null && ui.IsOpenSomeUi);
+        bool uiOpen = ui != null && ui.IsOpenSomeUi;
+        var reason = Reason(Definition, player, uiOpen, allowIku: ObserveIku(uiOpen));
         bool nativeInput = !NativeOperationInputBlocked && (InputResolver.RingShortcutInput != RingMenuParentView.RingItemType.None
             || InputManager.IsDownFrame(InputManager.InputType.OpenClothesA) || InputManager.IsDownFrame(InputManager.InputType.OpenClothesB)
             || InputManager.IsDownFrame(InputManager.InputType.CloseClothesA) || InputManager.IsDownFrame(InputManager.InputType.Crouch)
@@ -281,7 +330,8 @@ public sealed class ActionDriver : MonoBehaviour
             }
         }
         if (!Playing) return;
-        var reason = Reason(Definition, Owner, ui != null && ui.IsOpenSomeUi);
+        bool uiOpen = ui != null && ui.IsOpenSomeUi;
+        var reason = Reason(Definition, Owner, uiOpen, allowIku: ObserveIku(uiOpen));
         if (reason != null || ActionRegistry.Get(Definition.Id) != Definition) { StopWithDiagnostics("request/update", reason ?? "action removed"); return; }
         UpdateVolume();
     }
@@ -365,8 +415,11 @@ public sealed class ActionDriver : MonoBehaviour
         if (!Playing || session.ApplyFrame == Time.frameCount) return; session.ApplyFrame = Time.frameCount;
         SyncPause();
         var ui = InGameUiManager.Instance;
-        string reason = Reason(Definition, Owner, ui != null && ui.IsOpenSomeUi);
+        bool uiOpen = ui != null && ui.IsOpenSomeUi;
+        bool iku = ObserveIku(uiOpen);
+        string reason = Reason(Definition, Owner, uiOpen, allowIku: iku);
         if (reason != null || (Owner.transform.position - session.ExpectedPosition).sqrMagnitude > 0.0004f) { StopWithDiagnostics("before pose", reason ?? "external displacement"); return; }
+        if (iku && ApplyIku()) return;
         double now = AudioSettings.dspTime;
         double eventTime = session.Clock.Elapsed(now);
         float time = (float)eventTime;
@@ -395,7 +448,8 @@ public sealed class ActionDriver : MonoBehaviour
         if (!session.Clock.Paused) session.Events.Advance(eventTime);
         // A native callback may have stopped this playback or changed state.
         if (revision != session.Revision || !Playing) return;
-        reason = Reason(Definition, Owner, ui != null && ui.IsOpenSomeUi);
+        if (ObserveIku(uiOpen)) return;
+        reason = Reason(Definition, Owner, uiOpen);
         if (reason != null) { StopWithDiagnostics("after events", reason); return; }
         if (Plugin.FollowCamera.Value && Definition.FollowFaceCamera)
             try { session.FaceCamera.RefreshAfterPose(); } catch (Exception e) { try { session.FaceCamera.End(); } catch { } Plugin.LogSource.LogWarning("ACTION_CAMERA_FAILED " + e.Message); }
@@ -412,7 +466,7 @@ public sealed class ActionDriver : MonoBehaviour
 
     [HideFromIl2Cpp]
     internal bool DeferNativeFollowCamera(MonoBehaviour controller) =>
-        Playing && session.RootMotion != null && followCamera.Defer(Owner, controller);
+        Playing && session.Iku == null && session.RootMotion != null && followCamera.Defer(Owner, controller);
 
     [HideFromIl2Cpp]
     internal void FlushNativeFollowCamera() => followCamera.Flush();
@@ -426,7 +480,7 @@ public sealed class ActionDriver : MonoBehaviour
     }
     [HideFromIl2Cpp]
     internal IDisposable PreserveNativeCorrection(ActionBoneCorrection correction)
-        => Playing ? (session.Pose as IActionBodyPose)?.PreserveNativeCorrection(correction) : null;
+        => Playing && session.Iku == null ? (session.Pose as IActionBodyPose)?.PreserveNativeCorrection(correction) : null;
     [HideFromIl2Cpp]
     bool IsCurrentEventPlayback(int revision, LoadedAction action)
     {
@@ -434,7 +488,9 @@ public sealed class ActionDriver : MonoBehaviour
         if (!session.Stopping)
         {
             var ui = InGameUiManager.Instance;
-            string reason = Reason(action.Definition, Owner, ui != null && ui.IsOpenSomeUi);
+            bool uiOpen = ui != null && ui.IsOpenSomeUi;
+            if (ObserveIku(uiOpen)) return false;
+            string reason = Reason(action.Definition, Owner, uiOpen);
             if (reason != null) { StopWithDiagnostics("event callback", reason); return false; }
         }
         return true;
@@ -451,7 +507,7 @@ public sealed class ActionDriver : MonoBehaviour
             try { if (session.Audio != null) session.Audio.Stop(); } catch (Exception e) { Plugin.LogSource.LogWarning("ACTION_AUDIO_END_FAILED " + e.Message); }
             session.Clock.Stop();
             try { previousEvents?.Close(completed); } catch (Exception e) { Plugin.LogSource.LogWarning("ACTION_EVENT_END_FAILED " + e.Message); }
-            session.Action = null; session.Pose = null; session.Events = null; session.RootMotion = null; session.Revision++;
+            session.Action = null; session.Pose = null; session.Iku = null; session.Events = null; session.RootMotion = null; session.Revision++;
             try { previousPose?.Dispose(); } catch (Exception e) { Plugin.LogSource.LogWarning("ACTION_POSE_END_FAILED " + e.Message); }
             try { session.FaceCamera.End(); } catch (Exception e) { Plugin.LogSource.LogWarning("ACTION_CAMERA_END_FAILED " + e.Message); }
             if (previous != null)

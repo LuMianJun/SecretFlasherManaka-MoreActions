@@ -175,6 +175,11 @@ Restart after editing. Field names are case-insensitive. Use double-quoted strin
 | `description` | Empty string | Action note with no effect on playback; currently not displayed as a radial-menu description. |
 | `bundle` | Omitted for automatic import; required in explicit mode | AssetBundle path relative to this JSON. Any extension is accepted; ordinary .anim and FBX files cannot be used directly. |
 | `clipAsset` | Omitted for automatic import; required in explicit mode | AnimationClip asset name within the bundle: a resolvable short name or full asset path, such as Pose or assets/animations/pose.anim. Not a filesystem path. |
+| `ikuClipAsset` | Omitted | IKU clip for the current standalone Unity action. Use a unique clip name or a full asset path within the same AssetBundle. |
+
+The radial menu and global replacement browser hide successfully resolved IKU clips. Actions in the same bundle can share a clip. A minimal bundle configuration applies it to the bundle's other clips.
+
+When the game starts a standing or regular crouching IKU, the mod pauses the main action and its music. The sub-clip follows native playback progress and transitions and uses the main action's `bodyMask` and `bonePaths`. The game continues to control expressions, sounds, stats and completion. After normal completion, an eligible action resumes from its paused time. If the clip is omitted or unavailable, the game plays its native IKU and interrupts the main action as usual.
 
 External file paths are relative to the JSON and restricted to its directory and subdirectories. Replacement slots match the loaded clip's actual name, case-sensitively. Bundle filenames and IDs locate resources and store selections.
 

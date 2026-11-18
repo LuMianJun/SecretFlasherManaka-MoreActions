@@ -23,6 +23,7 @@ internal sealed class ActionPose : IActionPose, IActionFacePose, IActionBodyPose
     readonly bool nativeAnimator;
     AnimatorClipSampler sampler;
     ActionBodyPoseLease body;
+    ActionIkuPose iku;
     Vector3 worldHipOrigin;
     Quaternion rootBasis;
     public bool HasRootMotion => nativeAnimator && action.Definition.WriteHipTranslation && bones.Exists(b => b.path == "Armature/Hips");
@@ -102,6 +103,11 @@ internal sealed class ActionPose : IActionPose, IActionFacePose, IActionBodyPose
                 delta.y = 0; LoopRootDisplacement = delta;
                 Sample(0);
             }
+            if (loaded.IkuClip != null)
+            {
+                try { iku = new ActionIkuPose(target, loaded.IkuClip, bones); }
+                catch (Exception error) { ActionIkuAssets.Warn(loaded.Definition.Id, loaded.Definition.IkuClipAsset, error.Message); }
+            }
         }
         catch { Dispose(); throw; }
     }
@@ -137,8 +143,12 @@ internal sealed class ActionPose : IActionPose, IActionFacePose, IActionBodyPose
         }
         face?.Begin();
         foreach (var shape in morphs) if (shape.live != null) face?.Write(shape.live, shape.index, shape.sample.GetBlendShapeWeight(shape.index));
+        iku?.HoldMainPose();
         return true;
     }
+
+    internal bool CanPlayIku => iku?.HasHeldPose == true;
+    internal bool ApplyIku(float progress, float weight) => iku?.Apply(progress, weight, body) == true;
 
     public void RestoreNativeFace() => face?.RestoreNativeFace();
     public void RestoreNativeBody() => body?.RestoreNativeBody();
@@ -159,7 +169,11 @@ internal sealed class ActionPose : IActionPose, IActionFacePose, IActionBodyPose
     }
     public void Dispose()
     {
-        try { sampler?.Dispose(); }
+        try
+        {
+            try { iku?.Dispose(); }
+            finally { iku = null; sampler?.Dispose(); }
+        }
         catch { if (samplingRig != null) samplingRig.Retired = true; throw; }
         finally
         {

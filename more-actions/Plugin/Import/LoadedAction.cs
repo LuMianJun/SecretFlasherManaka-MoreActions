@@ -5,6 +5,7 @@ internal sealed class LoadedAction
 {
     internal ActionDefinition Definition;
     internal AnimationClip Clip;
+    internal AnimationClip IkuClip;
     internal AudioClip Audio;
     internal bool IsValid => Definition.RuntimeSource != null || Clip != null;
     internal float Duration => Definition.RuntimeSource?.Duration ?? Clip.length;

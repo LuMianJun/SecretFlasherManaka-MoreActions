@@ -26,6 +26,7 @@ internal static class ActionAssets
             NativeAudio?.Dispose(); NativeAudio = null;
             if (Assets?.Audio != null) UnityEngine.Object.Destroy(Assets.Audio);
             if (Assets?.Clip != null) UnityEngine.Object.Destroy(Assets.Clip);
+            if (Assets?.IkuClip != null) UnityEngine.Object.Destroy(Assets.IkuClip);
             Assets = null;
         }
     }
@@ -118,7 +119,7 @@ internal static class ActionAssets
 
     static LoadedAction LoadBundleAssets(ActionDefinition definition)
     {
-        AssetBundle bundle = null; AnimationClip clip = null; AudioClip audio = null;
+        AssetBundle bundle = null; AnimationClip clip = null; AnimationClip iku = null; AudioClip audio = null;
         try
         {
             if (definition.RuntimeSource == null)
@@ -127,6 +128,12 @@ internal static class ActionAssets
                 if (bundle == null) throw new Exception("Cannot load action bundle");
                 clip = bundle.LoadAsset<AnimationClip>(definition.ClipAsset);
                 if (clip == null || clip.length <= 0) throw new Exception("Animation clip missing or empty");
+                if (definition.ResolvedIkuClipAsset != null)
+                {
+                    iku = ActionIkuAssets.Load(bundle, new[] { definition.ResolvedIkuClipAsset },
+                        definition.ResolvedIkuClipAsset, definition.Id, out _);
+                    if (iku != null) iku.hideFlags = HideFlags.HideAndDontSave;
+                }
             }
             if (!string.IsNullOrEmpty(definition.AudioAsset))
             {
@@ -136,9 +143,9 @@ internal static class ActionAssets
             }
             if (clip != null) clip.hideFlags = HideFlags.HideAndDontSave;
             if (audio != null) audio.hideFlags = HideFlags.HideAndDontSave;
-            return new LoadedAction { Definition = definition, Clip = clip, Audio = audio };
+            return new LoadedAction { Definition = definition, Clip = clip, IkuClip = iku, Audio = audio };
         }
-        catch { if (audio != null) UnityEngine.Object.Destroy(audio); if (clip != null) UnityEngine.Object.Destroy(clip); throw; }
+        catch { if (audio != null) UnityEngine.Object.Destroy(audio); if (clip != null) UnityEngine.Object.Destroy(clip); if (iku != null) UnityEngine.Object.Destroy(iku); throw; }
         finally { if (bundle != null) bundle.Unload(false); }
     }
 

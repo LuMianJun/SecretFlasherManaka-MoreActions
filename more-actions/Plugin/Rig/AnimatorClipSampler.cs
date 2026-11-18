@@ -17,20 +17,20 @@ internal sealed class AnimatorClipSampler : IDisposable
     float previous;
     bool disposed;
 
-    internal AnimatorClipSampler(GameObject proxy, Animator original, AnimationClip clip)
+    internal AnimatorClipSampler(GameObject proxy, Animator original, AnimationClip clip, bool genericWithoutAvatar = false)
     {
         this.proxy = proxy;
         string phase = "avatar";
         try
         {
-            if (original == null || original.avatar == null || !original.avatar.isValid)
+            if (!genericWithoutAvatar && (original == null || original.avatar == null || !original.avatar.isValid))
                 throw new InvalidOperationException("Animator playback requires the player's valid Avatar");
             phase = "proxy animator";
             var animator = proxy.GetComponent<Animator>() ?? proxy.AddComponent<Animator>();
             animator.enabled = true;
-            animator.avatar = original.avatar;
+            animator.avatar = genericWithoutAvatar ? null : original.avatar;
             animator.cullingMode = AnimatorCullingMode.AlwaysAnimate;
-            animator.applyRootMotion = true; // Only the private sampling object moves.
+            animator.applyRootMotion = !genericWithoutAvatar; // Only the private sampling object may move.
             animator.fireEvents = false; // EventRunner owns live sounds/lifecycle.
             proxy.SetActive(true);
             phase = "graph";
@@ -96,12 +96,14 @@ internal sealed class AnimatorActionSource : IActionClipSource
     internal string ClipName { get; }
     internal string RelativeBundle { get; }
     internal string Group { get; }
+    readonly AnimationClip ikuClip;
     public float Duration => duration;
-    internal AnimatorActionSource(AnimationClip clip,string relativeBundle="")
+    internal AnimatorActionSource(AnimationClip clip,string relativeBundle="",AnimationClip ikuClip=null)
     {
         Clip=clip;ClipName=clip.name;RelativeBundle=relativeBundle;duration=Math.Max(clip.length,1f/30);
+        this.ikuClip=ikuClip;
         var path=relativeBundle.Replace('\\','/');int slash=path.IndexOf('/');Group=slash<0?"Actions":path.Substring(0,slash);
     }
     public IActionPose CreatePose(GameObject target, ActionDefinition definition)
-        => new ActionPose(target, new LoadedAction { Definition = definition, Clip = Clip }, true);
+        => new ActionPose(target, new LoadedAction { Definition = definition, Clip = Clip, IkuClip = ikuClip }, true);
 }

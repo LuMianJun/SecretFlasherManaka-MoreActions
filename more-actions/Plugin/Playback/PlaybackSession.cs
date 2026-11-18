@@ -8,6 +8,7 @@ internal sealed class PlaybackSession
 {
     internal LoadedAction Action;
     internal IActionPose Pose;
+    internal NativeIkuPlayback Iku;
     internal ActionRootMotion RootMotion;
     internal ActionEventRunner Events;
     internal ActionStatValues Stats;
