@@ -48,6 +48,7 @@
     <Compile Include="UI/ActionNames.cs" />
     <Compile Include="Actions/ActionPolicy.cs" />
     <Compile Include="Api/ActionPlaybackApi.cs" />
+    <Compile Include="Api/ExternalActionApi.cs" />
     <Compile Include="Playback/ActionRequestQueue.cs" />
     <Compile Include="Actions/ActionDefinition.cs" />
     <Compile Include="Actions/ActionDefinitionValidation.cs" />
@@ -55,6 +56,7 @@
     <Compile Include="Actions/ActionRegistry.cs" />
     <Compile Include="Playback/ActionRootMotion.cs" />
     <Compile Include="Playback/ActionFollowCamera.cs" />
+    <Compile Include="Playback/ExternalActionSession.cs" />
     <Compile Include="UI/ActionSettingsApi.cs" />
     <Compile Include="Actions/ActionStats.cs" />
     <Compile Include="Rig/AnimatorClipSampler.cs" />

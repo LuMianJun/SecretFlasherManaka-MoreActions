@@ -60,6 +60,14 @@ static class FirstPersonFollowOrderPatch
 {
     static bool Prefix(FPCameraController __instance, bool __runOriginal) =>
         NativeFollowCameraOrder.RunOriginal(__instance, __runOriginal);
+
+    static void Postfix(FPCameraController __instance, bool __runOriginal)
+    {
+        if (!__runOriginal) return;
+        var driver = ActionDriver.Current;
+        try { driver?.TrackExternalFirstPerson(__instance); }
+        catch (Exception e) { Plugin.LogSource?.LogWarning("EXTERNAL_ACTION_CAMERA_FAILED " + e); }
+    }
 }
 
 [HarmonyPatch(typeof(BaseCameraController), "OnLateUpdate")]

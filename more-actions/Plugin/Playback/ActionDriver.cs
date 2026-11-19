@@ -26,6 +26,8 @@ public sealed class ActionDriver : MonoBehaviour
     readonly ActionRequestQueue requests = new();
     readonly PlaybackSession session = new();
     readonly ActionFollowCamera followCamera = new();
+    ExternalActionSession externalAction;
+    bool endingExternalAction;
     int tickFrame = -1;
     internal bool CheckingAvailability;
     int requestRevision;
@@ -43,6 +45,8 @@ public sealed class ActionDriver : MonoBehaviour
 
     public void Update()
     {
+        if (externalAction != null && !externalAction.IsCurrentPlayer)
+            EndExternal(externalAction, "scene/player changed", true);
         ActionSamplingRigPool.Prune();
         ActionAssets.Tick();
         ActionBundleImport.Tick();
@@ -59,6 +63,11 @@ public sealed class ActionDriver : MonoBehaviour
     [HideFromIl2Cpp]
     internal void Request(string id)
     {
+        if (externalAction != null || endingExternalAction)
+        {
+            if (id != null) NotifyBlocked("external action active");
+            return;
+        }
         if(id!=null)id=ActionRegistry.Get(id)?.Id??id;
         if (!Playing && id != null && ActionRegistry.Get(id) != null && (requests.PendingId == id || nativeExit?.Id == id))
         {
@@ -116,7 +125,8 @@ public sealed class ActionDriver : MonoBehaviour
         && (int)state.CurrentAction.Type >= 50000 && (int)state.CurrentAction.Type < 60001 && !state.IsGamanBaibu;
 
     [HideFromIl2Cpp]
-    internal string Reason(ActionDefinition definition, PlayerController player, bool uiOpen, bool allowNativeExit = false, bool allowIku = false)
+    internal string Reason(ActionDefinition definition, PlayerController player, bool uiOpen, bool allowNativeExit = false,
+        bool allowIku = false, bool providerHandlesMovement = false)
     {
         var state = player == null ? null : player.Pca?.PlayerState;
         var game = InGameManager.Instance;
@@ -126,7 +136,7 @@ public sealed class ActionDriver : MonoBehaviour
             !skipPlayingAction && state?.CurrentAction != null && (int)state.CurrentAction.Type != -1, !allowIku && state != null && state.IsEcstasyMotion,
             state != null && state.IsCrouch, state != null && state.IsSit,
             GameState.GameStateData != null && GameStateFacade.IsAttachSomeHandcuffs(), SexManager.Instance != null && SexManager.Instance.IsSexMode,
-            !PlayerInputBlocked && InputManager.GetVector3(InputManager.InputType.Move).sqrMagnitude > 0.0001f, uiOpen && !Playing,
+            !providerHandlesMovement && !PlayerInputBlocked && InputManager.GetVector3(InputManager.InputType.Move).sqrMagnitude > 0.0001f, uiOpen && !Playing,
             player == null || !player.gameObject.activeInHierarchy || temp == null || temp.IsGameOver || temp.IsPlayingSomePerformance || temp.IsTimeStop);
         var reason = ActionPolicy.BlockReason(definition, availability);
         if (reason != null) return reason;
@@ -134,6 +144,68 @@ public sealed class ActionDriver : MonoBehaviour
         // hand/posture/state conditions are already represented above.
         if (allowIku && state.IsEcstasyMotion) return null;
         return CanUseNativeHands(definition, false, skipPlayingAction) ? null : "native hand/action gate";
+    }
+
+    [HideFromIl2Cpp]
+    internal ExternalActionSession TryBeginExternal(string providerId, bool requiresHands, bool requiresStanding,
+        Action<string> interrupted, out string reason)
+    {
+        if (externalAction != null || endingExternalAction || Playing || session.Stopping ||
+            requests.PendingId != null || nativeExit != null)
+        {
+            reason = "action busy";
+            return null;
+        }
+        var player = PlayerController.Instance;
+        if (player == null || player.Pca?.Animator == null || PlayerFacade.Instance == null)
+        {
+            reason = "player unavailable";
+            return null;
+        }
+        if (Time.timeScale <= 0 || InGameUiManager.Instance?.IsOpenFade == true)
+        {
+            reason = "game paused or fading";
+            return null;
+        }
+        var rules = new ActionDefinition { RequiresHands = requiresHands, RequiresStanding = requiresStanding };
+        reason = Reason(rules, player, InGameUiManager.Instance?.IsOpenSomeUi == true);
+        if (reason != null) return null;
+        externalAction = new ExternalActionSession(this, player, providerId, rules, interrupted);
+        Plugin.LogSource.LogInfo("EXTERNAL_ACTION_START provider=" + providerId);
+        return externalAction;
+    }
+
+    [HideFromIl2Cpp]
+    internal void EndExternal(ExternalActionSession external, string reason, bool notify)
+    {
+        if (external == null || !ReferenceEquals(externalAction, external)) return;
+        externalAction = null;
+        endingExternalAction = true;
+        try { external.End(reason, notify); }
+        catch (Exception error) { Plugin.LogSource.LogWarning("EXTERNAL_ACTION_CLEANUP_FAILED " + error); }
+        finally { endingExternalAction = false; }
+        Plugin.LogSource.LogInfo("EXTERNAL_ACTION_STOP provider=" + external.ProviderId + " reason=" + reason);
+    }
+
+    [HideFromIl2Cpp]
+    void UpdateExternal(ExternalActionSession external, bool refreshCamera)
+    {
+        try
+        {
+            string reason = !external.IsCurrentPlayer || PlayerFacade.Instance == null ? "scene/player changed"
+                : Reason(external.Rules, external.Player, false, providerHandlesMovement: true);
+            if (reason != null)
+            {
+                EndExternal(external, reason, true);
+                return;
+            }
+            if (refreshCamera) external.RefreshFaceCamera();
+        }
+        catch (Exception error)
+        {
+            Plugin.LogSource.LogWarning("EXTERNAL_ACTION_UPDATE_FAILED " + error);
+            EndExternal(external, "session update failed", true);
+        }
     }
 
     [HideFromIl2Cpp]
@@ -294,6 +366,8 @@ public sealed class ActionDriver : MonoBehaviour
     internal void BeforeNativeUpdate(PlayerController player)
     {
         CameraTransitionDiagnostics.BeginFrame(player);
+        if (externalAction != null && externalAction.Player == player)
+            UpdateExternal(externalAction, refreshCamera: false);
         if (!Playing || Owner != player) return;
         SyncPause();
         (session.Pose as IActionBodyPose)?.RestoreNativeBody();
@@ -318,6 +392,7 @@ public sealed class ActionDriver : MonoBehaviour
         SyncPause();
         var ui = InGameUiManager.Instance;
         var ring = RingMenuParentView.Instance;
+        if (externalAction != null) return;
         var request = requests.Take(ring != null && ring.IsOpenRing, (ui != null && ui.IsOpenSomeUi) || Time.timeScale <= 0);
         if (request != null)
         {
@@ -412,6 +487,7 @@ public sealed class ActionDriver : MonoBehaviour
     [HideFromIl2Cpp]
     internal void Apply()
     {
+        if (externalAction != null) { UpdateExternal(externalAction, refreshCamera: true); return; }
         if (!Playing || session.ApplyFrame == Time.frameCount) return; session.ApplyFrame = Time.frameCount;
         SyncPause();
         var ui = InGameUiManager.Instance;
@@ -462,14 +538,19 @@ public sealed class ActionDriver : MonoBehaviour
     }
 
     [HideFromIl2Cpp]
-    internal bool DeferFaceCamera(FaceCameraController camera) => Playing && Plugin.FollowCamera.Value && Definition.FollowFaceCamera && session.FaceCamera.ShouldDefer(camera);
+    internal bool DeferFaceCamera(FaceCameraController camera) => externalAction != null ? externalAction.DeferFaceCamera(camera)
+        : Playing && Plugin.FollowCamera.Value && Definition.FollowFaceCamera && session.FaceCamera.ShouldDefer(camera);
 
     [HideFromIl2Cpp]
-    internal bool DeferNativeFollowCamera(MonoBehaviour controller) =>
-        Playing && session.Iku == null && session.RootMotion != null && followCamera.Defer(Owner, controller);
+    internal bool DeferNativeFollowCamera(MonoBehaviour controller) => externalAction != null
+        ? followCamera.Defer(externalAction.Player, controller)
+        : Playing && session.Iku == null && session.RootMotion != null && followCamera.Defer(Owner, controller);
 
     [HideFromIl2Cpp]
     internal void FlushNativeFollowCamera() => followCamera.Flush();
+
+    [HideFromIl2Cpp]
+    internal void TrackExternalFirstPerson(FPCameraController camera) => externalAction?.TrackFirstPerson(camera);
     [HideFromIl2Cpp]
     internal IActionBodyPose BeginNativeBody(PlayerController player)
     {
@@ -518,6 +599,6 @@ public sealed class ActionDriver : MonoBehaviour
         }
         finally { session.Stopping = false; }
     }
-    public void OnDisable() { requests.Clear(); Stop("disabled"); NativeAnimationReplacements.Release(); }
-    public void OnDestroy() { requests.Clear(); Stop("destroyed"); ActionSamplingRigPool.Clear(); if (session.Audio != null) UnityEngine.Object.Destroy(session.Audio); ActionAssets.Clear(); ActionBundleImport.Clear(); NativeAnimationReplacements.Release(); ActionTargetApi.Target = null; ActionTargetApi.IsReady = false; if (Current == this) Current = null; }
+    public void OnDisable() { EndExternal(externalAction, "disabled", true); requests.Clear(); Stop("disabled"); NativeAnimationReplacements.Release(); }
+    public void OnDestroy() { EndExternal(externalAction, "destroyed", true); requests.Clear(); Stop("destroyed"); ActionSamplingRigPool.Clear(); if (session.Audio != null) UnityEngine.Object.Destroy(session.Audio); ActionAssets.Clear(); ActionBundleImport.Clear(); NativeAnimationReplacements.Release(); ActionTargetApi.Target = null; ActionTargetApi.IsReady = false; if (Current == this) Current = null; }
 }
