@@ -435,7 +435,6 @@ public sealed class ActionDriver : MonoBehaviour
     [HideFromIl2Cpp]
     internal void BeforeNativeUpdate(PlayerController player)
     {
-        CameraTransitionDiagnostics.BeginFrame(player);
         if (externalAction != null && externalAction.Player == player)
             UpdateExternal(externalAction, refreshCamera: false);
         if (!Playing || Owner != player) return;

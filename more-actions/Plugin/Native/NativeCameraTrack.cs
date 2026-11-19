@@ -33,7 +33,6 @@ internal static class NativeCameraTrack
     static bool failed,announced,defaults;
     static Vector3[] defaultPosition;
     static Quaternion[] defaultRotation;
-    static string state="";
 
     sealed class Track
     {
@@ -61,14 +60,11 @@ internal static class NativeCameraTrack
         { Original=original;Replacement=replacement;Weight=weight;Time=time;Layer=layer; }
     }
 
-    internal static string State=>state;
-
     internal static void Release()
     {
         if(proxyRoot!=null){UnityEngine.Object.Destroy(proxyRoot);proxyRoot=null;}
         real.Clear();targets.Clear();paths.Clear();cache.Clear();candidates.Clear();
         owner=null;announced=false;defaults=false;defaultPosition=null;defaultRotation=null;
-        state="";
     }
 
     internal static void Fail(Exception e)
@@ -86,7 +82,7 @@ internal static class NativeCameraTrack
         if(!NativeAnimationReplacements.IsBoundTo(animator))return;
         if(!Prepare(player,animator))return;
         CaptureDefaults();
-        if(!TryEvaluate(animator,out var position,out var rotation,out var positionMask,out var rotationMask)){state="";return;}
+        if(!TryEvaluate(animator,out var position,out var rotation,out var positionMask,out var rotationMask))return;
         for(int i=0;i<real.Count;i++)
         {
             var node=real[i];
@@ -147,7 +143,6 @@ internal static class NativeCameraTrack
             Collect(animator,layer,false);
             if(animator.IsInTransition(layer))Collect(animator,layer,true);
         }
-        var label="";
         foreach(var candidate in candidates)
         {
             if(candidate.Replacement==null)continue;
@@ -158,7 +153,6 @@ internal static class NativeCameraTrack
                 positionMask[node]|=(byte)(original.Position[node]|replacement.Position[node]);
                 rotationMask[node]|=original.Rotation[node]||replacement.Rotation[node];
             }
-            if(original.Any)label+=(label.Length==0?"":"+")+"O:"+candidate.Original.name+"@"+candidate.Time.ToString("F2");
         }
         bool affected=false;
         for(int node=0;node<real.Count;node++)affected|=positionMask[node]!=0||rotationMask[node];
@@ -208,7 +202,6 @@ internal static class NativeCameraTrack
                 if(layerRotationMask[node])rotation[node]=Quaternion.Slerp(rotation[node],turn,layerWeight);
             }
         }
-        state=label.Length>200?label.Substring(0,200):label;
         return true;
     }
 

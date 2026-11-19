@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using ExposureUnnoticed2.Object3D.Player.Scripts;
 using UnityEngine;
 
 namespace SFM.Actions;
@@ -10,6 +11,11 @@ namespace SFM.Actions;
 // empty layers, whose normalized time can legitimately be nonfinite.
 internal sealed class NativeAnimatorRefresh : IDisposable
 {
+    internal readonly record struct CameraHeight(Animator Animator, Transform Marker, float RawY);
+    static CameraHeight cameraHeight;
+    static float correctedCameraY;
+    static int cameraHeightFrame = -1;
+
     readonly Animator animator;
     readonly float[] weights;
     readonly AnimatorCullingMode culling;
@@ -39,6 +45,49 @@ internal sealed class NativeAnimatorRefresh : IDisposable
         }
     }
 
+    internal static CameraHeight BeforeCameraOffset(PlayerAvatarOffsetManager manager)
+    {
+        var player = PlayerController.Instance;
+        if (player == null) return default;
+        var pca = player.Pca;
+        if (pca == null || pca.Pointer != manager.pca?.Pointer) return default;
+        var animator = pca.Animator;
+        var marker = pca.PlayerAvatarObjectReferencer?.CameraTarget?.parent;
+        if (animator == null || marker == null) return default;
+        return new CameraHeight(animator, marker, marker.localPosition.y);
+    }
+
+    internal static void AfterCameraOffset(CameraHeight before)
+    {
+        if (before.Marker == null) return;
+        cameraHeight = before;
+        correctedCameraY = before.Marker.localPosition.y;
+        cameraHeightFrame = Time.frameCount;
+    }
+
+    internal static void NotifyOverrides(AnimatorOverrideController overrides, NativeAnimatorRefresh refresh)
+    {
+        refresh?.RestoreCameraHeight();
+        overrides.SendNotification();
+    }
+
+    void RestoreCameraHeight()
+    {
+        // Controller binding can capture the previous LateUpdate's corrected
+        // marker as an Animator default. Restore only that still-current value.
+        if (cameraHeight.Animator != animator || Time.frameCount - cameraHeightFrame > 1) return;
+        var player = PlayerController.Instance;
+        if (player == null) return;
+        var pca = player.Pca;
+        if (pca?.Animator != animator) return;
+        var marker = pca.PlayerAvatarObjectReferencer?.CameraTarget?.parent;
+        if (marker == null || marker != cameraHeight.Marker) return;
+        var local = marker.localPosition;
+        if (!Mathf.Approximately(local.y, correctedCameraY)) return;
+        local.y = cameraHeight.RawY;
+        marker.localPosition = local;
+    }
+
     internal void Evaluate(RuntimeAnimatorController controller)
     {
         if(disposed)throw new ObjectDisposedException(nameof(NativeAnimatorRefresh));
@@ -49,8 +98,7 @@ internal sealed class NativeAnimatorRefresh : IDisposable
         if(!canEvaluate)return;
         animator.cullingMode=AnimatorCullingMode.AlwaysAnimate;
         evaluated=true;
-        // Native Unity entry. Do not call Rebind, reset parameters, replay
-        // states, or write a camera/marker transform to hide stale bindings.
+        // Evaluate the current state without replaying layers or resetting parameters.
         animator.Update(0f);
     }
 

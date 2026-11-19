@@ -30,7 +30,6 @@ public sealed class Plugin : BasePlugin
         KeepGameExpressions.SettingChanged += (_, _) => ActionFaceSettings.KeepGameExpressions = KeepGameExpressions.Value;
         ModOptions.Log = text => Log.LogWarning(text);
         ActionSettingsApi.Initialize();
-        CameraTransitionDiagnostics.Configure(Config);
         ReplacementService.Configure(Config);
         ReplacementSettings.Register();
         ActionSettingsApi.Toggle("actions.gameexpressions", "[更多动作] 叠加原游戏表情", "[Actions] Keep game expressions", KeepGameExpressions, "默认在原游戏表情上叠加动作表情。关闭后只显示动作表情。动作 JSON 的 keepGameExpressions=false 优先，开启此项也不能覆盖。", "Overlay action expressions on the game's expressions. When off, show only action expressions. An action's keepGameExpressions=false takes priority over this setting.");

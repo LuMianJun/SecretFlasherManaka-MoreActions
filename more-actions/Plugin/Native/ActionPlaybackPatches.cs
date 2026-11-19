@@ -25,11 +25,7 @@ static class ActionOutputPatch
         finally
         {
             try { driver?.FlushBreathFollow(); }
-            finally
-            {
-                driver?.FlushNativeFollowCamera();
-                CameraTransitionDiagnostics.EndFrame();
-            }
+            finally { driver?.FlushNativeFollowCamera(); }
         }
     }
 }

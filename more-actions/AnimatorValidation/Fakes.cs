@@ -13,7 +13,7 @@ namespace UnityEngine
     public struct Quaternion { public static Quaternion identity=>default; }
     public sealed class Transform
     {
-        public Vector3 position;public Quaternion rotation;public GameObject gameObject;
+        public Vector3 position,localPosition;public Quaternion rotation;public GameObject gameObject;public Transform parent;
         public Dictionary<string,Transform> Children=new();public Transform Find(string path)=>Children.GetValueOrDefault(path);
         public T GetComponent<T>() where T:class=>gameObject.GetComponent<T>();
     }
@@ -40,7 +40,8 @@ namespace UnityEngine
         public void Update(float delta){if(delta!=0)throw new Exception("Refresh must not advance game time");UpdateCalls++;OnEvaluate?.Invoke();if(ThrowEvaluation)throw new Exception("Native evaluation failed");}
     }
     public struct AnimatorStateInfo { public int fullPathHash;public float normalizedTime;public bool NotIdle;public bool IsName(string name)=>name=="Action.NoMotion"&&!NotIdle; }
-    public static class Time { public static float unscaledTime; }
+    public static class Time { public static float unscaledTime;public static int frameCount; }
+    public static class Mathf {public static bool Approximately(float a,float b)=>Math.Abs(b-a)<Math.Max(0.000001f*Math.Max(Math.Abs(a),Math.Abs(b)),float.Epsilon*8f);}
     public sealed class AnimationClip:Object { public string name;float seconds=2;public float length {get {if(destroyed)throw new InvalidOperationException("Native clip was unloaded");return seconds;}set=>seconds=value;}public bool isHumanMotion; }
     public sealed class AudioClip : Object { }
     public sealed class Mesh:Object {public int blendShapeCount;}
@@ -73,6 +74,7 @@ namespace UnityEngine
         public static Dictionary<string,AssetBundle> Files=new();public Dictionary<string,AnimationClip> Clips=new();public bool Unloaded;
         public static AssetBundleCreateRequest LoadFromFileAsync(string path)=>new(){assetBundle=Files.GetValueOrDefault(path)};
         public string[] GetAllAssetNames()=>Clips.Keys.Append("template.overridecontroller").ToArray();
+        public T LoadAsset<T>(string name) where T:Object=>Clips.GetValueOrDefault(name) as T;
         public AssetBundleRequest LoadAssetAsync<T>(string name)=>new(){asset=name.EndsWith(".overridecontroller")?new AnimatorOverrideController():Clips.GetValueOrDefault(name)};
         public void Unload(bool all)=>Unloaded=true;
         public static void SceneCleanup(){foreach(var clip in Files.Values.SelectMany(b=>b.Clips.Values))if((clip.hideFlags&HideFlags.DontUnloadUnusedAsset)==0)Object.Destroy(clip);}
@@ -123,7 +125,6 @@ namespace UnityEngine.Animations
 }
 namespace SFM.Actions
 {
-    internal static class CameraTransitionDiagnostics {internal static void ReplacementChange(UnityEngine.Animator animator,string phase){} }
     public sealed class ActionDefinition
     {
         public string Id {get;set;} public string DisplayName {get;set;} public string Description {get;set;} public string ProviderId {get;set;}
@@ -179,7 +180,14 @@ namespace ExposureUnnoticed2.Object3D.IngameManager
 namespace ExposureUnnoticed2.Object3D.Player.Scripts
 {
     public sealed class PlayerController { public static PlayerController Instance=new(); public PlayerClassAccessor Pca=new(); }
-    public sealed class PlayerClassAccessor { public PlayerStateModel PlayerState=new(); }
+    public sealed class PlayerClassAccessor : UnityEngine.Object
+    {
+        public PlayerStateModel PlayerState=new();
+        public UnityEngine.Animator Animator;
+        public PlayerAvatarObjectReferencer PlayerAvatarObjectReferencer;
+    }
+    public sealed class PlayerAvatarObjectReferencer {public UnityEngine.Transform CameraTarget;}
+    public sealed class PlayerAvatarOffsetManager {public PlayerClassAccessor pca;}
     public sealed class PlayerStateModel { public bool IsCrouch,IsSit,IsEcstasyMotion;public int CurrentState;public NativeAction CurrentAction=new(); }
     public sealed class NativeAction {public int Type=-1;}
 }
@@ -201,7 +209,7 @@ namespace SFM.Actions
 {
     // Camera marker sampling is exercised in-game; the offline boundary only
     // needs the release hook used by the replacement lifecycle.
-    internal static class NativeCameraTrack { internal static void Release(){} internal static string State=>""; }
+    internal static class NativeCameraTrack { internal static void Release(){} }
 }
 namespace Il2CppInterop.Runtime
 {

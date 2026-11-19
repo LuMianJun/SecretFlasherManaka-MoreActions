@@ -21,7 +21,6 @@ internal static class NativeAnimationReplacements
     static int applied=-1,catalog=-1,ready=-1;
     static bool appliedEnabled;
     static float nextCheck,faultUntil;
-    internal static bool EnabledForDiagnostics=>ReplacementService.Enabled;
 
     static bool Same(UnityEngine.Object a,UnityEngine.Object b)=>a==b;
     static bool Contains(RuntimeAnimatorController controller,AnimatorOverrideController target)
@@ -69,8 +68,6 @@ internal static class NativeAnimationReplacements
             if(actionLayer<0||!current.GetCurrentAnimatorStateInfo(actionLayer).IsName("Action.NoMotion"))return;
             for(int i=0;i<current.layerCount;i++)if(current.IsInTransition(i))return;
             int count=0;
-            bool diagnose=ReplacementService.Enabled||appliedEnabled||Same(actual,owned);
-            if(diagnose)CameraTransitionDiagnostics.ReplacementChange(current,"before-replacements");
             using(var refresh=ReplacementService.Enabled||Same(actual,owned)?new NativeAnimatorRefresh(current):null)
             {
                 foreach(var pair in slots)
@@ -87,14 +84,14 @@ internal static class NativeAnimationReplacements
                     if(replacement!=null){count++;RegisterCamera(pair.Value,replacement);}
                     else UnregisterCamera(pair.Value);
                 }
-                owned.SendNotification();
                 // Once attached, retain this binding owner even when every
                 // override is disabled. Returning the original clips does not
                 // require detaching the native animation/default-value graph.
                 var target=count>0||Same(actual,owned)?owned:baseline;
+                bool updatesPlayerBinding=Same(actual,owned)||!Same(actual,target);
+                NativeAnimatorRefresh.NotifyOverrides(owned,updatesPlayerBinding?refresh:null);
                 if(refresh!=null&&(Same(actual,owned)||!Same(current.runtimeAnimatorController,target)))refresh.Evaluate(target);
             }
-            if(diagnose)CameraTransitionDiagnostics.ReplacementChange(current,"after-replacements");
             applied=ReplacementService.SelectionRevision;appliedEnabled=ReplacementService.Enabled;
             Plugin.LogSource.LogInfo("ACTION_REPLACEMENTS_APPLIED enabled="+ReplacementService.Enabled+" clips="+count);
         }
@@ -201,7 +198,7 @@ internal static class NativeAnimationReplacements
             {
                 foreach(var original in slots.Values)
                     if(original!=null)owned.SetClip(original,controlledSlots.Contains(original.name)?BaselineClip(original):null,false);
-                owned.SendNotification();
+                NativeAnimatorRefresh.NotifyOverrides(owned,refresh);
                 if(live)
                 {
                     refresh.Evaluate(animator.runtimeAnimatorController);

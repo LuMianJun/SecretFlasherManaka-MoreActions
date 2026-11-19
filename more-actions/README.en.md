@@ -423,7 +423,6 @@ Global settings are in BepInEx/config/local.sfm.moreactions.cfg; action JSON sto
 | [Replacements] Enabled | false | Applies selected replacements while on; turning it off preserves selections. |
 | [Replacements] Selections | {} | Native-clip-to-resource-ID mapping maintained by the manager. |
 | [Shortcuts] LastActions | Empty string | Eight radial-menu slot selections maintained by the UI; usually no manual edits are needed. |
-| [Diagnostics] CameraTransitions | true | Bounded camera diagnostics on state changes, not continuous per-frame logging. |
 
 ### Troubleshooting
 

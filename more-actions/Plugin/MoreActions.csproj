@@ -64,7 +64,7 @@
     <Compile Include="UI/ActionSettingsApi.cs" />
     <Compile Include="Actions/ActionStats.cs" />
     <Compile Include="Rig/AnimatorClipSampler.cs" />
-    <Compile Include="Diagnostics/CameraTransitionDiagnostics.cs" />
+    <Compile Include="Native/CameraOffsetPatch.cs" />
     <Compile Include="Rig/FixedModelFace.cs" />
     <Compile Include="UI/GameAnimationNames.cs" />
     <Compile Include="Import/LoadedAction.cs" />

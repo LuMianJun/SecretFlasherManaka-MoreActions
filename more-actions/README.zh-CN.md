@@ -422,7 +422,6 @@ V-sign 在膀胱有存量时排尿，并计入姿势任务：
 | [Replacements] Enabled | false | 是否应用已选替换；关闭保留选择。 |
 | [Replacements] Selections | {} | 原片段到资源 ID 的记录，由管理页维护。 |
 | [Shortcuts] LastActions | 空字符串 | 八个转盘槽位记录，由界面维护，一般不用手改。 |
-| [Diagnostics] CameraTransitions | true | 状态变化时限次记录镜头诊断，不连续逐帧打印。 |
 
 ### 常见问题
 

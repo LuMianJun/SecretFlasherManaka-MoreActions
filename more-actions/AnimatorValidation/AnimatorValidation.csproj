@@ -10,6 +10,7 @@
     <Compile Include="../Plugin/Rig/AnimatorClipSampler.cs" Link="AnimatorClipSampler.cs" />
     <Compile Include="../Plugin/Api/RuntimeActionSource.cs" Link="RuntimeActionSource.cs" />
     <Compile Include="../Plugin/Import/LoadedAction.cs" Link="LoadedAction.cs" />
+    <Compile Include="../Plugin/Import/ActionIkuAssets.cs" Link="ActionIkuAssets.cs" />
     <Compile Include="../Plugin/Import/ActionBundleImport.cs" Link="ActionBundleImport.cs" />
     <Compile Include="../Plugin/Replacements/ReplacementService.cs" Link="ReplacementService.cs" />
     <Compile Include="../Plugin/UI/ReplacementSettings.cs" Link="ReplacementSettings.cs" />
