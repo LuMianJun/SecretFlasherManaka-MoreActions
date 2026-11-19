@@ -7,6 +7,8 @@
   <ItemGroup>
     <Compile Include="../Plugin/Import/NativeAudioLoad.cs" Link="NativeAudioLoad.cs" />
     <Compile Include="../Plugin/Import/ActionAssets.cs" Link="ActionAssets.cs" />
+    <Compile Include="../Plugin/Import/ActionIkuAssets.cs" Link="ActionIkuAssets.cs" />
+    <Compile Include="../Plugin/Import/UnityActionIdentity.cs" Link="UnityActionIdentity.cs" />
     <Compile Include="../Plugin/Import/WaveAudio.cs" Link="WaveAudio.cs" />
     <Compile Include="../Plugin/Import/LoadedAction.cs" Link="LoadedAction.cs" />
     <Compile Include="../Plugin/Api/RuntimeActionSource.cs" Link="RuntimeActionSource.cs" />

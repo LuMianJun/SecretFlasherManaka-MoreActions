@@ -36,10 +36,31 @@ try
         var clip=upload.Clip; upload.Dispose(); Check(clip.Destroyed,"Interrupted/owned upload releases its clip");
     }
     string cachedPath=Wave("cached",true,false,524296); var cached=Definition("cached",cachedPath);
+    var nativeWav=new UnityEngine.Networking.UnityWebRequest
+    {
+        Clip=AudioClip.Create("native-wav",262148,2,44100,false),isDone=true,
+        result=UnityEngine.Networking.UnityWebRequest.Result.Success
+    };
+    nativeWav.Clip.length=(float)(Math.Floor(1000d*262148/44100)/1000d);
+    UnityEngine.Networking.UnityWebRequestMultimedia.Factory=_=>nativeWav;
     ActionRegistry.Set(cached); Check(!ActionAssets.TryGet(cached,out _),"Playback query never performs a synchronous first load");
-    Drain(cached); Check(ActionAssets.TryGet(cached,out var ready)&&ready.Audio!=null,"Ready assets are published after full upload");
+    Drain(cached); Check(ActionAssets.TryGet(cached,out var ready)&&ready.Audio==nativeWav.Clip&&nativeWav.Disposed,
+        "Native WAV of matching specifications is published to the cache");
+    Check(UnityEngine.Networking.UnityWebRequestMultimedia.Calls.Last().Type==AudioType.WAV,"PCM16 WAV uses the native WAV decoder");
     File.Delete(cachedPath); Check(ActionAssets.TryGet(cached,out var same)&&ReferenceEquals(ready,same),"Ready playback reuses assets without reopening the file");
     var removed=ready.Audio; ActionRegistry.Set(); ActionAssets.Tick(); Check(removed.Destroyed,"Provider removal releases cached audio");
+    string fallbackPath=Wave("native-mismatch",false,false,132);
+    var fallback=Definition("native-mismatch",fallbackPath);
+    var mismatchedRequest=new UnityEngine.Networking.UnityWebRequest
+    {
+        Clip=AudioClip.Create("wrong-size",131,1,44100,false),isDone=true,
+        result=UnityEngine.Networking.UnityWebRequest.Result.Success
+    };
+    UnityEngine.Networking.UnityWebRequestMultimedia.Factory=_=>mismatchedRequest;
+    ActionRegistry.Set(fallback); Drain(fallback);
+    Check(ActionAssets.TryGet(fallback,out var recovered)&&recovered.Audio.samples==132
+        &&recovered.Audio.Data.SequenceEqual(WaveAudio.Decode(fallbackPath).Samples)
+        &&mismatchedRequest.Disposed&&mismatchedRequest.Clip.Destroyed,"A mismatched native WAV falls back to the original PCM samples");
     string bad=Path.Combine(root,"bad.wav"); File.WriteAllText(bad,"broken");
     var broken=Definition("broken",bad); var good=Definition("priority",Wave("priority",false,true,16));
     ActionRegistry.Set(broken,good); ActionAssets.Tick(); Check(!ActionAssets.TryGet(good,out _),"A pending requested action is explicitly queued");
@@ -95,8 +116,8 @@ try
     UnityEngine.Networking.UnityWebRequestMultimedia.Factory=_=>heldRequest;ActionRegistry.Set(held);ActionAssets.Tick();
     heldRequest.isDone=true;heldRequest.result=UnityEngine.Networking.UnityWebRequest.Result.Success;heldRequest.Clip.loadState=AudioDataLoadState.Loading;ActionAssets.Tick();ActionAssets.Clear();
     Check(heldRequest.Disposed&&heldRequest.Clip.Destroyed,"Cancellation after content creation releases unpublished MP3 data");
-    Check(NativeAudioLoad.Supports("UPPER.MP3")&&!NativeAudioLoad.Supports("BGM.wav"),"MP3 routing is case-insensitive and leaves the WAV decoder unchanged");
-    Console.WriteLine($"PASS {count} assertions: WAV worker decode/upload, native MP3 async preparation, cache reuse, failure isolation and cleanup");
+    Check(NativeAudioLoad.IsMp3("UPPER.MP3")&&!NativeAudioLoad.IsMp3("BGM.wav"),"MP3 extension detection is case-insensitive");
+    Console.WriteLine($"PASS {count} assertions: native WAV async preparation, PCM fallback, MP3, cache reuse and cleanup");
 }
 finally {ActionAssets.Clear();Directory.Delete(root,true);}
 
@@ -115,7 +136,10 @@ namespace UnityEngine
     public sealed class AudioClip : Object
     {
         public string name; public float[] Data; public int Channels,MaxTransfer; public float length; public HideFlags hideFlags; public AudioDataLoadState loadState=AudioDataLoadState.Loaded;
-        public static AudioClip Create(string name,int frames,int channels,int rate,bool stream){Boundary.UnityCall();return new(){Data=new float[frames*channels],Channels=channels,length=frames/(float)rate};}
+        public int samples => Data.Length / Channels;
+        public int channels => Channels;
+        public int frequency;
+        public static AudioClip Create(string name,int frames,int channels,int rate,bool stream){Boundary.UnityCall();return new(){Data=new float[frames*channels],Channels=channels,length=frames/(float)rate,frequency=rate};}
         public bool SetData(float[] data,int frameOffset){Boundary.UnityCall();MaxTransfer=Math.Max(MaxTransfer,data.Length);Array.Copy(data,0,Data,frameOffset*Channels,data.Length);return true;}
         public bool LoadAudioData()=>true;
     }
@@ -128,7 +152,7 @@ namespace UnityEngine
 }
 namespace SFM.Actions
 {
-    public sealed class ActionDefinition {public string Id,AudioFile,AudioPath,AudioAsset="",BundlePath="",ClipAsset="";public IActionSource RuntimeSource;}
+    public sealed class ActionDefinition {public string Id,AudioFile,AudioPath,AudioAsset="",BundlePath="",ClipAsset="",ResolvedIkuClipAsset;public IActionSource RuntimeSource;}
     public static class ActionRegistry
     {
         static ActionDefinition[] items=[];public static int Revision;

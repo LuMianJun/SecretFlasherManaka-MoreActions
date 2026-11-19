@@ -1,8 +1,7 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
-using System.Threading;
-using System.Threading.Tasks;
 using UnityEngine;
 
 namespace SFM.Actions;
@@ -13,16 +12,17 @@ internal static class ActionAssets
     {
         internal ActionDefinition Definition;
         internal LoadedAction Assets;
-        internal Task<WaveAudio.Decoded> Decode;
-        internal WaveAudio.Upload Upload;
+        internal WaveAudio.Loader Wave;
         internal NativeAudioLoad NativeAudio;
         internal Exception Error;
         internal bool Ready;
         internal long MaxUploadMs;
-        internal readonly System.Diagnostics.Stopwatch Timer = System.Diagnostics.Stopwatch.StartNew();
+        internal long MaxWaveStepTicks;
+        internal string WaveBackend;
+        internal readonly Stopwatch Timer = Stopwatch.StartNew();
         internal void Dispose()
         {
-            Upload?.Dispose(); Upload = null; Decode = null;
+            Wave?.Dispose(); Wave = null;
             NativeAudio?.Dispose(); NativeAudio = null;
             if (Assets?.Audio != null) UnityEngine.Object.Destroy(Assets.Audio);
             if (Assets?.Clip != null) UnityEngine.Object.Destroy(Assets.Clip);
@@ -31,7 +31,6 @@ internal static class ActionAssets
         }
     }
     static readonly Dictionary<string, Entry> entries = new(StringComparer.Ordinal);
-    static readonly SemaphoreSlim decodeGate = new(1);
     static int revision = -1;
     internal static int ReadyRevision { get; private set; }
     static string requested;
@@ -70,45 +69,37 @@ internal static class ActionAssets
             if (entry.Assets == null) entry.Assets = LoadBundleAssets(definition);
             if (!string.IsNullOrEmpty(definition.AudioPath) && entry.Assets.Audio == null)
             {
-                if (NativeAudioLoad.Supports(definition.AudioPath))
+                if (NativeAudioLoad.IsMp3(definition.AudioPath))
                 {
-                    entry.NativeAudio ??= new NativeAudioLoad(definition.AudioPath);
+                    entry.NativeAudio ??= new NativeAudioLoad(definition.AudioPath, AudioType.MPEG);
                     if (!entry.NativeAudio.Step()) return;
                     entry.Assets.Audio = entry.NativeAudio.TakeClip();
                     entry.NativeAudio.Dispose(); entry.NativeAudio = null;
                 }
                 else
                 {
-                    if (entry.Decode == null && entry.Upload == null)
-                    {
-                        string path = definition.AudioPath;
-                        entry.Decode = Task.Run(async () =>
-                        {
-                            await decodeGate.WaitAsync().ConfigureAwait(false);
-                            try { return WaveAudio.Decode(path); }
-                            finally { decodeGate.Release(); }
-                        });
-                        return;
-                    }
-                    if (entry.Upload == null)
-                    {
-                        if (!entry.Decode.IsCompleted) return;
-                        entry.Upload = new WaveAudio.Upload(entry.Decode.GetAwaiter().GetResult());
-                        entry.Decode = null;
-                    }
-                    var uploadTimer = System.Diagnostics.Stopwatch.StartNew();
-                    bool uploaded = entry.Upload.Step();
-                    entry.MaxUploadMs = Math.Max(entry.MaxUploadMs, uploadTimer.ElapsedMilliseconds);
-                    if (!uploaded) return;
-                    entry.Assets.Audio = entry.Upload.Clip;
-                    entry.Upload = null; // Clip ownership passes to the ready entry.
+                    long started = Stopwatch.GetTimestamp();
+                    entry.Wave ??= new WaveAudio.Loader(definition.AudioPath);
+                    bool ready = entry.Wave.Step();
+                    entry.MaxWaveStepTicks = Math.Max(entry.MaxWaveStepTicks, Stopwatch.GetTimestamp() - started);
+                    if (!ready) return;
+                    entry.Assets.Audio = entry.Wave.TakeClip();
+                    entry.WaveBackend = entry.Wave.Backend;
+                    entry.MaxUploadMs = entry.Wave.MaxUploadMs;
+                    if (entry.Wave.FallbackReason != null)
+                        Plugin.LogSource.LogWarning("ACTION_WAV_NATIVE_FALLBACK id=" + definition.Id + " reason=" + entry.Wave.FallbackReason);
+                    entry.Wave.Dispose(); entry.Wave = null;
                 }
             }
             if (entry.Assets.Audio != null && entry.Assets.Audio.loadState == AudioDataLoadState.Failed) throw new Exception("Audio data failed to load");
             if (entry.Assets.Audio != null && entry.Assets.Audio.loadState != AudioDataLoadState.Loaded) return;
             entry.Ready = true; ReadyRevision++;
             if (requested == definition.Id) requested = null;
-            Plugin.LogSource.LogInfo("ACTION_ASSETS_READY id=" + definition.Id + " motion=" + entry.Assets.Duration + " audio=" + (entry.Assets.Audio == null ? 0 : entry.Assets.Audio.length) + " prepareMs=" + entry.Timer.ElapsedMilliseconds + " uploadStepMaxMs=" + entry.MaxUploadMs + " audioFormat=" + (entry.Assets.Audio == null ? "none" : string.IsNullOrEmpty(definition.AudioPath) ? "bundle" : NativeAudioLoad.Supports(definition.AudioPath) ? "mp3" : "wav"));
+            var audio = entry.Assets.Audio;
+            var format = audio == null ? "none" : string.IsNullOrEmpty(definition.AudioPath) ? "bundle" : NativeAudioLoad.IsMp3(definition.AudioPath) ? "mp3" : "wav";
+            string waveTiming = entry.WaveBackend == null ? "" : FormattableString.Invariant(
+                $" audioLoader={entry.WaveBackend} audioMainStepMaxMs={1000d * entry.MaxWaveStepTicks / Stopwatch.Frequency:F3} audioSamples={audio.samples} audioRate={audio.frequency} audioChannels={audio.channels}");
+            Plugin.LogSource.LogInfo("ACTION_ASSETS_READY id=" + definition.Id + " motion=" + entry.Assets.Duration + " audio=" + (audio == null ? 0 : audio.length) + " prepareMs=" + entry.Timer.ElapsedMilliseconds + " uploadStepMaxMs=" + entry.MaxUploadMs + " audioFormat=" + format + waveTiming);
         }
         catch (Exception e)
         {

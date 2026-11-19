@@ -1,7 +1,7 @@
 // Native decoder boundary only. Real local-file decoding is verified separately.
 namespace UnityEngine
 {
-    public enum AudioType { MPEG }
+    public enum AudioType { MPEG, WAV }
 }
 namespace UnityEngine.Networking
 {
