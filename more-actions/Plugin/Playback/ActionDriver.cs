@@ -96,6 +96,23 @@ public sealed class ActionDriver : MonoBehaviour
     internal bool TakeStatFrame(ActionStatChannel channel) => session.StatFrames.Take(channel, Time.frameCount);
 
     [HideFromIl2Cpp]
+    internal float ExternalEcstasyRate(PlayerStateModel state)
+    {
+        var external = externalAction;
+        if (external == null || external.EcstasyRate <= 0 || !external.IsCurrentPlayer || NativeOperationInputBlocked ||
+            Time.deltaTime <= 0 || state?.Pointer != external.Player.Pca?.PlayerState?.Pointer ||
+            state?.CurrentAction?.Type != ActionType.None || (int)state.CurrentState != 0 || state.IsEcstasyMotion)
+            return 0;
+        try { return external.IsExercising ? external.EcstasyRate : 0; }
+        catch (Exception error)
+        {
+            Plugin.LogSource.LogWarning("EXTERNAL_ACTION_ACTIVITY_FAILED " + error);
+            EndExternal(external, "exercise status unavailable", true);
+            return 0;
+        }
+    }
+
+    [HideFromIl2Cpp]
     bool PlayerInputBlocked => Time.timeScale <= 0 || InGameUiManager.Instance?.IsOpenSomeCancelInputUi == true
         || InGameUiManager.Instance?.IsOpenFade == true;
     [HideFromIl2Cpp]
@@ -148,7 +165,7 @@ public sealed class ActionDriver : MonoBehaviour
 
     [HideFromIl2Cpp]
     internal ExternalActionSession TryBeginExternal(string providerId, bool requiresHands, bool requiresStanding,
-        Action<string> interrupted, out string reason)
+        string actionConfigPath, Func<bool> isExercising, bool hasIku, Action<string> interrupted, out string reason)
     {
         if (externalAction != null || endingExternalAction || Playing || session.Stopping ||
             requests.PendingId != null || nativeExit != null)
@@ -170,8 +187,16 @@ public sealed class ActionDriver : MonoBehaviour
         var rules = new ActionDefinition { RequiresHands = requiresHands, RequiresStanding = requiresStanding };
         reason = Reason(rules, player, InGameUiManager.Instance?.IsOpenSomeUi == true);
         if (reason != null) return null;
-        externalAction = new ExternalActionSession(this, player, providerId, rules, interrupted);
-        Plugin.LogSource.LogInfo("EXTERNAL_ACTION_START provider=" + providerId);
+        float ecstasyRate;
+        try { ecstasyRate = ExternalActionApi.ReadEcstasyRate(actionConfigPath); }
+        catch (Exception error)
+        {
+            reason = "invalid action configuration";
+            Plugin.LogSource.LogWarning($"EXTERNAL_ACTION_CONFIG_FAILED provider={providerId} file={actionConfigPath} {error.Message}");
+            return null;
+        }
+        externalAction = new ExternalActionSession(this, player, providerId, rules, ecstasyRate, isExercising, hasIku, interrupted);
+        Plugin.LogSource.LogInfo($"EXTERNAL_ACTION_START provider={providerId} ecstasy={ecstasyRate} iku={hasIku}");
         return externalAction;
     }
 
@@ -193,7 +218,7 @@ public sealed class ActionDriver : MonoBehaviour
         try
         {
             string reason = !external.IsCurrentPlayer || PlayerFacade.Instance == null ? "scene/player changed"
-                : Reason(external.Rules, external.Player, false, providerHandlesMovement: true);
+                : Reason(external.Rules, external.Player, false, allowIku: external.AcceptsIku, providerHandlesMovement: true);
             if (reason != null)
             {
                 EndExternal(external, reason, true);

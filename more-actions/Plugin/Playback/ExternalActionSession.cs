@@ -11,6 +11,8 @@ internal sealed class ExternalActionSession : IDisposable
 {
     readonly ActionDriver driver;
     readonly Action<string> interrupted;
+    readonly Func<bool> isExercising;
+    readonly bool hasIku;
     readonly Animator animator;
     readonly int scene;
     readonly MotionFaceCamera faceCamera = new();
@@ -21,24 +23,56 @@ internal sealed class ExternalActionSession : IDisposable
     Vector3 eye, priorEyeLocal, writtenEyeLocal;
     bool faceCameraActive, disposed;
     int poseFrame = -1;
+    NativeIkuPlayback iku;
 
     internal PlayerController Player { get; }
     internal string ProviderId { get; }
     internal ActionDefinition Rules { get; }
+    internal float EcstasyRate { get; }
     internal bool HasPoseThisFrame => poseFrame == Time.frameCount;
+    internal bool AcceptsIku => hasIku && (iku != null || Player.Pca?.PlayerState?.IsEcstasyMotion == true);
+    internal bool IsExercising => !disposed && iku == null && (isExercising?.Invoke() ?? true);
     internal bool IsCurrentPlayer => Player != null && Player == PlayerController.Instance && animator != null &&
         animator == Player.Pca?.Animator && scene == SceneManager.GetActiveScene().handle;
 
     internal ExternalActionSession(ActionDriver driver, PlayerController player, string providerId, ActionDefinition rules,
-        Action<string> interrupted)
+        float ecstasyRate, Func<bool> isExercising, bool hasIku, Action<string> interrupted)
     {
         this.driver = driver;
         this.interrupted = interrupted;
+        this.isExercising = isExercising;
+        this.hasIku = hasIku;
+        EcstasyRate = ecstasyRate;
         Player = player;
         ProviderId = providerId;
         Rules = rules;
         animator = player.Pca.Animator;
         scene = SceneManager.GetActiveScene().handle;
+    }
+
+    internal (float Progress, float Weight)? ReadIku()
+    {
+        if (disposed || !IsCurrentPlayer) return null;
+        bool nativeActive = Player.Pca.PlayerState.IsEcstasyMotion;
+        if (iku == null)
+        {
+            if (!nativeActive) return null;
+            iku = NativeIkuPlayback.TryStart(animator);
+            if (iku == null)
+            {
+                driver.EndExternal(this, "native IKU unavailable", true);
+                return null;
+            }
+            Plugin.LogSource.LogInfo("EXTERNAL_ACTION_IKU_BEGIN provider=" + ProviderId);
+        }
+        var status = iku.Read(animator, nativeActive, out float progress, out float weight);
+        if (status == NativeIkuPlayback.Status.Sampling) return (progress, weight);
+        iku = null;
+        if (status == NativeIkuPlayback.Status.Interrupted)
+            driver.EndExternal(this, "native IKU interrupted", true);
+        else
+            Plugin.LogSource.LogInfo("EXTERNAL_ACTION_IKU_RESUME provider=" + ProviderId);
+        return null;
     }
 
     internal void Track(Vector3 thirdPersonTarget, Vector3 firstPersonEye)

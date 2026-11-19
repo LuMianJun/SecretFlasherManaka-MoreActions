@@ -48,9 +48,12 @@ internal static class NativeActionStats
 
     internal static EcstasyInput BeforeEcstasy(PlayerEcstasyController controller)
     {
-        if(!Active(controller.pca,out var stats)||stats.EcstasyPerSecond<=0
-            ||!ActionDriver.Current.TakeStatFrame(ActionStatChannel.Ecstasy))return null;
-        float rate=stats.EcstasyPerSecond*(1+GameState.GameStateData.MotionSpeedScaleIndex*0.1f);
+        var driver = ActionDriver.Current;
+        if (driver == null) return null;
+        float baseRate = Active(controller.pca, out var stats) ? stats.EcstasyPerSecond :
+            driver.ExternalEcstasyRate(controller.pca?.PlayerState);
+        if (baseRate <= 0 || !driver.TakeStatFrame(ActionStatChannel.Ecstasy)) return null;
+        float rate=baseRate*(1+GameState.GameStateData.MotionSpeedScaleIndex*0.1f);
         if(rate<=0)return null;
         return new EcstasyInput(controller.pca.PlayerState,rate/0.15f);
     }
