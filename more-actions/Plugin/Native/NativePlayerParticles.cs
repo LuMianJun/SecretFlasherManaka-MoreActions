@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
 using ExposureUnnoticed2.Object3D.Player.Scripts;
+using ExposureUnnoticed2.Object3D.Player.Scripts.Other;
+using ExposureUnnoticed2.Object3D.SpermBullet;
 using HarmonyLib;
 using UnityEngine;
 
@@ -16,6 +18,7 @@ internal sealed class NativePlayerParticles
     bool ready, peeQueued;
     PlayerBreathController breath;
     bool refreshingBreath;
+    internal bool PoseReady => ready && frame == Time.frameCount;
 
     internal void CaptureShiofuki(PlayerController player) =>
         shiofukiFollow.Capture(player.Pca?.PlayerAvatarObjectReferencer?.ShiofukiParticle, player.transform);
@@ -197,5 +200,92 @@ static class ActionBreathFollowOrderPatch
         var driver = ActionDriver.Current;
         return driver == null || driver.ParticlePlayer?.Pca?.PlayerBreathController?.Pointer != __instance.Pointer ||
             !driver.DeferBreathFollow(__instance);
+    }
+}
+
+[HarmonyPatch(typeof(FutanariController), nameof(FutanariController.FireSperm))]
+static class ActionSpermOrderPatch
+{
+    internal static PlayerController SpawningFor { get; private set; }
+
+    static bool Prefix(FutanariController __instance, bool __runOriginal, out bool __state)
+    {
+        __state = false;
+        if (!__runOriginal) return false;
+        if (SpawningFor != null) return true;
+        var driver = ActionDriver.Current;
+        var player = driver?.ParticlePlayer;
+        if (player?.Pca?.FutanariController?.Pointer != __instance.Pointer) return true;
+        if (driver.DeferParticle(__instance.FireSperm)) return false;
+        __state = true;
+        SpawningFor = player;
+        return true;
+    }
+
+    static Exception Finalizer(Exception __exception, bool __state)
+    {
+        if (__state) SpawningFor = null;
+        return __exception;
+    }
+}
+
+[HarmonyPatch(typeof(SpermBullet), nameof(SpermBullet.Awake))]
+static class ActionProjectileSpawnPatch
+{
+    static void Postfix(SpermBullet __instance, bool __runOriginal)
+    {
+        var player = ActionSpermOrderPatch.SpawningFor;
+        if (!__runOriginal || player == null || player != PlayerController.Instance) return;
+        ActionProjectileUpdatePatch.Track(__instance, player);
+    }
+}
+
+[HarmonyPatch(typeof(SpermBullet), nameof(SpermBullet.Update))]
+[HarmonyPriority(Priority.Last)]
+static class ActionProjectileUpdatePatch
+{
+    sealed class TrackedProjectile
+    {
+        internal readonly SpermBullet Bullet;
+        internal readonly PlayerController Player;
+        internal int DeferredFrame = -1;
+
+        internal TrackedProjectile(SpermBullet bullet, PlayerController player)
+        {
+            Bullet = bullet;
+            Player = player;
+        }
+    }
+
+    static readonly List<TrackedProjectile> tracked = new();
+
+    internal static void Track(SpermBullet bullet, PlayerController player) => tracked.Add(new(bullet, player));
+    internal static void Clear() => tracked.Clear();
+    internal static void Prune() => tracked.RemoveAll(item => !item.Bullet);
+
+    static bool Prefix(SpermBullet __instance, bool __runOriginal)
+    {
+        if (!__runOriginal) return false;
+        if (tracked.Count == 0) return true;
+        var item = tracked.Find(entry => entry.Bullet == __instance);
+        if (item == null) return true;
+        var driver = ActionDriver.Current;
+        if (__instance.isFirstFrame && item.Player != null && driver?.ParticlePlayer == item.Player &&
+            !driver.ParticlePoseWritten)
+        {
+            if (item.DeferredFrame == Time.frameCount) return false;
+            if (driver.DeferParticle(() => { if (__instance) __instance.Update(); }))
+            {
+                item.DeferredFrame = Time.frameCount;
+                return false;
+            }
+        }
+        return true;
+    }
+
+    static void Postfix(SpermBullet __instance, bool __runOriginal)
+    {
+        if (__runOriginal && tracked.Count != 0 && __instance && !__instance.isFirstFrame)
+            tracked.RemoveAll(item => item.Bullet == __instance);
     }
 }

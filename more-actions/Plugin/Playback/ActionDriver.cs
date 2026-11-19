@@ -46,6 +46,7 @@ public sealed class ActionDriver : MonoBehaviour
 
     public void Update()
     {
+        ActionProjectileUpdatePatch.Prune();
         playerParticles.UpdateEmitters(ParticlePlayer);
         if (externalAction != null && !externalAction.IsCurrentPlayer)
             EndExternal(externalAction, "scene/player changed", true);
@@ -105,6 +106,10 @@ public sealed class ActionDriver : MonoBehaviour
 
     [HideFromIl2Cpp]
     internal bool DeferParticle(Action emit, bool startsPee = false) => playerParticles.Defer(emit, startsPee);
+
+    [HideFromIl2Cpp]
+    internal bool ParticlePoseWritten => externalAction != null ? externalAction.HasPoseThisFrame :
+        playerParticles.PoseReady;
 
     [HideFromIl2Cpp]
     internal void CaptureShiofuki(PlayerController player)
@@ -238,6 +243,7 @@ public sealed class ActionDriver : MonoBehaviour
         if (external == null || !ReferenceEquals(externalAction, external)) return;
         externalAction = null;
         playerParticles.Clear();
+        ActionProjectileUpdatePatch.Clear();
         playerParticles.ReleaseEmitters();
         endingExternalAction = true;
         try { external.End(reason, notify); }
@@ -655,6 +661,7 @@ public sealed class ActionDriver : MonoBehaviour
         if (Playing)
         {
             playerParticles.Clear();
+            ActionProjectileUpdatePatch.Clear();
             playerParticles.ReleaseEmitters();
         }
         requests.Clear(); requestRevision++; AbandonNativeExit(reason);
