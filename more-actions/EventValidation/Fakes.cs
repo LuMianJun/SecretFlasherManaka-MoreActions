@@ -11,6 +11,7 @@ namespace Il2CppInterop.Runtime.Attributes
 namespace BepInEx
 {
     [AttributeUsage(AttributeTargets.Class)] public sealed class BepInPlugin(string id, string name, string version) : Attribute {}
+    public sealed class PluginInfo { public string Location { get; init; } }
 }
 namespace BepInEx.Configuration
 {
@@ -27,6 +28,11 @@ namespace BepInEx.Logging
 }
 namespace BepInEx.Unity.IL2CPP
 {
+    public sealed class IL2CPPChainloader
+    {
+        public static IL2CPPChainloader Instance { get; } = new();
+        public Dictionary<string,BepInEx.PluginInfo> Plugins { get; } = new();
+    }
     public abstract class BasePlugin
     {
         public BepInEx.Configuration.ConfigFile Config = new(); public BepInEx.Logging.ManualLogSource Log = new();
@@ -43,26 +49,80 @@ namespace HarmonyLib
 }
 namespace UnityEngine
 {
-    public class Object { public bool Destroyed; public static void Destroy(Object value) { value.Destroyed = true; } public static T FindObjectOfType<T>() => default; public T TryCast<T>() where T : class => this as T; }
+    public class Object { public bool Destroyed; public static void Destroy(Object value) { value.Destroyed = true; } public static implicit operator bool(Object value) => value is { Destroyed: false }; public static T FindObjectOfType<T>() => default; public T TryCast<T>() where T : class => this as T; }
     public class ScriptableObject : Object { public HideFlags hideFlags; public static T CreateInstance<T>() where T : ScriptableObject, new() => new(); }
     public enum HideFlags { HideAndDontSave }
-    public sealed class GameObject : Object { public bool activeInHierarchy = true; public T AddComponent<T>() where T : new() => new(); }
-    public class MonoBehaviour(IntPtr pointer) : Object { public GameObject gameObject = new(); }
-    public readonly struct AnimatorStateInfo(string name) {public bool IsName(string value)=>name==value;}
+    public sealed class GameObject : Object
+    {
+        public GameObject(string name = "") { transform = new Transform { gameObject = this }; }
+        public Transform transform { get; }
+        public bool activeInHierarchy = true;
+        public T AddComponent<T>() where T : new() => new();
+    }
+    public class MonoBehaviour(IntPtr pointer) : Object { public GameObject gameObject = new(); public Transform transform => gameObject.transform; public bool isActiveAndEnabled => gameObject.activeInHierarchy && !Destroyed; }
+    public readonly struct AnimatorStateInfo(string name, float progress = 0f) {public bool IsName(string value)=>name==value; public float normalizedTime => progress;}
+    public struct AnimatorTransitionInfo { public float normalizedTime { get; set; } }
     public sealed class Animator
     {
         public GameObject gameObject = new(); public bool enabled = true, isInitialized = true;
         public bool ActionLayerPresent=true,Transitioning;public string ActionState="Action.NoMotion";
         public int GetLayerIndex(string name)=>name=="Action"&&ActionLayerPresent?1:-1;
         public bool IsInTransition(int layer)=>Transitioning;
-        public AnimatorStateInfo GetCurrentAnimatorStateInfo(int layer)=>new(ActionState);
+        public int layerCount => ActionLayerPresent ? 2 : 1;
+        public float Progress { get; set; }
+        public AnimatorStateInfo NextState { get; set; } = new("Action.NoMotion");
+        public AnimatorTransitionInfo TransitionInfo { get; set; }
+        public AnimatorStateInfo GetCurrentAnimatorStateInfo(int layer)=>new(ActionState, Progress);
+        public AnimatorStateInfo GetNextAnimatorStateInfo(int layer)=>NextState;
+        public AnimatorTransitionInfo GetAnimatorTransitionInfo(int layer)=>TransitionInfo;
     }
     public struct Vector3(float x, float y, float z)
     {
         public float x = x, y = y, z = z; public float sqrMagnitude => x*x+y*y+z*z;
         public static Vector3 operator -(Vector3 a, Vector3 b) => new(a.x-b.x,a.y-b.y,a.z-b.z);
     }
-    public sealed class Transform { public Vector3 position; }
+    public struct Quaternion
+    {
+        public System.Numerics.Quaternion Value;
+        public static Quaternion operator *(Quaternion a, Quaternion b) => new() { Value = a.Value * b.Value };
+    }
+    public sealed class Transform : Object
+    {
+        public Transform parent { get; private set; }
+        public GameObject gameObject { get; internal set; }
+        public Vector3 position, localPosition, localScale = new(1,1,1);
+        public Quaternion rotation = new() { Value = System.Numerics.Quaternion.Identity }, localRotation = new() { Value = System.Numerics.Quaternion.Identity };
+        public void SetParent(Transform target, bool worldPositionStays) => parent = target;
+        public Vector3 TransformPoint(Vector3 value)
+        {
+            var offset = System.Numerics.Vector3.Transform(new(value.x * localScale.x,value.y * localScale.y,value.z * localScale.z), rotation.Value);
+            return new(position.x+offset.X,position.y+offset.Y,position.z+offset.Z);
+        }
+        public void SetPositionAndRotation(Vector3 p, Quaternion r) { position = p; rotation = r; }
+    }
+    public enum ParticleSystemScalingMode { Hierarchy, Local, Shape }
+    public enum ParticleSystemSimulationSpace { Local, World, Custom }
+    public sealed class ParticleSystem : Object
+    {
+        public Transform transform => gameObject.transform;
+        public GameObject gameObject { get; } = new();
+        public bool isPlaying { get; set; }
+        public MainModule main { get; } = new();
+        public sealed class MainModule
+        {
+            public ParticleSystemScalingMode scalingMode { get; set; }
+            public ParticleSystemSimulationSpace simulationSpace { get; set; }
+        }
+    }
+    public sealed class AssetBundle : Object
+    {
+        public static Dictionary<string,AssetBundle> Bundles { get; } = new();
+        public Dictionary<string,Object> Assets { get; } = new();
+        public static AssetBundle LoadFromFile(string path) => Bundles.GetValueOrDefault(path);
+        public IEnumerable<string> GetAllAssetNames() => Assets.Keys;
+        public T LoadAsset<T>(string key) where T : Object => Assets.GetValueOrDefault(key) as T;
+        public void Unload(bool unloadAllLoadedObjects) { }
+    }
     public enum CollisionFlags { None, Sides }
     public sealed class CharacterController : Object
     {
@@ -74,7 +134,7 @@ namespace UnityEngine
             transform.position=new Vector3(p.x+actual.x,p.y+actual.y,p.z+actual.z);return CollisionFlags.None;
         }
     }
-    public static class Time { public static int frameCount; public static float timeScale=1,deltaTime=1/60f; }
+    public static class Time { public static int frameCount; public static float timeScale=1,deltaTime=1/60f; public static float time => (float)AudioSettings.dspTime; }
     public static class Mathf { public static float Min(float a, float b) => Math.Min(a,b); public static float Clamp01(float value) => Math.Clamp(value,0,1); }
     public static class AudioSettings { public static double dspTime; }
     public enum AudioDataLoadState { Loaded }
@@ -133,7 +193,7 @@ namespace ExposureUnnoticed2.Object3D.Camera
 {
     public sealed class FaceCameraController {}
     public sealed class TPCameraController() : UnityEngine.MonoBehaviour(IntPtr.Zero)
-    { public Action Tick; public void OnLateUpdate()=>Tick?.Invoke(); }
+    { public UnityEngine.Transform cameraTarget = new(); public Action Tick; public void OnLateUpdate()=>Tick?.Invoke(); }
     public sealed class FPCameraController() : UnityEngine.MonoBehaviour(IntPtr.Zero)
     { public Action Tick; public void OnLateUpdate()=>Tick?.Invoke(); }
     public sealed class BaseCameraController() : UnityEngine.MonoBehaviour(IntPtr.Zero)
@@ -167,6 +227,21 @@ namespace ExposureUnnoticed2.Object3D.Player.ScriptableObject
 }
 namespace ExposureUnnoticed2.Object3D.Player.Scripts
 {
+    public abstract class NativeController
+    {
+        private static int next;
+        public IntPtr Pointer { get; } = new(++next);
+    }
+    public sealed class PlayerBreathController : NativeController { public void _PlayBreath_b__16_0() {} public void OnLateUpdate() {} }
+    public sealed class PlayerShiofukiController : NativeController { public void EmitShiofuki() {} }
+    public sealed class PlayerPeeController : NativeController { public void StartPee() {} }
+    public sealed class PlayerAvatarObjectReferencer
+    {
+        public UnityEngine.ParticleSystem ShiofukiParticle { get; } = new();
+        public UnityEngine.ParticleSystem SpermParticle { get; } = new();
+        public UnityEngine.ParticleSystem PeeParticle { get; } = new();
+        public Object3D.Camera.FPCameraController FPCameraController { get; init; }
+    }
     public sealed class PlayerKneeAdjuster {}
     public sealed class PlayerToeHeelController {}
     public sealed class LookAtController {}
@@ -177,6 +252,12 @@ namespace ExposureUnnoticed2.Object3D.Player.Scripts
     }
     public sealed class PlayerClassAccessor
     {
+        public PlayerClassAccessor() { PlayerAvatarObjectReferencer = new() { FPCameraController = PlayerLocomotion.fpCameraController }; }
+        public PlayerBreathController PlayerBreathController { get; } = new();
+        public PlayerShiofukiController PlayerShiofukiController { get; } = new();
+        public PlayerPeeController PlayerPeeController { get; } = new();
+        public Other.FutanariController FutanariController { get; } = new();
+        public PlayerAvatarObjectReferencer PlayerAvatarObjectReferencer { get; }
         public PlayerStateModel PlayerState = new(); public UnityEngine.Animator Animator = new(); public PlayerAction PlayerAction = new(); public UnityEngine.CharacterController CharacterController=new();
         public PlayerSoundManager PlayerSoundManager = new(); public PlayerAnimationReceiver PlayerAnimationReceiver = new();
         public CameraRig PlayerLocomotion=new();
@@ -191,7 +272,7 @@ namespace ExposureUnnoticed2.Object3D.Player.Scripts
     {
         public enum PlayerState { Idle, Busy } public IntPtr Pointer = (IntPtr)1; public PlayerState CurrentState;
         public bool IsEcstasyMotion, IsCrouch, IsSit,IsGamanBaibu;public float PoseActionCoolTime; public ActionRecord CurrentAction = new();
-        public sealed class ActionRecord { public int Type = -1; }
+        public sealed class ActionRecord { public ExposureUnnoticed2.Master.Action.ActionType Type = ExposureUnnoticed2.Master.Action.ActionType.None; }
     }
     public sealed class PlayerAction
     {
@@ -203,7 +284,7 @@ namespace ExposureUnnoticed2.Object3D.Player.Scripts
             typeof(NativeActionEntryPatch).GetMethod("Prefix",System.Reflection.BindingFlags.Static|System.Reflection.BindingFlags.NonPublic)!.Invoke(null,new object[]{this,next});
             Changes.Add(next);
             if(Rejections>0){Rejections--;return;}
-            Pca.PlayerState.CurrentAction.Type=(int)next;Pca.Animator.Transitioning=true;Pca.Animator.ActionState="Action.Pose";
+            Pca.PlayerState.CurrentAction.Type=next;Pca.Animator.Transitioning=true;Pca.Animator.ActionState="Action.Pose";
             OnChange?.Invoke();
         }
     }
@@ -218,7 +299,7 @@ namespace ExposureUnnoticed2.Object3D.Player.Scripts
             // ownership; production invokes the game's actual native method.
             string key=!skipHandcuff&&GameStateFacade.Handcuffed?"log_cant_use_hand_by_handcuff":
                 !skipCrouch&&pca.PlayerState.IsCrouch?"log_cant_use_hand_by_crouch":
-                (!skipPlayingAction&&pca.PlayerState.CurrentAction.Type!=-1)||pca.PlayerState.CurrentState!=PlayerStateModel.PlayerState.Idle||pca.PlayerState.IsEcstasyMotion||ExposureUnnoticed2.Scripts.InGame.SexManager.Instance?.IsSexMode==true?"log_cant_use_hand_by_other":null;
+                (!skipPlayingAction&&pca.PlayerState.CurrentAction.Type!=ExposureUnnoticed2.Master.Action.ActionType.None)||pca.PlayerState.CurrentState!=PlayerStateModel.PlayerState.Idle||pca.PlayerState.IsEcstasyMotion||ExposureUnnoticed2.Scripts.InGame.SexManager.Instance?.IsSexMode==true?"log_cant_use_hand_by_other":null;
             if(showWarning&&key!=null)
                 ExposureUnnoticed2.ObjectUI.InGame.MessagePanel.MessagePanelView.AddMessage(
                     "native:"+GameState.OptionData.Language+":"+key,
@@ -238,6 +319,28 @@ namespace ExposureUnnoticed2.Object3D.Player.Scripts
         public void OnPlaySe(ExposureUnnoticed2.Scripts.Sound.InGameSoundManager.SeType value) => Sounds.Add(value);
         public void FootL(UnityEngine.AnimationEvent value) => Feet.Add(("Left",(ExposureUnnoticed2.Object3D.Player.ScriptableObject.MFootAnimationEventRecord)value.objectReferenceParameter));
         public void FootR(UnityEngine.AnimationEvent value) => Feet.Add(("Right",(ExposureUnnoticed2.Object3D.Player.ScriptableObject.MFootAnimationEventRecord)value.objectReferenceParameter));
+    }
+}
+namespace ExposureUnnoticed2.Object3D.Player.Scripts.Other
+{
+    public sealed class FutanariController : NativeController { public void FireSperm() {} }
+}
+namespace ExposureUnnoticed2.Object3D.SpermBullet
+{
+    public sealed class SpermBullet : UnityEngine.Object
+    {
+        public bool isFirstFrame = true;
+        public void Awake() {}
+        public void Update() => isFirstFrame = false;
+    }
+}
+namespace UnityEngine.SceneManagement
+{
+    public struct Scene { public int handle { get; set; } }
+    public static class SceneManager
+    {
+        public static Scene ActiveScene { get; set; }
+        public static Scene GetActiveScene() => ActiveScene;
     }
 }
 namespace SFM.ModSettings
@@ -262,7 +365,7 @@ namespace SFM.Actions
     public static class ActionFaceSettings { public static bool KeepGameExpressions {get;set;}=true; }
     public static class RingActionMenu { public static BepInEx.Configuration.ConfigEntry<string> LastActions; }
     internal static class ActionBundleImport { internal static void Begin(string directory,string provider){} internal static void Tick(){} internal static void Clear(){} }
-    internal sealed class MotionFaceCamera { public void Begin(ExposureUnnoticed2.Object3D.Player.Scripts.PlayerController owner) {} public void RefreshAfterPose() {} public void End() {} public bool ShouldDefer(ExposureUnnoticed2.Object3D.Camera.FaceCameraController camera) => true; }
+    internal sealed class MotionFaceCamera { public bool Begin(ExposureUnnoticed2.Object3D.Player.Scripts.PlayerController owner) => owner != null; public void RefreshAfterPose() {} public void End() {} public bool ShouldDefer(ExposureUnnoticed2.Object3D.Camera.FaceCameraController camera) => true; }
     internal sealed class LoadedAction
     {
         public ActionDefinition Definition; public UnityEngine.AudioClip Audio; public UnityEngine.AnimationClip Clip; public float Duration = 1;
@@ -270,11 +373,22 @@ namespace SFM.Actions
         public IActionPose CreatePose(UnityEngine.GameObject target)
         { Creates++;if(CreateError!=null)throw CreateError;return NextPose ?? (LastPose = new TestPose()); }
     }
-    internal sealed class TestPose : IActionPose
+    // Skeletal samples are a Unity boundary. Keep native IKU state/timing in the linked player.
+    internal abstract class ActionPose : IActionPose
     {
-        public int BoneCount => 1; public List<float> Samples = new(); public bool Disposed, ThrowOnDispose;
-        public bool Apply(float seconds) { Samples.Add(seconds); return true; }
-        public void Dispose() { Disposed = true; if (ThrowOnDispose) throw new Exception("fixture pose cleanup failure"); }
+        internal abstract bool CanPlayIku { get; }
+        internal abstract bool ApplyIku(float progress, float weight);
+        public abstract int BoneCount { get; }
+        public abstract bool Apply(float seconds);
+        public abstract void Dispose();
+    }
+    internal sealed class TestPose : ActionPose
+    {
+        internal override bool CanPlayIku => false;
+        internal override bool ApplyIku(float progress, float weight) => throw new NotSupportedException();
+        public override int BoneCount => 1; public List<float> Samples = new(); public bool Disposed, ThrowOnDispose;
+        public override bool Apply(float seconds) { Samples.Add(seconds); return true; }
+        public override void Dispose() { Disposed = true; if (ThrowOnDispose) throw new Exception("fixture pose cleanup failure"); }
     }
     internal static class ActionAssets
     {

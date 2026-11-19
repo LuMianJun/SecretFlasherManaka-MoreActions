@@ -7,12 +7,18 @@
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="../Plugin/Import/ActionConfiguration.cs" Link="ActionConfiguration.cs" />
+    <Compile Include="../Plugin/Import/ActionIkuAssets.cs" Link="ActionIkuAssets.cs" />
     <Compile Include="../Plugin/Actions/ActionStats.cs" Link="ActionStats.cs" />
     <Compile Include="../Plugin/Import/UnityActionIdentity.cs" Link="UnityActionIdentity.cs" />
     <Compile Include="../Plugin/Diagnostics/ActionCancellationDiagnostics.cs" Link="ActionCancellationDiagnostics.cs" />
     <Compile Include="../Plugin/Native/NativeActionLease.cs" Link="NativeActionLease.cs" />
     <Compile Include="../Plugin/Plugin.cs" Link="Plugin.cs" />
     <Compile Include="../Plugin/Playback/ActionDriver.cs" Link="ActionDriver.cs" />
+    <Compile Include="../Plugin/Api/ExternalActionApi.cs" Link="ExternalActionApi.cs" />
+    <Compile Include="../Plugin/Playback/ExternalActionSession.cs" Link="ExternalActionSession.cs" />
+    <Compile Include="../Plugin/Playback/NativeIkuPlayback.cs" Link="NativeIkuPlayback.cs" />
+    <Compile Include="../Plugin/Native/NativePlayerParticles.cs" Link="NativePlayerParticles.cs" />
+    <Compile Include="../Plugin/Native/ParticleEmitterFollow.cs" Link="ParticleEmitterFollow.cs" />
     <Compile Include="../Plugin/Playback/PlaybackSession.cs" Link="PlaybackSession.cs" />
     <Compile Include="../Plugin/Native/ActionPlaybackPatches.cs" Link="ActionPlaybackPatches.cs" />
     <Compile Include="../Plugin/Native/NativeBodyPose.cs" Link="NativeBodyPose.cs" />

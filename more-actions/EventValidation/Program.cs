@@ -1,6 +1,7 @@
 using System.Text.Json;
 using SFM.Actions;
 using SFM.NpcSpectators;
+using ExposureUnnoticed2.Master.Action;
 using UnityEngine;
 using ExposureUnnoticed2.Object3D.Player.Scripts;
 using ExposureUnnoticed2.Object3D.Player.ScriptableObject;
@@ -124,7 +125,7 @@ try
     void NativeSetup(ActionDefinition def=null,IActionSource source=null,int type=50001)
     {
         Start(def??Definition(),runtimeSource:source);driver.Stop("native setup");loaded.Creates=0;loaded.LastPose=null;
-        player.Pca.PlayerState.CurrentAction.Type=type;player.Pca.Animator.ActionState="Action.Pose";
+        player.Pca.PlayerState.CurrentAction.Type=(ActionType)type;player.Pca.Animator.ActionState="Action.Pose";
         calls.Clear();MessagePanelView.Messages.Clear();
     }
     void NativeReady(double time)
@@ -133,7 +134,7 @@ try
     }
     var nativeDef=Definition();nativeDef.OnStart=new[]{E(null,"native-ready-start")};NativeSetup(nativeDef);
     driver.Request(nativeDef.Id);Frame(0);
-    Check(!driver.Playing&&loaded.Creates==0&&player.Pca.PlayerAction.Changes.Count==1&&player.Pca.PlayerState.CurrentAction.Type==-1,"Ready native pose exits through ChangeAction(None) before custom pose creation");
+    Check(!driver.Playing&&loaded.Creates==0&&player.Pca.PlayerAction.Changes.Count==1&&player.Pca.PlayerState.CurrentAction.Type==ActionType.None,"Ready native pose exits through ChangeAction(None) before custom pose creation");
     Frame(.2);Check(!driver.Playing&&loaded.Creates==0&&player.Pca.PlayerAction.Changes.Count==1&&calls.Count==0,"Native exit transition waits without repeating the exit command or lifecycle callbacks");
     player.Pca.Animator.ActionState="Action.NoMotion";player.Pca.Animator.Transitioning=false;Frame(.3);
     Check(!driver.Playing,"NoMotion must receive another native frame before baseline capture");
@@ -169,7 +170,7 @@ try
     Check(driver.Playing&&ActionPlaybackApi.CurrentActionId==replacementDef.Id&&loaded.Creates==0&&player.Pca.PlayerAction.Changes.Count==1,"Replacing the pending request plays only the new action without issuing another native exit");
     NativeSetup();player.Pca.PlayerAction.OnChange=()=>ActionPlaybackApi.Stop();driver.Request(loaded.Definition.Id);Frame(0);NativeReady(.3);
     Check(!driver.Playing&&loaded.Creates==0,"Reentrant cancellation inside native exit cannot resurrect the original request");
-    NativeSetup();driver.Request(loaded.Definition.Id);Frame(0);player.Pca.PlayerState.CurrentAction.Type=50002;Frame(.1);NativeReady(.3);
+    NativeSetup();driver.Request(loaded.Definition.Id);Frame(0);player.Pca.PlayerState.CurrentAction.Type=(ActionType)50002;Frame(.1);NativeReady(.3);
     Check(!driver.Playing&&loaded.Creates==0&&player.Pca.PlayerAction.Changes.Count==1,"An independently selected native action aborts the old handover instead of being forcibly exited");
     NativeSetup();driver.Request(loaded.Definition.Id);Frame(0);var previousNativePlayer=player;player=new PlayerController();PlayerController.Instance=player;PlayerFacade.Instance.pca=player.Pca;driver.Update();Frame(.3);
     Check(!driver.Playing&&loaded.Creates==0,"Scene/player replacement clears pending native handover");
@@ -194,7 +195,7 @@ try
         if(blocked=="sex")ExposureUnnoticed2.Scripts.InGame.SexManager.Instance=new(){IsSexMode=true};
         if(blocked=="caught")s.CurrentState=PlayerStateModel.PlayerState.Busy;
         if(blocked=="gaman")s.IsGamanBaibu=true;
-        if(blocked=="interaction")s.CurrentAction.Type=100;
+        if(blocked=="interaction")s.CurrentAction.Type=(ActionType)100;
         driver.Request(loaded.Definition.Id);Frame(0);
         Check(!driver.Playing&&loaded.Creates==0&&player.Pca.PlayerAction.Changes.Count==0,"Native handover preserves restriction: "+blocked);
         ExposureUnnoticed2.Scripts.InGame.SexManager.Instance=null;
@@ -242,7 +243,7 @@ try
     RetryWithState(()=>player.Pca.PlayerState.IsCrouch=true);
     Check(!driver.Playing&&MessagePanelView.Messages.SequenceEqual(new[]{"native:2:log_cant_use_hand_by_crouch"})&&MessagePanelView.Types.Single()==MessagePanelView.MessageType.Caution,"Crouch denial uses the original crouching warning rather than custom stand-first text");
     Start(Definition());
-    RetryWithState(()=>{GameStateFacade.Handcuffed=true;player.Pca.PlayerState.IsCrouch=true;player.Pca.PlayerState.CurrentAction.Type=100;});
+    RetryWithState(()=>{GameStateFacade.Handcuffed=true;player.Pca.PlayerState.IsCrouch=true;player.Pca.PlayerState.CurrentAction.Type=(ActionType)100;});
     Check(!driver.Playing&&MessagePanelView.Messages.SequenceEqual(new[]{"native:2:log_cant_use_hand_by_handcuff"}),"Original handcuff-first warning priority is retained when several conditions block playback");
     Start(Definition());GameState.OptionData.Language=0;
     RetryWithState(()=>player.Pca.PlayerState.IsCrouch=true);
@@ -256,10 +257,10 @@ try
     Start(Definition());
     RetryWithState(()=>player.Pca.PlayerState.IsSit=true);
     Check(!driver.Playing&&MessagePanelView.Messages.Count==0&&!PlayerFacade.Instance.HandChecks.Any(c=>c.ShowWarning),"Sitting-only restriction stays silent and is not mislabeled as native crouching");
-    Start(Definition());RetryWithState(()=>{player.Pca.PlayerState.IsSit=true;player.Pca.PlayerState.CurrentAction.Type=100;});
+    Start(Definition());RetryWithState(()=>{player.Pca.PlayerState.IsSit=true;player.Pca.PlayerState.CurrentAction.Type=(ActionType)100;});
     Check(!driver.Playing&&MessagePanelView.Messages.Count==0,"A native chair action also blocks silently instead of falling back to the generic action-busy message");
     Start(Definition());
-    RetryWithState(()=>player.Pca.PlayerState.CurrentAction.Type=100);
+    RetryWithState(()=>player.Pca.PlayerState.CurrentAction.Type=(ActionType)100);
     Check(!driver.Playing&&!PlayerFacade.Instance.HandChecks.Any(c=>c.ShowWarning),"Native action restrictions stay intact without adding an occupation warning to this change");
     Start(Definition());
     RetryWithState(()=>{GameStateFacade.Handcuffed=true;player.gameObject.activeInHierarchy=false;});
