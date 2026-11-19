@@ -24,8 +24,12 @@ static class ActionOutputPatch
         catch (Exception e) { Plugin.LogSource.LogError("ACTION_OUTPUT_FAILED id=" + id + " " + e); driver?.Stop("pose/event error"); }
         finally
         {
-            driver?.FlushNativeFollowCamera();
-            CameraTransitionDiagnostics.EndFrame();
+            try { driver?.FlushBreathFollow(); }
+            finally
+            {
+                driver?.FlushNativeFollowCamera();
+                CameraTransitionDiagnostics.EndFrame();
+            }
         }
     }
 }

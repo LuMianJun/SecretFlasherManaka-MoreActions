@@ -16,6 +16,10 @@
       <HintPath>$(GameDir)/BepInEx/interop/UnityEngine.AudioModule.dll</HintPath>
       <Private>false</Private>
     </Reference>
+    <Reference Include="UnityEngine.ParticleSystemModule">
+      <HintPath>$(GameDir)/BepInEx/interop/UnityEngine.ParticleSystemModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
     <Reference Include="UnityEngine.AssetBundleModule">
       <HintPath>$(GameDir)/BepInEx/interop/UnityEngine.AssetBundleModule.dll</HintPath>
       <Private>false</Private>
@@ -72,6 +76,8 @@
     <Compile Include="Native/NativeActionEvents.cs" />
     <Compile Include="Native/NativeActionLease.cs" />
     <Compile Include="Native/NativeActionStats.cs" />
+    <Compile Include="Native/NativePlayerParticles.cs" />
+    <Compile Include="Native/ParticleEmitterFollow.cs" />
     <Compile Include="Replacements/ReplacementService.cs" />
     <Compile Include="UI/ReplacementSettings.cs" />
     <Compile Include="Replacements/NativeAnimationReplacements.cs" />

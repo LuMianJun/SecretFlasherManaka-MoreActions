@@ -26,6 +26,7 @@ public sealed class ActionDriver : MonoBehaviour
     readonly ActionRequestQueue requests = new();
     readonly PlaybackSession session = new();
     readonly ActionFollowCamera followCamera = new();
+    readonly NativePlayerParticles playerParticles = new();
     ExternalActionSession externalAction;
     bool endingExternalAction;
     int tickFrame = -1;
@@ -45,6 +46,7 @@ public sealed class ActionDriver : MonoBehaviour
 
     public void Update()
     {
+        playerParticles.UpdateEmitters(ParticlePlayer);
         if (externalAction != null && !externalAction.IsCurrentPlayer)
             EndExternal(externalAction, "scene/player changed", true);
         ActionSamplingRigPool.Prune();
@@ -94,6 +96,36 @@ public sealed class ActionDriver : MonoBehaviour
     }
     [HideFromIl2Cpp]
     internal bool TakeStatFrame(ActionStatChannel channel) => session.StatFrames.Take(channel, Time.frameCount);
+
+    [HideFromIl2Cpp]
+    internal PlayerController ParticlePlayer => externalAction != null
+        ? (externalAction.IsCurrentPlayer ? externalAction.Player : null)
+        : Playing && !session.Stopping && Owner != null && Owner == PlayerController.Instance &&
+          session.Clock.HasStarted(AudioSettings.dspTime) ? Owner : null;
+
+    [HideFromIl2Cpp]
+    internal bool DeferParticle(Action emit, bool startsPee = false) => playerParticles.Defer(emit, startsPee);
+
+    [HideFromIl2Cpp]
+    internal void CaptureShiofuki(PlayerController player)
+    {
+        try { playerParticles.CaptureShiofuki(player); }
+        catch (Exception error) { Plugin.LogSource.LogWarning("ACTION_SHIOFUKI_FOLLOW_FAILED " + error); }
+    }
+
+    [HideFromIl2Cpp]
+    internal void CaptureSpermAfterEmission(PlayerController player)
+    {
+        if (ParticlePlayer != player) return;
+        try { playerParticles.CaptureSpermAfterEmission(player); }
+        catch (Exception error) { Plugin.LogSource.LogWarning("ACTION_SPERM_FOLLOW_FAILED " + error); }
+    }
+
+    [HideFromIl2Cpp]
+    internal bool DeferBreathFollow(PlayerBreathController controller) => playerParticles.DeferBreath(controller);
+
+    [HideFromIl2Cpp]
+    internal void FlushBreathFollow() => playerParticles.FlushBreath();
 
     [HideFromIl2Cpp]
     internal float ExternalEcstasyRate(PlayerStateModel state)
@@ -205,6 +237,8 @@ public sealed class ActionDriver : MonoBehaviour
     {
         if (external == null || !ReferenceEquals(externalAction, external)) return;
         externalAction = null;
+        playerParticles.Clear();
+        playerParticles.ReleaseEmitters();
         endingExternalAction = true;
         try { external.End(reason, notify); }
         catch (Exception error) { Plugin.LogSource.LogWarning("EXTERNAL_ACTION_CLEANUP_FAILED " + error); }
@@ -224,7 +258,11 @@ public sealed class ActionDriver : MonoBehaviour
                 EndExternal(external, reason, true);
                 return;
             }
-            if (refreshCamera) external.RefreshFaceCamera();
+            if (refreshCamera)
+            {
+                if (external.HasPoseThisFrame) playerParticles.AfterPose(ParticlePlayer);
+                if (ReferenceEquals(externalAction, external)) external.RefreshFaceCamera();
+            }
         }
         catch (Exception error)
         {
@@ -261,6 +299,7 @@ public sealed class ActionDriver : MonoBehaviour
         {
             if (!((ActionPose)session.Pose).ApplyIku(progress, weight))
                 StopWithDiagnostics("IKU pose", "IKU pose unavailable");
+            else playerParticles.AfterPose(ParticlePlayer);
             return true;
         }
         if (status == NativeIkuPlayback.Status.Interrupted)
@@ -549,7 +588,11 @@ public sealed class ActionDriver : MonoBehaviour
         if (!session.Clock.Paused) session.Events.Advance(eventTime);
         // A native callback may have stopped this playback or changed state.
         if (revision != session.Revision || !Playing) return;
-        if (ObserveIku(uiOpen)) return;
+        if (ObserveIku(uiOpen))
+        {
+            playerParticles.AfterPose(ParticlePlayer);
+            return;
+        }
         reason = Reason(Definition, Owner, uiOpen);
         if (reason != null) { StopWithDiagnostics("after events", reason); return; }
         if (Plugin.FollowCamera.Value && Definition.FollowFaceCamera)
@@ -559,6 +602,9 @@ public sealed class ActionDriver : MonoBehaviour
         var audio = session.Action.Audio;
         double? audioPosition = audio != null && audioTime >= 0 && audioTime < audio.length ? audioTime : null;
         ActionPlaybackApi.PublishPose(Definition.Id, Definition.Loop ? poseTime : eventTime, audioPosition);
+        if (revision != session.Revision || !Playing) return;
+        // Providers can finish their contact IK in PoseApplied.
+        playerParticles.AfterPose(ParticlePlayer);
         if (revision == session.Revision && Playing && finished) Stop("finished", true);
     }
 
@@ -606,6 +652,11 @@ public sealed class ActionDriver : MonoBehaviour
     {
         if (session.Stopping) return;
         session.Stopping = true;
+        if (Playing)
+        {
+            playerParticles.Clear();
+            playerParticles.ReleaseEmitters();
+        }
         requests.Clear(); requestRevision++; AbandonNativeExit(reason);
         var previous = session.Action; var previousPose = session.Pose; var previousEvents = session.Events; var previousRoot = session.RootMotion;
         try

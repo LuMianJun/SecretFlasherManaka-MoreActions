@@ -437,6 +437,15 @@ Global settings are in BepInEx/config/local.sfm.moreactions.cfg; action JSON sto
 
 Include BepInEx/LogOutput.log, the action name, and approximate time when reporting a problem. Protective cancellation emits one ACTION_CANCEL_DIAGNOSTIC entry, not per-frame logs.
 
+### Known issues
+
+- After a custom action or external session writes its pose, More Actions updates the native breath emitter and dispatches that frame's particle events. Bone-mounted emitters keep their native local offsets and orientation. Extra calibration of emission position and direction is only needed when IK writes to the bones after this step.
+
+These two low-priority cases still need in-game reproduction.
+
+- If an action triggers emission on its last frame and immediately ends, cleanup restores the emitter. Particles first simulated on the next frame may start at a different position or angle from the final pose.
+- An external session may drop a queued native call if the provider skips the camera callback that reports the final pose that frame, or if the session ends before dispatch. A dropped urination request can also leave the native state, timer, and sound unstarted.
+
 ### Upgrade compatibility
 
 - When upgrading from Seleka2-prefixed versions, run the installer to migrate actions and settings. It backs up and moves legacy DLLs while preserving existing SFM configuration. For manual upgrades, move old DLLs out first to prevent duplicate loading.
