@@ -45,6 +45,11 @@ foreach ($file in $files) {
     Copy-Item -LiteralPath (Join-Path $PSScriptRoot $file.source) -Destination $target
     if ($file.target.EndsWith('/README.zh-CN.md') -or $file.target.EndsWith('/README.en.md')) {
         $content = [IO.File]::ReadAllText($target).Replace('../shared/','').Replace('../more-actions/','../SFMMoreActions/').Replace('(../README.md','(../../../README.md').Replace('(../README.en.md','(../../../README.en.md').Replace('(../mmd/README.zh-CN.md','(../SFMVmdProbe/README.zh-CN.md').Replace('(../mmd/README.en.md','(../SFMVmdProbe/README.en.md').Replace('(../THIRD_PARTY_NOTICES.md)','(THIRD_PARTY_NOTICES.md)')
+        if ($file.target -like 'BepInEx/plugins/SFMVmdProbe/README.*.md') {
+            $comparisonFile = [Uri]::EscapeDataString('UnityVMDPlayer功能对照.md')
+            $comparisonUrl = "https://github.com/LuMianJun/SecretFlasherManaka-MoreActions/blob/main/mmd/docs/$comparisonFile"
+            $content = $content.Replace('(docs/UnityVMDPlayer功能对照.md)', "($comparisonUrl)")
+        }
         if ($file.target -eq 'BepInEx/plugins/SFMNpcSpectators/README.en.md') {
             $content = $content.Replace('(README.md)','(README.zh-CN.md)')
         }
