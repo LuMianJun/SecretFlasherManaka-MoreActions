@@ -8,8 +8,8 @@ Custom actions, Unity animation bundle import, MMD playback, and optional NPC sp
 
 | Plugin | Version | Purpose |
 | --- | --- | --- |
-| More Actions | 1.6.4 | Radial-menu playback, Unity animation bundle import, native animation replacements, and in-game settings. |
-| MMD | 1.5.1 | Direct VMD playback with separate expressions, lips, music, camera tracks, and timed lyrics. Requires More Actions. |
+| More Actions | 1.7.0 | Radial-menu playback, Unity animation bundle import, native animation replacements, and in-game settings. |
+| MMD | 1.5.2 | Direct VMD playback with separate expressions, lips, music, camera tracks, and timed lyrics. Requires More Actions. |
 | NPC Spectators | 1.0.1 | Lets eligible ordinary pedestrians approach and watch. Can be used independently. |
 
 Separate expression and lip files require MMD 1.4.0 or later.
