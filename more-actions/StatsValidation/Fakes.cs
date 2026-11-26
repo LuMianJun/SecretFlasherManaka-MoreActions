@@ -70,10 +70,10 @@ namespace SFM.Actions
         public ActionDefinition Definition=new();internal ActionStatValues Values;public bool Enabled=true;public string StopReason;
         readonly ActionStatFrames frames=new();
         internal bool TryGetStats(ExposureUnnoticed2.Object3D.Player.Scripts.PlayerStateModel state,out ActionStatValues values){values=Values;return Enabled&&state==Owner.Pca.PlayerState;}
-        public float ExternalRate { get; set; }
-        internal float ExternalEcstasyRate(ExposureUnnoticed2.Object3D.Player.Scripts.PlayerStateModel state)
-            => state != null && state == Owner?.Pca.PlayerState ? ExternalRate : 0f;
+        internal ExposureUnnoticed2.Object3D.Player.Scripts.PlayerController StatOwner => Owner;
+        internal ActionDefinition StatDefinition => Definition;
+        internal bool StatPoseMissionActive => Definition.PoseMission;
         internal bool TakeStatFrame(ActionStatChannel channel)=>frames.Take(channel,UnityEngine.Time.frameCount);
-        internal void StopWithDiagnostics(string stage,string reason){StopReason=reason;Enabled=false;}
+        internal void StopForStamina(){StopReason="stamina depleted";Enabled=false;}
     }
 }

@@ -7,7 +7,7 @@ using Object = UnityEngine.Object;
 
 namespace SFM.Actions;
 
-internal sealed class ExternalActionSession : IDisposable
+internal sealed class ExternalActionSession : IExternalActionSession
 {
     readonly ActionDriver driver;
     readonly Action<string> interrupted;
@@ -24,25 +24,35 @@ internal sealed class ExternalActionSession : IDisposable
     bool faceCameraActive, disposed;
     int poseFrame = -1;
     NativeIkuPlayback iku;
+    readonly string providerDirectory;
+    ExternalActionProfiles profiles;
+    ActionStatValues frameStats;
+    bool framePoseMission;
+    int statsFrame = -1, ikuFrame = -1, ikuSequence;
+    ExternalIkuFrame ikuSnapshot;
 
     internal PlayerController Player { get; }
     internal string ProviderId { get; }
     internal ActionDefinition Rules { get; }
-    internal float EcstasyRate { get; }
+    internal ActionStatValues Stats { get; }
     internal bool HasPoseThisFrame => poseFrame == Time.frameCount;
-    internal bool AcceptsIku => hasIku && (iku != null || Player.Pca?.PlayerState?.IsEcstasyMotion == true);
+    internal bool AcceptsIku => (hasIku || profiles?.IkuResource != null) &&
+        (iku != null || Player.Pca?.PlayerState?.IsEcstasyMotion == true);
     internal bool IsExercising => !disposed && iku == null && (isExercising?.Invoke() ?? true);
+    internal ExternalStaminaDepletion StaminaDepletion { get; } = ExternalStaminaDepletion.EndSession;
+    internal bool PoseMissionActive => profiles == null ? Rules.PoseMission :
+        statsFrame == Time.frameCount && framePoseMission;
     internal bool IsCurrentPlayer => Player != null && Player == PlayerController.Instance && animator != null &&
         animator == Player.Pca?.Animator && scene == SceneManager.GetActiveScene().handle;
 
     internal ExternalActionSession(ActionDriver driver, PlayerController player, string providerId, ActionDefinition rules,
-        float ecstasyRate, Func<bool> isExercising, bool hasIku, Action<string> interrupted)
+        ActionStatValues stats, Func<bool> isExercising, bool hasIku, Action<string> interrupted)
     {
         this.driver = driver;
         this.interrupted = interrupted;
         this.isExercising = isExercising;
         this.hasIku = hasIku;
-        EcstasyRate = ecstasyRate;
+        Stats = stats;
         Player = player;
         ProviderId = providerId;
         Rules = rules;
@@ -50,29 +60,111 @@ internal sealed class ExternalActionSession : IDisposable
         scene = SceneManager.GetActiveScene().handle;
     }
 
+    internal ExternalActionSession(ActionDriver driver, PlayerController player, ActionDefinition rules,
+        ExternalActionOptions options, string directory, ExternalActionProfiles profiles)
+        : this(driver, player, options.ProviderId, rules, ActionStatValues.Empty, null, false, options.Interrupted)
+    {
+        providerDirectory = directory;
+        this.profiles = profiles;
+        StaminaDepletion = options.StaminaDepletion;
+        Rules.FollowFaceCamera = profiles.FollowFaceCamera;
+        Rules.PoseMission = profiles.PoseMissionAvailable;
+    }
+
+    public bool IsActive => !disposed && IsCurrentPlayer;
+    public ExternalIkuFrame Iku => ikuSnapshot;
+
+    public bool TrySetProfiles(ExternalActionProfile[] replacement, out string reason)
+    {
+        if (profiles == null || !IsActive)
+        {
+            reason = "external action not active";
+            return false;
+        }
+        if (!ExternalActionProfiles.TryBind(providerDirectory, replacement, out var bound, out reason)) return false;
+        if (AcceptsIku && !string.Equals(profiles.IkuResource, bound.IkuResource, StringComparison.Ordinal))
+        {
+            reason = "cannot change active IKU profile";
+            return false;
+        }
+        profiles = bound;
+        Rules.FollowFaceCamera = bound.FollowFaceCamera;
+        Rules.PoseMission = bound.PoseMissionAvailable;
+        // Keep the already-sampled channels consistent for the remainder of this frame.
+        return true;
+    }
+
+    public void ReportPose(Vector3 thirdPersonTarget, Vector3 firstPersonEye) => Track(thirdPersonTarget, firstPersonEye);
+
+    internal bool TryReadStats(out ActionStatValues values)
+    {
+        values = ActionStatValues.Empty;
+        if (profiles == null && Stats == ActionStatValues.Empty && !Rules.PoseMission) return false;
+        if (!IsExercising) return false;
+        if (profiles == null)
+        {
+            values = Stats;
+            return values != ActionStatValues.Empty || Rules.PoseMission;
+        }
+        if (statsFrame != Time.frameCount)
+        {
+            frameStats = profiles.Sample(out framePoseMission);
+            statsFrame = Time.frameCount;
+        }
+        values = frameStats;
+        return values != ActionStatValues.Empty || framePoseMission;
+    }
+
     internal (float Progress, float Weight)? ReadIku()
     {
         if (disposed || !IsCurrentPlayer) return null;
+        AdvanceIku();
+        return ikuSnapshot.Phase is ExternalIkuPhase.Waiting or ExternalIkuPhase.Playing
+            ? (ikuSnapshot.Progress, ikuSnapshot.Weight) : null;
+    }
+
+    internal void UpdateIkuSnapshot()
+    {
+        if (profiles == null || ikuFrame == Time.frameCount || (profiles.IkuResource == null && iku == null)) return;
+        ikuFrame = Time.frameCount;
+        AdvanceIku();
+    }
+
+    private void AdvanceIku()
+    {
+        if (disposed || !IsCurrentPlayer) return;
         bool nativeActive = Player.Pca.PlayerState.IsEcstasyMotion;
         if (iku == null)
         {
-            if (!nativeActive) return null;
+            if (!nativeActive) return;
+            ikuSequence++;
             iku = NativeIkuPlayback.TryStart(animator);
             if (iku == null)
             {
+                ikuSnapshot = new(ExternalIkuPhase.Interrupted, ikuSequence, 0f, 0f);
                 driver.EndExternal(this, "native IKU unavailable", true);
-                return null;
+                return;
             }
             Plugin.LogSource.LogInfo("EXTERNAL_ACTION_IKU_BEGIN provider=" + ProviderId);
         }
         var status = iku.Read(animator, nativeActive, out float progress, out float weight);
-        if (status == NativeIkuPlayback.Status.Sampling) return (progress, weight);
+        if (status == NativeIkuPlayback.Status.Sampling)
+        {
+            var phase = weight <= 0f && progress <= 0f ? ExternalIkuPhase.Waiting : ExternalIkuPhase.Playing;
+            ikuSnapshot = new(phase, ikuSequence, progress, weight);
+            return;
+        }
         iku = null;
         if (status == NativeIkuPlayback.Status.Interrupted)
+        {
+            ikuSnapshot = new(ExternalIkuPhase.Interrupted, ikuSequence, progress, 0f);
             driver.EndExternal(this, "native IKU interrupted", true);
+        }
         else
+        {
+            ikuSnapshot = new(ExternalIkuPhase.Completed, ikuSequence, progress, 0f);
             Plugin.LogSource.LogInfo("EXTERNAL_ACTION_IKU_RESUME provider=" + ProviderId);
-        return null;
+        }
     }
 
     internal void Track(Vector3 thirdPersonTarget, Vector3 firstPersonEye)
@@ -112,11 +204,11 @@ internal sealed class ExternalActionSession : IDisposable
     }
 
     internal bool DeferFaceCamera(FaceCameraController camera) =>
-        Plugin.FollowCamera.Value && faceCameraActive && faceCamera.ShouldDefer(camera);
+        Plugin.FollowCamera.Value && Rules.FollowFaceCamera && faceCameraActive && faceCamera.ShouldDefer(camera);
 
     internal void RefreshFaceCamera()
     {
-        if (!Plugin.FollowCamera.Value)
+        if (!Plugin.FollowCamera.Value || !Rules.FollowFaceCamera)
         {
             if (faceCameraActive) faceCamera.End();
             faceCameraActive = false;
@@ -131,6 +223,8 @@ internal sealed class ExternalActionSession : IDisposable
     {
         if (disposed) return;
         disposed = true;
+        if (ikuSnapshot.Phase is ExternalIkuPhase.Waiting or ExternalIkuPhase.Playing)
+            ikuSnapshot = new(ExternalIkuPhase.Interrupted, ikuSequence, ikuSnapshot.Progress, 0f);
         try
         {
             if (notify) interrupted(reason);

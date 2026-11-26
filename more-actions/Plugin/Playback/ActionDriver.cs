@@ -13,7 +13,7 @@ using ExposureUnnoticed2.Master.Action;
 
 namespace SFM.Actions;
 
-public sealed class ActionDriver : MonoBehaviour
+public sealed partial class ActionDriver : MonoBehaviour
 {
     public ActionDriver(IntPtr pointer) : base(pointer) { }
     internal static ActionDriver Current;
@@ -27,8 +27,6 @@ public sealed class ActionDriver : MonoBehaviour
     readonly PlaybackSession session = new();
     readonly ActionFollowCamera followCamera = new();
     readonly NativePlayerParticles playerParticles = new();
-    ExternalActionSession externalAction;
-    bool endingExternalAction;
     int tickFrame = -1;
     internal bool CheckingAvailability;
     int requestRevision;
@@ -88,6 +86,7 @@ public sealed class ActionDriver : MonoBehaviour
     [HideFromIl2Cpp]
     internal bool TryGetStats(PlayerStateModel state, out ActionStatValues values)
     {
+        if (externalAction is { } external) return TryGetExternalStats(external, state, out values);
         values = default;
         if (session.Stopping || !Owns(state) || Owner != PlayerController.Instance || !Owner.gameObject.activeInHierarchy
             || !session.Clock.HasStarted(AudioSettings.dspTime) || session.Clock.Paused || Time.timeScale <= 0 || Time.deltaTime <= 0
@@ -97,6 +96,24 @@ public sealed class ActionDriver : MonoBehaviour
     }
     [HideFromIl2Cpp]
     internal bool TakeStatFrame(ActionStatChannel channel) => session.StatFrames.Take(channel, Time.frameCount);
+
+    [HideFromIl2Cpp]
+    internal PlayerController StatOwner => externalAction?.Player ?? Owner;
+    [HideFromIl2Cpp]
+    internal ActionDefinition StatDefinition => externalAction?.Rules ?? Definition;
+    [HideFromIl2Cpp]
+    internal bool StatPoseMissionActive => externalAction?.PoseMissionActive ?? (Definition?.PoseMission == true);
+
+    [HideFromIl2Cpp]
+    internal void StopForStamina()
+    {
+        if (externalAction is { } external)
+        {
+            if (external.StaminaDepletion == ExternalStaminaDepletion.EndSession)
+                EndExternal(external, "stamina depleted", true);
+        }
+        else StopWithDiagnostics("action stats", "stamina depleted");
+    }
 
     [HideFromIl2Cpp]
     internal PlayerController ParticlePlayer => externalAction != null
@@ -131,23 +148,6 @@ public sealed class ActionDriver : MonoBehaviour
 
     [HideFromIl2Cpp]
     internal void FlushBreathFollow() => playerParticles.FlushBreath();
-
-    [HideFromIl2Cpp]
-    internal float ExternalEcstasyRate(PlayerStateModel state)
-    {
-        var external = externalAction;
-        if (external == null || external.EcstasyRate <= 0 || !external.IsCurrentPlayer || NativeOperationInputBlocked ||
-            Time.deltaTime <= 0 || state?.Pointer != external.Player.Pca?.PlayerState?.Pointer ||
-            state?.CurrentAction?.Type != ActionType.None || (int)state.CurrentState != 0 || state.IsEcstasyMotion)
-            return 0;
-        try { return external.IsExercising ? external.EcstasyRate : 0; }
-        catch (Exception error)
-        {
-            Plugin.LogSource.LogWarning("EXTERNAL_ACTION_ACTIVITY_FAILED " + error);
-            EndExternal(external, "exercise status unavailable", true);
-            return 0;
-        }
-    }
 
     [HideFromIl2Cpp]
     bool PlayerInputBlocked => Time.timeScale <= 0 || InGameUiManager.Instance?.IsOpenSomeCancelInputUi == true
@@ -199,83 +199,6 @@ public sealed class ActionDriver : MonoBehaviour
         // hand/posture/state conditions are already represented above.
         if (allowIku && state.IsEcstasyMotion) return null;
         return CanUseNativeHands(definition, false, skipPlayingAction) ? null : "native hand/action gate";
-    }
-
-    [HideFromIl2Cpp]
-    internal ExternalActionSession TryBeginExternal(string providerId, bool requiresHands, bool requiresStanding,
-        string actionConfigPath, Func<bool> isExercising, bool hasIku, Action<string> interrupted, out string reason)
-    {
-        if (externalAction != null || endingExternalAction || Playing || session.Stopping ||
-            requests.PendingId != null || nativeExit != null)
-        {
-            reason = "action busy";
-            return null;
-        }
-        var player = PlayerController.Instance;
-        if (player == null || player.Pca?.Animator == null || PlayerFacade.Instance == null)
-        {
-            reason = "player unavailable";
-            return null;
-        }
-        if (Time.timeScale <= 0 || InGameUiManager.Instance?.IsOpenFade == true)
-        {
-            reason = "game paused or fading";
-            return null;
-        }
-        var rules = new ActionDefinition { RequiresHands = requiresHands, RequiresStanding = requiresStanding };
-        reason = Reason(rules, player, InGameUiManager.Instance?.IsOpenSomeUi == true);
-        if (reason != null) return null;
-        float ecstasyRate;
-        try { ecstasyRate = ExternalActionApi.ReadEcstasyRate(actionConfigPath); }
-        catch (Exception error)
-        {
-            reason = "invalid action configuration";
-            Plugin.LogSource.LogWarning($"EXTERNAL_ACTION_CONFIG_FAILED provider={providerId} file={actionConfigPath} {error.Message}");
-            return null;
-        }
-        externalAction = new ExternalActionSession(this, player, providerId, rules, ecstasyRate, isExercising, hasIku, interrupted);
-        Plugin.LogSource.LogInfo($"EXTERNAL_ACTION_START provider={providerId} ecstasy={ecstasyRate} iku={hasIku}");
-        return externalAction;
-    }
-
-    [HideFromIl2Cpp]
-    internal void EndExternal(ExternalActionSession external, string reason, bool notify)
-    {
-        if (external == null || !ReferenceEquals(externalAction, external)) return;
-        externalAction = null;
-        playerParticles.Clear();
-        ActionProjectileUpdatePatch.Clear();
-        playerParticles.ReleaseEmitters();
-        endingExternalAction = true;
-        try { external.End(reason, notify); }
-        catch (Exception error) { Plugin.LogSource.LogWarning("EXTERNAL_ACTION_CLEANUP_FAILED " + error); }
-        finally { endingExternalAction = false; }
-        Plugin.LogSource.LogInfo("EXTERNAL_ACTION_STOP provider=" + external.ProviderId + " reason=" + reason);
-    }
-
-    [HideFromIl2Cpp]
-    void UpdateExternal(ExternalActionSession external, bool refreshCamera)
-    {
-        try
-        {
-            string reason = !external.IsCurrentPlayer || PlayerFacade.Instance == null ? "scene/player changed"
-                : Reason(external.Rules, external.Player, false, allowIku: external.AcceptsIku, providerHandlesMovement: true);
-            if (reason != null)
-            {
-                EndExternal(external, reason, true);
-                return;
-            }
-            if (refreshCamera)
-            {
-                if (external.HasPoseThisFrame) playerParticles.AfterPose(ParticlePlayer);
-                if (ReferenceEquals(externalAction, external)) external.RefreshFaceCamera();
-            }
-        }
-        catch (Exception error)
-        {
-            Plugin.LogSource.LogWarning("EXTERNAL_ACTION_UPDATE_FAILED " + error);
-            EndExternal(external, "session update failed", true);
-        }
     }
 
     [HideFromIl2Cpp]

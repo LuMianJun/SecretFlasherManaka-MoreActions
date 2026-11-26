@@ -50,10 +50,9 @@ internal static class NativeActionStats
     {
         var driver = ActionDriver.Current;
         if (driver == null) return null;
-        float baseRate = Active(controller.pca, out var stats) ? stats.EcstasyPerSecond :
-            driver.ExternalEcstasyRate(controller.pca?.PlayerState);
-        if (baseRate <= 0 || !driver.TakeStatFrame(ActionStatChannel.Ecstasy)) return null;
-        float rate=baseRate*(1+GameState.GameStateData.MotionSpeedScaleIndex*0.1f);
+        if (!Active(controller.pca, out var stats) || stats.EcstasyPerSecond <= 0
+            || !driver.TakeStatFrame(ActionStatChannel.Ecstasy)) return null;
+        float rate=stats.EcstasyPerSecond*(1+GameState.GameStateData.MotionSpeedScaleIndex*0.1f);
         if(rate<=0)return null;
         return new EcstasyInput(controller.pca.PlayerState,rate/0.15f);
     }
@@ -75,12 +74,12 @@ internal static class NativeActionStats
     internal static void AfterStamina(StaminaManager stamina)
     {
         var driver=ActionDriver.Current;
-        var accessor=driver?.Owner?.Pca;
+        var accessor=driver?.StatOwner?.Pca;
         if(accessor?.Stamina?.Pointer!=stamina.Pointer||!Active(accessor,out var stats)||stats.StaminaPerSecond<=0
             ||!driver.TakeStatFrame(ActionStatChannel.Stamina))return;
         // ConsumePerSecond owns deltaTime, cooldown and the native empty flash.
         stamina.ConsumePerSecond(stats.StaminaPerSecond);
-        if(stamina.Current<=0)driver.StopWithDiagnostics("action stats","stamina depleted");
+        if(stamina.Current<=0)driver.StopForStamina();
     }
 
     internal static void BeforePee(PlayerPeeController controller)
@@ -108,7 +107,8 @@ internal static class NativeActionStats
     internal static void AfterPoseCondition(ref bool result)
     {
         var driver=ActionDriver.Current;
-        if(result||!Active(driver?.Owner?.Pca,out _)||!driver.Definition.PoseMission)return;
+        if(result||driver?.StatDefinition?.PoseMission!=true||!Active(driver.StatOwner?.Pca,out _)||
+            !driver.StatPoseMissionActive)return;
         if(PlayerFacade.Instance.GetExposedBodyPartsByClothesAndCostume()==ExposedBodyParts.None)return;
         var areas=NpcRouteAreaManager.Instance;
         result=areas==null||areas.IsInArea;

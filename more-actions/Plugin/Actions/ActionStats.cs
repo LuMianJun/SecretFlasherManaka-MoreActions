@@ -5,16 +5,24 @@ using System.Text.Json;
 
 namespace SFM.Actions;
 
-// Nullable values distinguish an omitted preset value from an explicit zero.
+/// <summary>Overrides for action attributes. Null inherits the preset or default; zero is a supplied value.</summary>
 public sealed class ActionStatsDefinition
 {
+    /// <summary>Base arousal added per second. A full gauge is 1. Native multipliers still apply.</summary>
     public float? EcstasyPerSecond { get; set; }
+    /// <summary>Native tension contribution from 0 to 1, before native multipliers.</summary>
     public float? DokidokiAdd { get; set; }
+    /// <summary>Bladder refill queued per second in normalized units. Native absorption controls when it takes effect.</summary>
     public float? MoisturePerSecond { get; set; }
+    /// <summary>Native stamina units consumed per second.</summary>
     public float? StaminaPerSecond { get; set; }
+    /// <summary>Base suspicion added after scaling the native visual exposure contribution.</summary>
     public float? Strange { get; set; }
+    /// <summary>Multiplier for the native visual exposure contribution, before adding <see cref="Strange"/>.</summary>
     public float? StrangenessScale { get; set; }
+    /// <summary>Base discomfort contribution, compared with the native discomfort value.</summary>
     public float? Discomfort { get; set; }
+    /// <summary>Allow the native urination flow when the regular game requirements are met.</summary>
     public bool? CanStartPee { get; set; }
 }
 

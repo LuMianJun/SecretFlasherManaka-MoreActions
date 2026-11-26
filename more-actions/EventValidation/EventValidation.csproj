@@ -14,8 +14,11 @@
     <Compile Include="../Plugin/Native/NativeActionLease.cs" Link="NativeActionLease.cs" />
     <Compile Include="../Plugin/Plugin.cs" Link="Plugin.cs" />
     <Compile Include="../Plugin/Playback/ActionDriver.cs" Link="ActionDriver.cs" />
+    <Compile Include="../Plugin/Playback/ActionDriver.External.cs" Link="ActionDriver.External.cs" />
     <Compile Include="../Plugin/Api/ExternalActionApi.cs" Link="ExternalActionApi.cs" />
+    <Compile Include="../Plugin/Api/ExternalActionOptions.cs" Link="ExternalActionOptions.cs" />
     <Compile Include="../Plugin/Playback/ExternalActionSession.cs" Link="ExternalActionSession.cs" />
+    <Compile Include="../Plugin/Playback/ExternalActionProfiles.cs" Link="ExternalActionProfiles.cs" />
     <Compile Include="../Plugin/Playback/NativeIkuPlayback.cs" Link="NativeIkuPlayback.cs" />
     <Compile Include="../Plugin/Native/NativePlayerParticles.cs" Link="NativePlayerParticles.cs" />
     <Compile Include="../Plugin/Native/ParticleEmitterFollow.cs" Link="ParticleEmitterFollow.cs" />
