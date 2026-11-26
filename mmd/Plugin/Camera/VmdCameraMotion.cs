@@ -12,7 +12,7 @@ internal readonly record struct CameraSample(Vector3 Center, Quaternion Rotation
 // conversion can be checked against known camera fixtures offline.
 internal sealed class VmdCameraMotion
 {
-    internal sealed record Key(uint Frame, Vector3 Center, Quaternion Rotation, float Distance, float Fov, bool Perspective, byte[] Curves);
+    internal sealed record Key(uint Frame, Vector3 Center, Vector3 EulerRadians, float Distance, float Fov, bool Perspective, byte[] Curves);
     readonly Key[] keys;
     internal int KeyCount => keys.Length;
     internal double Duration => keys[^1].Frame / 30d;
@@ -43,12 +43,7 @@ internal sealed class VmdCameraMotion
             byte[] curves = Exact(reader, 24);
             uint fov = reader.ReadUInt32(); byte projection = reader.ReadByte();
             if (fov < 1 || fov >= 180 || projection > 1 || curves.Any(v => v > 127)) throw new InvalidDataException("Invalid VMD camera projection or interpolation");
-            // MMD Euler order XYZ, radians, with negated camera angles. Do not
-            // feed these values into Unity's Euler(), which uses a different order.
-            var rotation = Quaternion.Normalize(Quaternion.CreateFromAxisAngle(Vector3.UnitX, -euler.X)
-                * Quaternion.CreateFromAxisAngle(Vector3.UnitY, -euler.Y)
-                * Quaternion.CreateFromAxisAngle(Vector3.UnitZ, -euler.Z));
-            list[i] = new Key(frame, center, rotation, distance, fov, projection == 0, curves);
+            list[i] = new Key(frame, center, euler, distance, fov, projection == 0, curves);
         }
         // Last record wins at duplicate frames; stable ordering is deliberate.
         return new VmdCameraMotion(list.GroupBy(k => k.Frame).Select(g => g.Last()).OrderBy(k => k.Frame).ToArray());
@@ -80,10 +75,17 @@ internal sealed class VmdCameraMotion
         float t = b.Frame - a.Frame == 1 ? 0 : (float)((frame - a.Frame) / (b.Frame - a.Frame));
         float C(int channel) => Bezier(b.Curves, channel, t);
         static float L(float x, float y, float t) => x + (y - x) * t;
+        // Blend the authored angles before converting to a quaternion. A shortest-arc
+        // blend between quaternions discards the direction and winding of long turns.
+        var rotation = CameraRotation(Vector3.Lerp(a.EulerRadians, b.EulerRadians, C(3)));
         return new CameraSample(new Vector3(L(a.Center.X, b.Center.X, C(0)), L(a.Center.Y, b.Center.Y, C(1)), L(a.Center.Z, b.Center.Z, C(2))),
-            Quaternion.Normalize(Quaternion.Slerp(a.Rotation, b.Rotation, C(3))), L(a.Distance, b.Distance, C(4)), L(a.Fov, b.Fov, C(5)), a.Perspective);
+            rotation, L(a.Distance, b.Distance, C(4)), L(a.Fov, b.Fov, C(5)), a.Perspective);
     }
-    static CameraSample Value(Key key) => new(key.Center, key.Rotation, key.Distance, key.Fov, key.Perspective);
+    static CameraSample Value(Key key) => new(key.Center, CameraRotation(key.EulerRadians), key.Distance, key.Fov, key.Perspective);
+
+    // Compose MMD camera yaw, pitch and roll in that order, with negated radians.
+    static Quaternion CameraRotation(Vector3 radians) =>
+        Quaternion.Normalize(Quaternion.CreateFromYawPitchRoll(-radians.Y, -radians.X, -radians.Z));
 
     internal static float Bezier(byte[] curves, int channel, float x)
     {

@@ -59,6 +59,18 @@ try
     var sideTrack = VmdCameraMotion.Read(Fixture("yaw.vmd", new[] { (0u, -30f, new Vector3(0, 10, 0), new Vector3(0, MathF.PI / 2, 0), 30u, (byte)0) }));
     var side = VmdCameraMotion.ToGame(sideTrack.Sample(0), Vector3.Zero, Quaternion.Identity, .1f, 0);
     Check(Vector3.Distance(side.Position, new Vector3(-3, 1, 0)) < .0001 && Vector3.Distance(Vector3.Transform(Vector3.UnitZ, side.Rotation), Vector3.UnitX) < .0001, "Known 90-degree camera yaw position/forward");
+    var pitchedReverse = VmdCameraMotion.Read(Fixture("yaw-pitch.vmd", new[] { (0u, -30f, new Vector3(0, 10, 0), new Vector3(-MathF.PI / 6, MathF.PI, 0), 30u, (byte)0) }));
+    var reversePose = VmdCameraMotion.ToGame(pitchedReverse.Sample(0), Vector3.Zero, Quaternion.Identity, .1f, 0);
+    Check(Vector3.Distance(reversePose.Position, new Vector3(0, 2.5f, -3 * MathF.Sqrt(3) / 2)) < .0001 &&
+        Vector3.Distance(Vector3.Transform(Vector3.UnitZ, reversePose.Rotation), new Vector3(0, -.5f, MathF.Sqrt(3) / 2)) < .0001,
+        "Yaw turns a pitched orbit without sending the camera below the target");
+    var longTurn = VmdCameraMotion.Read(Fixture("long-turn.vmd", new[]
+    {
+        (0u, -30f, Vector3.Zero, Vector3.Zero, 30u, (byte)0),
+        (30u, -30f, Vector3.Zero, new Vector3(0, -3 * MathF.PI / 2, 0), 30u, (byte)0),
+    }));
+    Check(Vector3.Distance(Vector3.Transform(Vector3.UnitZ, longTurn.Sample(.5).Rotation), new Vector3(1, 0, -1) / MathF.Sqrt(2)) < .0001,
+        "Authored 270-degree turn passes through 135 degrees instead of reversing along a short arc");
     var rollTrack = VmdCameraMotion.Read(Fixture("roll.vmd", new[] { (0u, -30f, new Vector3(0, 10, 0), new Vector3(0, 0, MathF.PI / 2), 30u, (byte)0) }));
     var roll = VmdCameraMotion.ToGame(rollTrack.Sample(0), Vector3.Zero, Quaternion.Identity, .1f, 0);
     Check(Vector3.Distance(Vector3.Transform(Vector3.UnitY, roll.Rotation), -Vector3.UnitX) < .0001, "Camera roll preserves rotated up direction");
