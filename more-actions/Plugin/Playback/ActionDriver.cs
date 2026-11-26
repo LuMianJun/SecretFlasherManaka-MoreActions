@@ -186,12 +186,13 @@ public sealed class ActionDriver : MonoBehaviour
         var game = InGameManager.Instance;
         var temp = game == null ? null : game.TempInGameState;
         bool skipPlayingAction = allowNativeExit && SwitchablePose(state);
+        // The Time Stop skill leaves the player active. Actual gameplay pauses are handled by SyncPause.
         var availability = new ActionAvailability(state?.CurrentAction != null, state != null && (int)state.CurrentState == 0,
             !skipPlayingAction && state?.CurrentAction != null && (int)state.CurrentAction.Type != -1, !allowIku && state != null && state.IsEcstasyMotion,
             state != null && state.IsCrouch, state != null && state.IsSit,
             GameState.GameStateData != null && GameStateFacade.IsAttachSomeHandcuffs(), SexManager.Instance != null && SexManager.Instance.IsSexMode,
             !providerHandlesMovement && !PlayerInputBlocked && InputManager.GetVector3(InputManager.InputType.Move).sqrMagnitude > 0.0001f, uiOpen && !Playing,
-            player == null || !player.gameObject.activeInHierarchy || temp == null || temp.IsGameOver || temp.IsPlayingSomePerformance || temp.IsTimeStop);
+            player == null || !player.gameObject.activeInHierarchy || temp == null || temp.IsGameOver || temp.IsPlayingSomePerformance);
         var reason = ActionPolicy.BlockReason(definition, availability);
         if (reason != null) return reason;
         // The original gate also rejects its own IKU state; all other native
