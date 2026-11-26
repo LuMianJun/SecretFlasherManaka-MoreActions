@@ -32,7 +32,9 @@ $files = @(
     @{source='npc-spectators/README.md';target='BepInEx/plugins/SFMNpcSpectators/README.zh-CN.md'},
     @{source='mmd/README.en.md';target='BepInEx/plugins/SFMVmdProbe/README.en.md'},
     @{source='more-actions/README.en.md';target='BepInEx/plugins/SFMMoreActions/README.en.md'},
-    @{source='npc-spectators/README.en.md';target='BepInEx/plugins/SFMNpcSpectators/README.en.md'}
+    @{source='npc-spectators/README.en.md';target='BepInEx/plugins/SFMNpcSpectators/README.en.md'},
+    @{source='more-actions/API.zh-CN.md';target='BepInEx/plugins/SFMMoreActions/API.zh-CN.md'},
+    @{source='more-actions/API.en.md';target='BepInEx/plugins/SFMMoreActions/API.en.md'}
 )
 foreach ($folder in @('SFMMoreActions','SFMVmdProbe')) {
     foreach ($name in @('动作事件说明.zh-CN.md','原版音效名称.txt')) {
@@ -60,6 +62,8 @@ Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'README.md'),(Join-Path $PSScrip
 foreach ($name in @('README.md','README.en.md')) {
     $readmePath = Join-Path $destination $name
     $readme = [IO.File]::ReadAllText($readmePath).Replace('(mmd/README.zh-CN.md','(BepInEx/plugins/SFMVmdProbe/README.zh-CN.md').Replace('(mmd/README.en.md','(BepInEx/plugins/SFMVmdProbe/README.en.md').Replace('(more-actions/README.zh-CN.md','(BepInEx/plugins/SFMMoreActions/README.zh-CN.md').Replace('(more-actions/README.en.md','(BepInEx/plugins/SFMMoreActions/README.en.md').Replace('(npc-spectators/README.md','(BepInEx/plugins/SFMNpcSpectators/README.zh-CN.md').Replace('(npc-spectators/README.en.md','(BepInEx/plugins/SFMNpcSpectators/README.en.md').Replace('(shared/动作事件说明.zh-CN.md)','(BepInEx/plugins/SFMMoreActions/动作事件说明.zh-CN.md)').Replace('(THIRD_PARTY_NOTICES.md)','(BepInEx/plugins/SFMVmdProbe/THIRD_PARTY_NOTICES.md)').Replace('(VALIDATION.md)','(https://github.com/LuMianJun/SecretFlasherManaka-MoreActions/blob/main/VALIDATION.md)')
+    $readme = $readme.Replace('(more-actions/API.zh-CN.md', '(BepInEx/plugins/SFMMoreActions/API.zh-CN.md').
+        Replace('(more-actions/API.en.md', '(BepInEx/plugins/SFMMoreActions/API.en.md')
     [IO.File]::WriteAllText($readmePath,$readme)
 }
 $files | ForEach-Object {
