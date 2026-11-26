@@ -1,8 +1,8 @@
-# 更多动作使用说明
+# 更多动作配置指南
 
-简体中文 | [English](README.en.md)
+简体中文 | [English](README.en.md) | [外部 API](API.zh-CN.md)
 
-为《Secret Flasher Manaka》提供转盘动作、Unity 动画包导入、原动作替换、音乐、表情叠加、动作事件、属性变化与姿势任务。安装方式与插件组合见[仓库首页](../README.md)。
+用 Unity 动画包可以加转盘动作或替换原版动画。要给动作加音乐、调镜头或改体力消耗，编辑对应动作的 `action.json`。先按[安装说明](../README.md#安装)装好插件，再从下面的快速开始选要做的事。
 
 ## 快速开始
 

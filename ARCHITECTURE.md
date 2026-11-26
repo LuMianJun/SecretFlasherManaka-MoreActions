@@ -19,7 +19,7 @@
 more-actions/Plugin/
 ├─ Plugin.cs             插件入口：配置、服务注册、组件与补丁安装
 ├─ Actions/              动作定义、注册表、规则、属性模型与注册校验
-├─ Api/                  对外的姿势源契约、目标与播放通知
+├─ Api/                  对外动作会话、姿势源契约、目标与播放通知
 ├─ Import/               配置解析、JSON 默认值、动画包与音频准备
 ├─ Playback/             播放协调、会话状态、时钟、事件、走位
 ├─ Rig/                  动画采样、骨骼、表情及原生姿势恢复
@@ -43,6 +43,7 @@ more-actions/Plugin/
 ### 播放与状态归属
 
 - ActionDriver 协调请求等待、原动作退出、播放、取消和原生生命周期。
+- ActionDriver.External 管理外部会话的申请、逐帧更新和结束。外部属性由 ExternalActionProfiles 校验和采样，ExternalActionSession 保存会话、镜头与 IKU 状态。
 - PlaybackSession 集中保存当前动作、姿势、音源、时钟、事件、属性、走位及播放修订号。
 - 会话容器在同一驱动器内持续存在；切换动作不会重置事件修订号或按帧去重记录。
 - ActionRequestQueue 和退出原动作的等待状态由驱动器管理，不混入姿势或媒体资源。

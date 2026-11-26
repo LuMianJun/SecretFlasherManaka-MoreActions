@@ -1,8 +1,8 @@
-# More Actions manual
+# More Actions configuration guide
 
-[简体中文](README.zh-CN.md) | English
+[简体中文](README.zh-CN.md) | English | [External API](API.en.md)
 
-Adds radial-menu actions, Unity animation bundle import, native animation replacements, music, expression overlays, action events, attribute changes, and pose-mission support to **Secret Flasher Manaka**. See the [repository home](../README.en.md) for installation and plugin combinations.
+Use Unity animation bundles to add radial-menu actions or replace native animations. Edit an action's `action.json` to add music or adjust its camera and stamina effects. Follow the [installation guide](../README.en.md#installation), then pick what you want to do from the quick start below.
 
 ## Quick start
 

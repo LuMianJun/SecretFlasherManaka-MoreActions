@@ -4,6 +4,9 @@
 
 为《Secret Flasher Manaka》提供自定义动作、Unity 动画包导入、MMD 播放和可选的 NPC 围观，适用于 **BepInEx 6 IL2CPP**。
 
+- **加动作、换动画或改效果**，看[配置指南](more-actions/README.zh-CN.md)。
+- **让自己写的模组接入更多动作**，看[外部 API 指南](more-actions/API.zh-CN.md)。
+
 ## 插件组成
 
 | 插件 | 当前版本 | 用途 |
@@ -89,7 +92,6 @@ NPC 围观在 **设置 → 游戏系统** 中开启并选择触发方式。NPC �
 
 各 Mod 的功能、参数含义、默认值和完整示例见：
 
-- [更多动作说明](more-actions/README.zh-CN.md)：Unity 动画包、替换管理、精简 JSON、全部动作字段及属性参数。
 - [MMD 说明](mmd/README.zh-CN.md)：VMD、音乐、配套镜头、参考姿势、表情及属性配置。
 - [NPC 围观说明](npc-spectators/README.md)：触发方式、配置默认值、围观范围与解散条件。
 - [动作事件说明](shared/动作事件说明.zh-CN.md)：音效、脚步及围观事件。

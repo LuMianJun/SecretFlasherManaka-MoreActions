@@ -4,6 +4,9 @@
 
 Custom actions, Unity animation bundle import, MMD playback, and optional NPC spectators for **Secret Flasher Manaka**, using **BepInEx 6 IL2CPP**.
 
+- To **add actions, replace animations, or change their effects**, see the [configuration guide](more-actions/README.en.md).
+- To **connect your own mod to More Actions**, see the [external API guide](more-actions/API.en.md).
+
 ## Plugins
 
 | Plugin | Version | Purpose |
@@ -89,7 +92,6 @@ Import resources directly to use the defaults. To customize names, playback, att
 
 For features, field meanings, defaults, and complete examples, see:
 
-- [More Actions manual](more-actions/README.en.md): Unity bundles, replacement management, minimal JSON, all action fields, and attribute settings.
 - [MMD manual](mmd/README.en.md): VMD, music, supplied cameras, reference poses, expressions, and attributes.
 - [NPC Spectators manual](npc-spectators/README.en.md): triggers, configuration defaults, gathering rules, and dismissal.
 - [Action events reference — Chinese](shared/动作事件说明.zh-CN.md): sound effects, footsteps, and spectator events.

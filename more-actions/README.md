@@ -18,5 +18,6 @@
 ## 高级使用
 
 - [高级使用](README.zh-CN.md#高级使用)：JSON 字段、默认值和完整配置示例。
+- [外部 API 指南](API.zh-CN.md)供其他模组注册动作、订阅播放事件或申请外部动作会话。
 - 音效、脚步及围观事件：[动作事件说明](../shared/动作事件说明.zh-CN.md)。
 - 开源参考与许可：[THIRD_PARTY_NOTICES](../THIRD_PARTY_NOTICES.md)。
