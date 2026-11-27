@@ -8,3 +8,9 @@
 
 - `perf: 优先异步加载 WAV 以减轻配乐预载卡顿`
 - `fix: 修复切换动作替换时镜头高度累加`
+
+## 文档同步
+
+- 改动玩法、配置字段或默认值时，更新对应的中英文 README。
+- 改动外部 API 的调用方式、参数或生效时机时，更新 `more-actions/API.zh-CN.md` 和 `more-actions/API.en.md`。涉及一帧内的执行顺序时，同时更新 `more-actions/PLAYBACK-FLOW.zh-CN.md`。
+- 以最近一次公开发布包为准，保留其中的对外接口。尚未发布的接口可以调整，文档要注明其适用版本。
