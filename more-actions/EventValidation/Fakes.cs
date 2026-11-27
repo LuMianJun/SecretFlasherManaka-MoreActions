@@ -43,8 +43,8 @@ namespace HarmonyLib
 {
     [AttributeUsage(AttributeTargets.Class)] public sealed class HarmonyPatch(Type owner, string method) : Attribute {}
     [AttributeUsage(AttributeTargets.Class)] public sealed class HarmonyAfter(params string[] owners) : Attribute {}
-    [AttributeUsage(AttributeTargets.Class)] public sealed class HarmonyPriority(int value) : Attribute {}
-    public static class Priority { public const int Last = 0; }
+    [AttributeUsage(AttributeTargets.Class | AttributeTargets.Method)] public sealed class HarmonyPriority(int value) : Attribute {}
+    public static class Priority { public const int First = 800, Last = 0; }
     public sealed class Harmony(string id) { public void PatchAll(System.Reflection.Assembly assembly) {} }
 }
 namespace UnityEngine

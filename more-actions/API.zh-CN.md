@@ -1,6 +1,6 @@
 # 更多动作外部 API
 
-简体中文 | [English](API.en.md) | [配置指南](README.zh-CN.md)
+简体中文 | [English](API.en.md) | [配置指南](README.zh-CN.md) | [播放流程与时序](PLAYBACK-FLOW.zh-CN.md)
 
 先看谁来控制角色。像自行车这样，由自己的代码控制移动、车和骑行姿势，就用 [`TryBeginAction`](#让其他模组驱动动作) 申请会话。想让更多动作播放你提供的动画，就用 [`ActionRegistry`](#注册动作并接入播放) 注册，再用 `ActionPlaybackApi` 播放。
 
@@ -52,7 +52,7 @@ if (session == null) return;
 ## 版本说明
 
 - **已发布的 1.7.0** 提供上面示例中的 `TryBeginAction`。外部会话可读取 `ecstasyPerSecond`，也可以用 `nativeKind` 取得预设速率。
-- **1.7.1 开发源码**提供两个 `TryBeginAction` 重载。旧重载继续支持已有调用和开发版的属性配置。新重载接收 `ExternalActionOptions` 和 `ExternalActionProfile[]`，已从本机预览合入源码，待发版。自行车用它在一次骑行里分别管理踩踏和座椅使用的属性。
+- **1.7.1** 保留旧重载，并新增接收 `ExternalActionOptions` 和 `ExternalActionProfile[]` 的重载。调用新重载的模组应将最低依赖版本设为 `1.7.1`。自行车用它在一次骑行里分别管理踩踏和座椅使用的属性。
 
 ### 1.7.1 分组会话参数速查
 
@@ -87,5 +87,6 @@ if (session == null) return;
 - `IsActive` 查询会话是否仍对当前玩家、动画器和场景有效。
 - `TrySetProfiles(profiles, out reason)` 传入完整的新列表，包括要保留的组。校验失败时继续用原列表。原版 IKU 进行中需保留对应资源。
 - `ReportPose(thirdPersonTarget, firstPersonEye)` 在写完姿势和 IK 后上报两个世界坐标。
-- `Iku` 提供最新的阶段、序号、进度和混合权重，读取时不会推进播放。
+- `Iku` 提供最新的阶段、序号、进度和混合权重，读取时不会推进播放。快照由更多动作在玩家 `OnLateUpdate` 的高优先级后置补丁中更新。调用方在该补丁之后读取，再写回姿势。
+- `IkuSampleFrame` 记录生成这份快照时的游戏帧号。首次采样前为 `-1`，可用它核对采样和写回是否同帧。
 - `Dispose()` 用于正常结束。调用方先恢复自己的姿势、输入和道具。

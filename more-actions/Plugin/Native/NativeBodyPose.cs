@@ -13,6 +13,14 @@ static class NativeBodyPassPatch
 {
     static void Prefix(PlayerController __instance, out IActionBodyPose __state)
         => __state=ActionDriver.Current?.BeginNativeBody(__instance);
+
+    [HarmonyPriority(Priority.First)]
+    static void Postfix(PlayerController __instance, bool __runOriginal)
+    {
+        // Publish the native sample before external providers write their pose in later postfixes.
+        if (__runOriginal) ActionDriver.Current?.UpdateExternalIkuSnapshot(__instance);
+    }
+
     static Exception Finalizer(Exception __exception, IActionBodyPose __state)
     { __state?.EndNativeBody(__exception==null); return __exception; }
 }

@@ -99,6 +99,19 @@ public sealed partial class ActionDriver
     }
 
     [HideFromIl2Cpp]
+    internal void UpdateExternalIkuSnapshot(PlayerController player)
+    {
+        var external = externalAction;
+        if (external == null || external.Player != player) return;
+        try { external.UpdateIkuSnapshot(); }
+        catch (Exception error)
+        {
+            Plugin.LogSource.LogWarning("EXTERNAL_ACTION_IKU_UPDATE_FAILED " + error);
+            EndExternal(external, "native IKU update failed", true);
+        }
+    }
+
+    [HideFromIl2Cpp]
     void UpdateExternal(ExternalActionSession external, bool refreshCamera)
     {
         try
@@ -112,7 +125,6 @@ public sealed partial class ActionDriver
             }
             if (refreshCamera)
             {
-                external.UpdateIkuSnapshot();
                 if (!ReferenceEquals(externalAction, external)) return;
                 if (external.HasPoseThisFrame) playerParticles.AfterPose(ParticlePlayer);
                 if (ReferenceEquals(externalAction, external)) external.RefreshFaceCamera();

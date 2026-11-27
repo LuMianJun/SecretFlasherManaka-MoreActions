@@ -73,6 +73,7 @@ internal sealed class ExternalActionSession : IExternalActionSession
 
     public bool IsActive => !disposed && IsCurrentPlayer;
     public ExternalIkuFrame Iku => ikuSnapshot;
+    public int IkuSampleFrame { get; private set; } = -1;
 
     public bool TrySetProfiles(ExternalActionProfile[] replacement, out string reason)
     {
@@ -134,9 +135,10 @@ internal sealed class ExternalActionSession : IExternalActionSession
     {
         if (disposed || !IsCurrentPlayer) return;
         bool nativeActive = Player.Pca.PlayerState.IsEcstasyMotion;
+        if (iku == null && !nativeActive) return;
+        IkuSampleFrame = Time.frameCount;
         if (iku == null)
         {
-            if (!nativeActive) return;
             ikuSequence++;
             iku = NativeIkuPlayback.TryStart(animator);
             if (iku == null)
@@ -224,7 +226,10 @@ internal sealed class ExternalActionSession : IExternalActionSession
         if (disposed) return;
         disposed = true;
         if (ikuSnapshot.Phase is ExternalIkuPhase.Waiting or ExternalIkuPhase.Playing)
+        {
             ikuSnapshot = new(ExternalIkuPhase.Interrupted, ikuSequence, ikuSnapshot.Progress, 0f);
+            IkuSampleFrame = Time.frameCount;
+        }
         try
         {
             if (notify) interrupted(reason);

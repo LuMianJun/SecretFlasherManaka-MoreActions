@@ -52,7 +52,7 @@ If your mod supplies a dedicated IKU animation, set `hasIku: true` and retain `r
 ## Version support
 
 - **Released 1.7.0** provides the `TryBeginAction` signature shown above. External sessions read the arousal rate from `ecstasyPerSecond` or the `nativeKind` preset.
-- **The 1.7.1 development source** provides two `TryBeginAction` overloads. The original overload continues to support existing callers and the attribute settings already available in development builds. The overload taking `ExternalActionOptions` and `ExternalActionProfile[]` has moved from the local preview into the source tree and awaits release. The bicycle uses it to manage pedaling and saddle-use effects within one ride session.
+- **1.7.1** retains the original overload and adds one that takes `ExternalActionOptions` and `ExternalActionProfile[]`. Mods that call the new overload should set their minimum dependency version to `1.7.1`. The bicycle uses it to manage pedaling and saddle-use effects within one ride session.
 
 ### 1.7.1 grouped session parameters
 
@@ -87,5 +87,6 @@ For example, the bicycle's pedaling profile uses `Bicycle`, `Stamina`, and a ped
 - `IsActive` checks whether the session is still valid for the current player, animator, and scene.
 - `TrySetProfiles(profiles, out reason)` takes the full replacement list, including profiles you want to keep. A failed update leaves the previous list active. Retain the current IKU resource while native IKU is in progress.
 - `ReportPose(thirdPersonTarget, firstPersonEye)` reports both world-space positions after writing the pose and IK.
-- `Iku` reports the latest phase, sequence, progress, and blend weight. Reading it does not advance playback.
+- `Iku` reports the latest phase, sequence, progress, and blend weight. More Actions publishes the snapshot in a high-priority postfix on the player's `OnLateUpdate`. Read it in a later pose writer. Reading it does not advance playback.
+- `IkuSampleFrame` reports the game frame that produced the current snapshot. It is `-1` before the first sample. Use it to check whether sampling and pose writeback occur in the same frame.
 - `Dispose()` normally ends the session after the caller restores its pose, input and props.

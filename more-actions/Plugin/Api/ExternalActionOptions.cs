@@ -98,8 +98,11 @@ public interface IExternalActionSession : IDisposable
 {
     /// <summary>Whether the lease is still valid for the current player, animator and scene.</summary>
     bool IsActive { get; }
-    /// <summary>The latest native IKU sample. Reading it does not advance playback.</summary>
+    /// <summary>The latest native IKU sample, published after the player's native late update and before later pose writers.</summary>
+    /// <remarks>Reading this property does not advance playback.</remarks>
     ExternalIkuFrame Iku { get; }
+    /// <summary>The game frame that produced the current IKU sample, or -1 before the first sample.</summary>
+    int IkuSampleFrame { get; }
     /// <summary>Replace the full set of profiles within the current player lease.</summary>
     /// <remarks>Keep the native IKU resource in the set while that IKU is in progress.</remarks>
     /// <param name="profiles">The complete new set. Include profiles you want to keep.</param>
