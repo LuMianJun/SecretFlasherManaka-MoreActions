@@ -273,6 +273,8 @@ Put camera settings inside a `"camera": { ... }` object. Specify changed fields 
 
 Camera position and distance use a fixed conversion, defaulting to 0.08 game units per MMD unit. If character height or leg length changes, adjust `camera.scale` and `camera.heightOffset` manually as needed.
 
+Starting with MMD 1.5.3, the supplied camera interpolates the angles recorded in the VMD, preserving the direction and number of turns.
+
 For example, start the camera half a second later and raise it slightly:
 
 ```json

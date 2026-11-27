@@ -9,6 +9,7 @@ Use Unity animation bundles to add radial-menu actions or replace native animati
 ### What you can do
 
 - Import Unity animation bundles, play new actions from the native radial menu, and save an action to each number-key slot.
+- Play custom actions from the radial menu while the game's Time Stop skill is active.
 - Apply replacement packs in bulk or choose a separate source for each native animation.
 - Adjust music, expression overlays, and camera options in game. Install MMD to play VMD motions.
 

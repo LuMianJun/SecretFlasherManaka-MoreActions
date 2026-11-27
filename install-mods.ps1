@@ -16,6 +16,7 @@ foreach ($folder in @('SFMMoreActions','SFMVmdProbe')) {
 $allowed += @('BepInEx/plugins/SFMMoreActions/README.zh-CN.md','BepInEx/plugins/SFMNpcSpectators/README.zh-CN.md')
 $allowed += @('BepInEx/plugins/SFMMoreActions/README.en.md','BepInEx/plugins/SFMVmdProbe/README.en.md','BepInEx/plugins/SFMNpcSpectators/README.en.md')
 $allowed += @('BepInEx/plugins/SFMMoreActions/API.zh-CN.md','BepInEx/plugins/SFMMoreActions/API.en.md')
+$allowed += 'BepInEx/plugins/SFMMoreActions/PLAYBACK-FLOW.zh-CN.md'
 if (@($manifest.file | Sort-Object -Unique).Count -ne $manifest.Count) { throw 'Duplicate package target.' }
 foreach ($name in $required) { if ($name -notin $manifest.file) { throw "Missing required file: $name" } }
 $backupRoot = Join-Path $gameRoot ('BepInEx/unified-vmd-backups/' + [DateTime]::Now.ToString('yyyyMMdd-HHmmss-fff'))
@@ -144,5 +145,5 @@ try {
     }
     throw $failure
 }
-Write-Output "Installed SFM More Actions 1.7.1, MMD 1.5.2, NPC Spectators 1.0.1. Backup: $backupRoot"
+Write-Output "Installed SFM More Actions 1.7.1, MMD 1.5.3, NPC Spectators 1.0.1. Backup: $backupRoot"
 Write-Output ("Migrated user files: " + $created.Count + "; retired legacy DLLs: " + $retired.Count)

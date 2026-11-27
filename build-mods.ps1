@@ -1,6 +1,6 @@
 param(
     [Parameter(Mandatory=$true)][string]$GameDir,
-    [string]$OutputDir = (Join-Path $PSScriptRoot 'releases/SFM-MoreActions-v1.9.0'),
+    [string]$OutputDir = (Join-Path $PSScriptRoot 'releases/SFM-MoreActions-v1.10.0'),
     [string]$MmdGroundContactPlans
 )
 $ErrorActionPreference = 'Stop'
@@ -34,7 +34,8 @@ $files = @(
     @{source='more-actions/README.en.md';target='BepInEx/plugins/SFMMoreActions/README.en.md'},
     @{source='npc-spectators/README.en.md';target='BepInEx/plugins/SFMNpcSpectators/README.en.md'},
     @{source='more-actions/API.zh-CN.md';target='BepInEx/plugins/SFMMoreActions/API.zh-CN.md'},
-    @{source='more-actions/API.en.md';target='BepInEx/plugins/SFMMoreActions/API.en.md'}
+    @{source='more-actions/API.en.md';target='BepInEx/plugins/SFMMoreActions/API.en.md'},
+    @{source='more-actions/PLAYBACK-FLOW.zh-CN.md';target='BepInEx/plugins/SFMMoreActions/PLAYBACK-FLOW.zh-CN.md'}
 )
 foreach ($folder in @('SFMMoreActions','SFMVmdProbe')) {
     foreach ($name in @('动作事件说明.zh-CN.md','原版音效名称.txt')) {

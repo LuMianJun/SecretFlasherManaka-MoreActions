@@ -1,6 +1,6 @@
 # UnityVMDPlayer 功能对照
 
-本文对应 MMD 插件 1.5.2。标准身体解算源自 [hobosore/UnityVMDPlayer `2cee8abd56c68ad3e88bcf4086e33185aa5ca4e8`](https://github.com/hobosore/UnityVMDPlayer/tree/2cee8abd56c68ad3e88bcf4086e33185aa5ca4e8) 的 Player、Reader 和 QuaternionExtensions，固定来源与文件校验记录见 `Plugin/Upstream/upstream-source.json`。
+本文对应 MMD 插件 1.5.3。标准身体解算源自 [hobosore/UnityVMDPlayer `2cee8abd56c68ad3e88bcf4086e33185aa5ca4e8`](https://github.com/hobosore/UnityVMDPlayer/tree/2cee8abd56c68ad3e88bcf4086e33185aa5ca4e8) 的 Player、Reader 和 QuaternionExtensions，固定来源与文件校验记录见 `Plugin/Upstream/upstream-source.json`。
 
 未注入游戏控制层的路径与固定上游进行同输入差分。实际游戏路径使用独立的中心、槽、腰及上下半身，补充足部朝向换算、显式零位移关键帧和跨帧 IK 开关。隐藏参考骨架、原生姿势租约、表情、音乐、镜头及走位由游戏适配层负责。
 
